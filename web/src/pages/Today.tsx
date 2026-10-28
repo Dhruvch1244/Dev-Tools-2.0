@@ -1,0 +1,232 @@
+import { useEffect, useState } from 'react';
+import { Link } from 'react-router';
+import { AnimatePresence, motion } from 'motion/react';
+import { ArrowRight, CheckCircle2, Droplets, Flame, ListTodo, Repeat, Send, Wallet } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { api, useList, useResource, useSettings } from '../lib/api';
+import { bouncy, easeOut } from '../lib/motion';
+import { daysBetween, greeting, monthKey, monthRange, money, relativeDay, timeAgo, today } from '../lib/format';
+import type { Budget, Drop, Expense, Subscription, Task } from '../lib/types';
+import { AnimatedNumber, Card, Page, ProgressRing, Rise, SectionTitle, cx } from '../components/ui';
+import { TaskRow, useTaskToggle } from './Tasks';
+import { useHabits, useHealthToday } from './Life';
+
+function Headline({ name }: { name?: string }) {
+  const text = `${greeting()}${name ? `, ${name}` : ''}.`;
+  return (
+    <h1 className="font-display text-[clamp(2.4rem,7vw,4.5rem)] font-semibold leading-[0.95] tracking-tight" aria-label={text}>
+      {text.split(' ').map((word, wi, words) => (
+        <span key={wi} className="inline-block whitespace-nowrap" aria-hidden>
+          {[...word].map((ch, ci) => (
+            <motion.span
+              key={ci}
+              className={cx('inline-block', wi === words.length - 1 && name && 'text-gradient')}
+              initial={{ opacity: 0, y: '0.5em', rotateX: -70, filter: 'blur(8px)' }}
+              animate={{ opacity: 1, y: 0, rotateX: 0, filter: 'blur(0px)' }}
+              transition={{ duration: 0.7, ease: easeOut, delay: 0.15 + (words.slice(0, wi).join(' ').length + ci) * 0.025 }}
+            >
+              {ch}
+            </motion.span>
+          ))}
+          {wi < words.length - 1 && ' '}
+        </span>
+      ))}
+    </h1>
+  );
+}
+
+function Clock() {
+  const [now, setNow] = useState(new Date());
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(id);
+  }, []);
+  const hm = now.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+  return (
+    <p className="mt-3 flex flex-wrap items-center gap-x-3 text-ink-2">
+      <span>{now.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })}</span>
+      <span className="size-1 rounded-full bg-ink-3" />
+      <span className="font-mono tabular-nums">
+        {hm.split('').map((c, i) => (
+          <AnimatePresence key={i} mode="popLayout" initial={false}>
+            <motion.span key={c} className="inline-block" initial={{ y: -10, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 10, opacity: 0 }} transition={bouncy}>
+              {c}
+            </motion.span>
+          </AnimatePresence>
+        ))}
+      </span>
+    </p>
+  );
+}
+
+function Stat({ to, icon, label, children, sub, ring, color }: { to: string; icon: React.ReactNode; label: string; children: React.ReactNode; sub?: string; ring?: number; color?: string }) {
+  return (
+    <Card className="!p-0">
+      <Link to={to} className="group flex h-full items-center gap-4 p-5">
+        {ring !== undefined ? (
+          <ProgressRing value={ring} color={color}>
+            <span style={{ color }}>{icon}</span>
+          </ProgressRing>
+        ) : (
+          <div className="grid size-11 place-items-center rounded-2xl bg-accent-soft" style={{ color }}>
+            {icon}
+          </div>
+        )}
+        <div className="min-w-0 flex-1">
+          <p className="text-xs font-medium text-ink-3">{label}</p>
+          <p className="truncate font-display text-2xl font-semibold tracking-tight">{children}</p>
+          {sub && <p className="truncate text-xs text-ink-3">{sub}</p>}
+        </div>
+        <ArrowRight className="size-4 -translate-x-1 text-ink-3 opacity-0 transition group-hover:translate-x-0 group-hover:opacity-100" />
+      </Link>
+    </Card>
+  );
+}
+
+export function TodayPage() {
+  const { settings } = useSettings();
+  const currency = settings.currency ?? 'INR';
+  const t = today();
+  const { data: tasks = [] } = useList<Task>('tasks');
+  const { remove } = useResource<Task>('tasks');
+  const { isDone, toggle } = useTaskToggle();
+  const { data: expenses = [] } = useList<Expense>('expenses', monthRange(monthKey(t)));
+  const { data: budgets = [] } = useList<Budget>('budgets');
+  const { data: subs = [] } = useList<Subscription>('subscriptions');
+  const { data: drops = [] } = useQuery({ queryKey: ['drops'], queryFn: () => api<Drop[]>('/drops') });
+  const { habits, isDone: habitDone, toggle: toggleHabit, streak } = useHabits();
+  const health = useHealthToday();
+
+  const dueToday = tasks.filter((x) => !x.done && x.due && x.due.slice(0, 10) <= t);
+  const doneToday = tasks.filter((x) => x.done && x.done_at && x.done_at.slice(0, 10) === t).length;
+  const spent = expenses.filter((e) => e.kind === 'expense').reduce((a, e) => a + e.amount, 0);
+  const spentToday = expenses.filter((e) => e.kind === 'expense' && e.date === t).reduce((a, e) => a + e.amount, 0);
+  const budgetTotal = budgets.reduce((a, b) => a + b.amount, 0);
+  const budgeted = expenses.filter((e) => e.kind === 'expense' && budgets.some((b) => b.category === e.category)).reduce((a, e) => a + e.amount, 0);
+  const habitsDone = habits.filter((h) => habitDone(h.id, t)).length;
+  const water = health.get('water') ?? 0;
+  const waterGoal = settings.waterGoal ?? 8;
+  const upcoming = subs.filter((s) => daysBetween(t, s.next_date) <= 7);
+  const best = habits.reduce((m, h) => Math.max(m, streak(h.id)), 0);
+
+  return (
+    <Page>
+      <Rise className="mb-8 sm:mb-10">
+        <Headline name={settings.name} />
+        <Clock />
+      </Rise>
+
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <Stat to="/tasks" icon={<ListTodo className="size-5" />} label="Due today" ring={dueToday.length + doneToday ? doneToday / (dueToday.length + doneToday) : 0} color="var(--accent)" sub={`${doneToday} done today`}>
+          <AnimatedNumber value={dueToday.length} /> left
+        </Stat>
+        <Stat
+          to="/money"
+          icon={<Wallet className="size-5" />}
+          label="Spent this month"
+          ring={budgetTotal ? budgeted / budgetTotal : undefined}
+          color={budgetTotal && budgeted > budgetTotal ? 'var(--danger)' : 'var(--pink)'}
+          sub={`${money(spentToday, currency)} today${budgetTotal ? ` · ${Math.round((budgeted / budgetTotal) * 100)}% of budgets` : ''}`}
+        >
+          <AnimatedNumber value={spent} format={(n) => money(n, currency, true)} />
+        </Stat>
+        <Stat to="/life" icon={<Flame className="size-5" />} label="Habits" ring={habits.length ? habitsDone / habits.length : 0} color="var(--amber)" sub={best ? `Best streak ${best} days` : 'Build a streak'}>
+          <AnimatedNumber value={habitsDone} />/{habits.length}
+        </Stat>
+        <Stat to="/life" icon={<Droplets className="size-5" />} label="Water" ring={water / waterGoal} color="#5cb8ff" sub={water >= waterGoal ? 'Goal reached 🎉' : `${waterGoal - water} more to go`}>
+          <AnimatedNumber value={water} /> glasses
+        </Stat>
+      </div>
+
+      <div className="mt-4 grid gap-4 lg:grid-cols-5">
+        <Card className="lg:col-span-3">
+          <SectionTitle action={<Link to="/tasks" className="text-xs font-medium text-accent hover:underline">All tasks</Link>}>On your plate</SectionTitle>
+          <ul className="space-y-2">
+            <AnimatePresence initial={false}>
+              {dueToday.map((task) => (
+                <TaskRow key={task.id} task={task} done={isDone(task)} onToggle={() => toggle(task)} onDelete={() => remove(task.id)} />
+              ))}
+            </AnimatePresence>
+          </ul>
+          {dueToday.length === 0 && (
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="flex items-center gap-3 rounded-2xl bg-good/10 px-4 py-4 text-sm text-good">
+              <CheckCircle2 className="size-5" /> Nothing due. You're all caught up.
+            </motion.div>
+          )}
+        </Card>
+
+        <div className="space-y-4 lg:col-span-2">
+          <Card>
+            <SectionTitle>Today's habits</SectionTitle>
+            {habits.length === 0 ? (
+              <Link to="/life" className="text-sm text-accent hover:underline">
+                Add your first habit →
+              </Link>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {habits.map((h) => {
+                  const on = habitDone(h.id, t);
+                  return (
+                    <motion.button
+                      key={h.id}
+                      onClick={() => toggleHabit(h.id, t)}
+                      whileTap={{ scale: 0.9 }}
+                      transition={bouncy}
+                      aria-pressed={on}
+                      className={cx('relative inline-flex h-10 items-center gap-2 overflow-hidden rounded-full border px-4 text-sm font-medium transition-colors', on ? 'border-transparent text-white' : 'border-line bg-surface text-ink-2')}
+                    >
+                      <motion.span initial={false} animate={{ scale: on ? 1 : 0 }} transition={{ type: 'spring', stiffness: 300, damping: 24 }} className="absolute inset-0 origin-left rounded-full" style={{ background: h.color ?? 'var(--accent)' }} />
+                      <span className="relative">{h.emoji}</span>
+                      <span className="relative">{h.name}</span>
+                    </motion.button>
+                  );
+                })}
+              </div>
+            )}
+          </Card>
+
+          {upcoming.length > 0 && (
+            <Card>
+              <SectionTitle>
+                <span className="flex items-center gap-2">
+                  <Repeat className="size-4 text-accent" /> Renewing soon
+                </span>
+              </SectionTitle>
+              <ul className="space-y-2 text-sm">
+                {upcoming.map((s) => (
+                  <li key={s.id} className="flex justify-between">
+                    <span>{s.name}</span>
+                    <span className={cx('tabular-nums', s.next_date < t ? 'text-danger' : 'text-ink-2')}>
+                      {money(s.amount, currency)} · {relativeDay(s.next_date)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </Card>
+          )}
+
+          <Card>
+            <SectionTitle action={<Link to="/drop" className="text-xs font-medium text-accent hover:underline">Open Drop</Link>}>
+              <span className="flex items-center gap-2">
+                <Send className="size-4 text-accent" /> Latest drops
+              </span>
+            </SectionTitle>
+            {drops.length === 0 ? (
+              <p className="text-sm text-ink-3">Send text or files between phone and laptop.</p>
+            ) : (
+              <ul className="space-y-2">
+                {drops.slice(0, 3).map((d) => (
+                  <li key={d.id} className="flex items-center justify-between gap-3 rounded-xl bg-surface px-3 py-2 text-sm">
+                    <span className="truncate">{d.kind === 'text' ? d.text : `📎 ${d.filename}`}</span>
+                    <span className="shrink-0 text-xs text-ink-3">{timeAgo(d.created_at)}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Card>
+        </div>
+      </div>
+      <p className="mt-10 text-center text-xs text-ink-3 max-lg:hidden">Tip: press ⌘K / Ctrl+K anywhere to add something.</p>
+    </Page>
+  );
+}
