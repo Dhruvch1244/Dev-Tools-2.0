@@ -1,0 +1,107 @@
+// Pure gym logic — no React/DOM imports (dsgn pillar #1), so it can be unit-tested headless.
+
+export type DayType = 'push' | 'pull' | 'legs' | 'upper' | 'lower' | 'rest';
+
+/** The 7-day split, in order. Two rest days per lap. */
+export const CYCLE: DayType[] = ['push', 'pull', 'legs', 'rest', 'upper', 'lower', 'rest'];
+
+/**
+ * Anchor: Wed 2026-10-28 was Legs (cycle index 2) — confirmed by the user.
+ * Skipped/extra days are handled by a stored `shift` (days), never by rewriting history:
+ * past workouts keep the day type they were logged as.
+ */
+export const ANCHOR = { date: '2026-10-28', index: 2 };
+
+export const DAY_META: Record<DayType, { label: string; short: string; focus: string; color: string }> = {
+  push: { label: 'Push', short: 'PSH', focus: 'Chest · Shoulders · Triceps', color: '#e10600' },
+  pull: { label: 'Pull', short: 'PUL', focus: 'Back · Rear delts · Biceps', color: '#4fb3ff' },
+  legs: { label: 'Legs', short: 'LEG', focus: 'Quads · Hamstrings · Glutes · Calves', color: '#ffd23f' },
+  upper: { label: 'Upper', short: 'UPR', focus: 'Chest · Back · Shoulders · Arms', color: '#b26bff' },
+  lower: { label: 'Lower', short: 'LWR', focus: 'Posterior chain · Quads · Core', color: '#2bd46b' },
+  rest: { label: 'Rest', short: 'BOX', focus: 'Pit stop — recover, walk, stretch', color: '#6a7080' },
+};
+
+const dayNum = (iso: string) => {
+  const [y, m, d] = iso.split('-').map(Number);
+  return Math.round(Date.UTC(y, m - 1, d) / 86_400_000);
+};
+const mod = (n: number, m: number) => ((n % m) + m) % m;
+
+export function cycleIndex(date: string, shift = 0) {
+  return mod(ANCHOR.index + dayNum(date) - dayNum(ANCHOR.date) - shift, CYCLE.length);
+}
+export const dayTypeOn = (date: string, shift = 0) => CYCLE[cycleIndex(date, shift)];
+
+export type Exercise = { name: string; sets: number; reps: string };
+
+/** Starting templates; the user edits these per day type (stored as an overlay in settings). */
+export const DEFAULT_TEMPLATES: Record<Exclude<DayType, 'rest'>, Exercise[]> = {
+  push: [
+    { name: 'Barbell Bench Press', sets: 4, reps: '6-8' },
+    { name: 'Overhead Press', sets: 3, reps: '6-8' },
+    { name: 'Incline Dumbbell Press', sets: 3, reps: '8-10' },
+    { name: 'Cable Lateral Raise', sets: 4, reps: '12-15' },
+    { name: 'Triceps Pushdown', sets: 3, reps: '10-12' },
+    { name: 'Overhead Triceps Extension', sets: 3, reps: '10-12' },
+  ],
+  pull: [
+    { name: 'Barbell Row', sets: 4, reps: '6-8' },
+    { name: 'Lat Pulldown', sets: 3, reps: '8-10' },
+    { name: 'Seated Cable Row', sets: 3, reps: '10-12' },
+    { name: 'Face Pull', sets: 3, reps: '12-15' },
+    { name: 'Barbell Curl', sets: 3, reps: '8-10' },
+    { name: 'Hammer Curl', sets: 3, reps: '10-12' },
+  ],
+  legs: [
+    { name: 'Back Squat', sets: 4, reps: '5-8' },
+    { name: 'Romanian Deadlift', sets: 3, reps: '8-10' },
+    { name: 'Leg Press', sets: 3, reps: '10-12' },
+    { name: 'Lying Leg Curl', sets: 3, reps: '10-12' },
+    { name: 'Leg Extension', sets: 3, reps: '12-15' },
+    { name: 'Standing Calf Raise', sets: 4, reps: '10-15' },
+  ],
+  upper: [
+    { name: 'Incline Barbell Press', sets: 4, reps: '6-8' },
+    { name: 'Weighted Pull-up', sets: 4, reps: '6-8' },
+    { name: 'Dumbbell Shoulder Press', sets: 3, reps: '8-10' },
+    { name: 'Chest-Supported Row', sets: 3, reps: '8-10' },
+    { name: 'EZ-Bar Curl', sets: 3, reps: '10-12' },
+    { name: 'Skull Crusher', sets: 3, reps: '10-12' },
+  ],
+  lower: [
+    { name: 'Conventional Deadlift', sets: 3, reps: '3-5' },
+    { name: 'Hack Squat', sets: 3, reps: '8-10' },
+    { name: 'Bulgarian Split Squat', sets: 3, reps: '8-10' },
+    { name: 'Hip Thrust', sets: 3, reps: '8-12' },
+    { name: 'Seated Calf Raise', sets: 4, reps: '12-15' },
+    { name: 'Hanging Leg Raise', sets: 3, reps: '10-15' },
+  ],
+};
+
+export type SetRow = { exercise: string; weight: number; reps: number };
+
+/** Epley estimate. Rep counts above ~12 make any 1RM formula unreliable, so cap the input. */
+export const e1rm = (weight: number, reps: number) => (reps <= 0 ? 0 : weight * (1 + Math.min(reps, 12) / 30));
+export const volume = (sets: SetRow[]) => sets.reduce((a, s) => a + s.weight * s.reps, 0);
+
+/**
+ * F1 timing colours for a set, like a sector on the timing screen:
+ *   purple — the session's best set for this exercise AND it beats every earlier session
+ *            (on the very first session it's the benchmark, so it also goes purple)
+ *   green  — beats the previous session's best
+ *   yellow — neither
+ * Only the session-best set can be purple; otherwise a first session paints every set purple.
+ */
+export function sectorColor(set: SetRow, sessionBest: number, priorBest: number, lastSessionBest: number): 'purple' | 'green' | 'yellow' {
+  const v = e1rm(set.weight, set.reps);
+  if (v > 0 && v === sessionBest && v > priorBest) return 'purple';
+  if (v > lastSessionBest) return 'green';
+  return 'yellow';
+}
+
+/** Best e1RM per exercise across sets, optionally excluding one workout. */
+export function bestByExercise(sets: (SetRow & { workout_id: string })[], excludeWorkout?: string) {
+  const m = new Map<string, number>();
+  for (const s of sets) if (s.workout_id !== excludeWorkout) m.set(s.exercise, Math.max(m.get(s.exercise) ?? 0, e1rm(s.weight, s.reps)));
+  return m;
+}

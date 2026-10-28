@@ -8,6 +8,8 @@ import { readFile, stat, unlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { Readable } from 'node:stream';
 import { db, FILES_DIR, RESOURCES, pickColumns } from './db.ts';
+import { profiles, upcomingContests } from './contests.ts';
+import { run, type Lang } from './runner.ts';
 
 const PORT = Number(process.env.PORT ?? 4300);
 // Loopback by default: `tailscale serve` proxies to it, so only devices on your tailnet can reach it.
@@ -84,6 +86,7 @@ app.delete('/api/r/:res/:id', (c) => {
   db.prepare(`DELETE FROM ${name} WHERE id = ?`).run(c.req.param('id'));
   emit(name);
   if (name === 'habits') emit('habit_logs');
+  if (name === 'workouts') emit('sets');
   return c.body(null, 204);
 });
 
@@ -188,6 +191,33 @@ app.put('/api/settings', async (c) => {
   for (const [k, v] of Object.entries(body)) stmt.run(k, JSON.stringify(v));
   emit('settings');
   return c.json({ ok: true });
+});
+
+// ---- DSA progress (keyed by plan problem id) ----
+const DSA_COLS = ['status', 'confidence', 'minutes', 'notes', 'sol_cpp', 'sol_java', 'sol_py', 'solved_at', 'revisit_at'];
+app.get('/api/dsa', (c) => c.json(db.prepare('SELECT * FROM dsa_progress').all()));
+app.put('/api/dsa/:problem', async (c) => {
+  const body = await c.req.json<Record<string, string | number | null>>();
+  const cols = DSA_COLS.filter((k) => k in body);
+  const problem = c.req.param('problem');
+  db.prepare(
+    `INSERT INTO dsa_progress (problem, ${cols.join(', ')}${cols.length ? ', ' : ''}updated_at) VALUES (?, ${cols.map(() => '?').join(', ')}${cols.length ? ', ' : ''}?)
+     ON CONFLICT (problem) DO UPDATE SET ${[...cols.map((k) => `${k} = excluded.${k}`), 'updated_at = excluded.updated_at'].join(', ')}`,
+  ).run(problem, ...cols.map((k) => body[k] ?? null), now());
+  emit('dsa');
+  return c.json(db.prepare('SELECT * FROM dsa_progress WHERE problem = ?').get(problem));
+});
+
+// ---- Contests & profiles (cached upstream fetches) ----
+app.get('/api/contests', async (c) => c.json(await upcomingContests()));
+app.get('/api/profiles', async (c) => c.json(await profiles({ codeforces: c.req.query('cf') || undefined, leetcode: c.req.query('lc') || undefined })));
+
+// ---- Code runner ----
+app.post('/api/run', async (c) => {
+  if (process.env.RUNNER === 'off') return c.json({ error: 'runner disabled (RUNNER=off)' }, 403);
+  const { lang, code, stdin = '' } = await c.req.json<{ lang: Lang; code: string; stdin?: string }>();
+  if (!['cpp', 'java', 'py'].includes(lang) || typeof code !== 'string') return c.json({ error: 'lang must be cpp | java | py' }, 400);
+  return c.json(await run(lang, code, stdin));
 });
 
 app.get('/api/health-check', (c) => c.json({ ok: true, time: now() }));

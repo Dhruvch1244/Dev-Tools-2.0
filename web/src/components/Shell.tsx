@@ -1,39 +1,51 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { NavLink, useLocation } from 'react-router';
 import { AnimatePresence, motion } from 'motion/react';
-import { HeartPulse, House, ListTodo, Plus, Send, Settings as SettingsIcon, StickyNote, Wallet } from 'lucide-react';
-import { useLiveSync } from '../lib/api';
+import { Binary, Dumbbell, HeartPulse, House, LayoutGrid, ListTodo, Plus, Send, Settings as SettingsIcon, StickyNote, Utensils, Wallet } from 'lucide-react';
+import { useLiveSync, useSettings } from '../lib/api';
 import { bouncy, easeOut, spring } from '../lib/motion';
-import { haptic } from '../lib/format';
+import { haptic, today } from '../lib/format';
 import { useReminders } from '../lib/reminders';
+import { DAY_META, dayTypeOn } from '../core/gym';
 import { ExpenseForm, QuickNoteForm, TaskForm } from './forms';
 import { SettingsSheet } from './SettingsSheet';
 import { Segmented, Sheet, Textarea, Button, cx } from './ui';
 import { sendDrop } from '../lib/drop';
 import { useToast } from './toast';
 
-export const NAV = [
-  { to: '/', label: 'Today', icon: House },
-  { to: '/tasks', label: 'Tasks', icon: ListTodo },
-  { to: '/notes', label: 'Notes', icon: StickyNote },
-  { to: '/money', label: 'Money', icon: Wallet },
-  { to: '/drop', label: 'Drop', icon: Send },
-  { to: '/life', label: 'Life', icon: HeartPulse },
+export const NAV_GROUPS = [
+  {
+    label: 'Paddock',
+    items: [
+      { to: '/', label: 'Today', icon: House },
+      { to: '/tasks', label: 'Tasks', icon: ListTodo },
+      { to: '/notes', label: 'Notes', icon: StickyNote },
+      { to: '/money', label: 'Money', icon: Wallet },
+      { to: '/drop', label: 'Drop', icon: Send },
+    ],
+  },
+  {
+    label: 'Body',
+    items: [
+      { to: '/gym', label: 'Gym', icon: Dumbbell },
+      { to: '/fuel', label: 'Fuel', icon: Utensils },
+      { to: '/life', label: 'Life', icon: HeartPulse },
+    ],
+  },
+  { label: 'Mind', items: [{ to: '/dsa', label: 'DSA Season', icon: Binary }] },
 ];
+const NAV = NAV_GROUPS.flatMap((g) => g.items);
+const MOBILE_TABS = ['/', '/gym', '/fuel', '/dsa'];
 
 function Logo() {
   return (
-    <div className="flex items-center gap-2.5">
-      <motion.div
-        whileHover={{ rotate: 12, scale: 1.08 }}
-        transition={bouncy}
-        className="grid size-9 place-items-center rounded-xl bg-[conic-gradient(from_200deg,var(--accent),var(--pink),var(--mint),var(--accent))] font-display text-sm font-bold text-white shadow-[0_8px_24px_-6px_var(--accent)]"
-      >
+    <div className="flex items-center gap-3">
+      <motion.div whileHover={{ skewX: -10, scale: 1.05 }} transition={bouncy} className="slant grid h-9 w-14 place-items-center bg-accent text-[15px] font-black italic text-white">
         2.0
       </motion.div>
-      <div className="leading-tight">
-        <p className="font-display text-[15px] font-semibold tracking-tight">Dev Tools</p>
-        <p className="text-[11px] text-ink-3">personal edition</p>
+      <div className="leading-none">
+        <p className="text-[17px] font-black italic uppercase tracking-tight">Dev Tools</p>
+        <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.2em] text-ink-3">Season 26</p>
       </div>
     </div>
   );
@@ -45,6 +57,44 @@ function LiveDot({ online }: { online: boolean }) {
       {online && <span className="absolute inset-0 animate-ping rounded-full bg-good opacity-60" />}
       <span className={cx('relative size-2 rounded-full', online ? 'bg-good' : 'bg-warn')} />
     </span>
+  );
+}
+
+/** The deck's signature: three skewed stripes sweep across on every section change. */
+function Wipe({ k }: { k: string }) {
+  return (
+    <motion.div key={k} className="wipe" initial={{ x: '110%' }} animate={{ x: '-130%' }} transition={{ duration: 0.75, ease: [0.7, 0, 0.3, 1] }} aria-hidden>
+      <i style={{ width: '18vw', background: 'var(--accent)' }} />
+      <i style={{ width: '4vw', background: '#f3f3f3' }} />
+      <i style={{ width: '10vw', background: 'var(--bg-outer)' }} />
+    </motion.div>
+  );
+}
+
+function Hud() {
+  const { settings } = useSettings();
+  const [now, setNow] = useState(new Date());
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(id);
+  }, []);
+  const day = dayTypeOn(today(), settings.gymShift ?? 0);
+  const meta = DAY_META[day];
+  return (
+    <div className="pointer-events-none sticky top-0 z-30 hidden items-center justify-between px-8 pt-5 lg:flex">
+      <NavLink to="/gym" className="pointer-events-auto flex items-center gap-2.5 text-[13px] font-black italic uppercase tracking-wider">
+        <span className="slant px-3 py-1 text-white" style={{ background: meta.color === '#6a7080' ? 'var(--line-strong)' : meta.color, color: day === 'legs' ? '#111' : undefined }}>
+          {meta.short}
+        </span>
+        <span>{day === 'rest' ? 'Rest day · pit stop' : `${meta.label} day`}</span>
+      </NavLink>
+      <div className="flex items-stretch font-mono text-[13px]">
+        <span className="bg-ink px-2.5 py-1 font-bold text-bg">{now.toLocaleDateString(undefined, { weekday: 'short' }).toUpperCase()}</span>
+        <span className="border border-l-0 border-line bg-surface-2 px-3 py-1 tabular-nums text-ink-2">
+          {now.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}
+        </span>
+      </div>
+    </div>
   );
 }
 
@@ -95,6 +145,24 @@ function QuickAdd({ open, onClose, kind, setKind }: { open: boolean; onClose: ()
   );
 }
 
+function RailLink({ to, label, icon: Icon }: { to: string; label: string; icon: typeof House }) {
+  return (
+    <NavLink to={to} end={to === '/'} className="relative block">
+      {({ isActive }) => (
+        <motion.div whileHover={{ x: 4 }} transition={spring} className={cx('relative flex h-10 items-center gap-3 px-4 text-[14px] font-bold uppercase tracking-wide transition-colors', isActive ? 'text-ink' : 'text-ink-3 hover:text-ink')}>
+          {isActive && (
+            <motion.span layoutId="rail-pill" transition={spring} className="absolute inset-0 bg-gradient-to-r from-accent-soft to-transparent">
+              <span className="absolute inset-y-0 left-0 w-[3px] bg-accent" />
+            </motion.span>
+          )}
+          <Icon className="relative size-[17px]" strokeWidth={isActive ? 2.5 : 2} />
+          <span className="relative">{label}</span>
+        </motion.div>
+      )}
+    </NavLink>
+  );
+}
+
 export function Shell({ children }: { children: ReactNode }) {
   const online = useLiveSync();
   useReminders();
@@ -102,8 +170,9 @@ export function Shell({ children }: { children: ReactNode }) {
   const [quick, setQuick] = useState(false);
   const [quickKind, setQuickKind] = useState<QuickKind>('task');
   const [settings, setSettings] = useState(false);
+  const [more, setMore] = useState(false);
+  const section = '/' + (location.pathname.split('/')[1] ?? '');
 
-  // ⌘K / Ctrl+K anywhere opens quick add.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
@@ -118,22 +187,22 @@ export function Shell({ children }: { children: ReactNode }) {
   const defaultKind: Record<string, QuickKind> = { '/money': 'expense', '/notes': 'note', '/drop': 'drop' };
   const openQuick = () => {
     haptic(12);
-    setQuickKind(defaultKind[location.pathname] ?? 'task');
+    setQuickKind(defaultKind[section] ?? 'task');
     setQuick(true);
   };
 
   return (
-    <div className="min-h-dvh lg:pl-64">
-      <div className="aurora" aria-hidden>
-        <span />
-        <span />
-        <span />
+    <div className="min-h-dvh lg:pl-60">
+      <div className="carbon-bg" aria-hidden>
+        <div className="weave" />
+        <div className="speedlines" />
+        <div className="redglow" />
+        <div className="topglow" />
       </div>
-      <div className="grain" aria-hidden />
 
       {/* Desktop rail */}
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-line px-4 py-6 backdrop-blur-xl lg:flex">
-        <div className="px-2">
+      <aside className="fixed inset-y-0 left-0 z-40 hidden w-60 flex-col border-r border-line bg-bg-outer/80 backdrop-blur-xl lg:flex">
+        <div className="px-5 pt-6">
           <Logo />
         </div>
         <motion.button
@@ -141,33 +210,33 @@ export function Shell({ children }: { children: ReactNode }) {
           whileTap={{ scale: 0.97 }}
           transition={spring}
           onClick={openQuick}
-          className="mt-8 flex h-11 items-center gap-2 rounded-2xl bg-accent px-4 text-sm font-semibold text-accent-ink shadow-[0_10px_30px_-10px_var(--accent)]"
+          className="mx-5 mt-7 flex h-10 items-center gap-2 bg-accent px-4 text-[13px] font-black italic uppercase tracking-wide text-white shadow-[0_10px_30px_-10px_var(--accent)]"
         >
-          <Plus className="size-4" /> Quick add
-          <kbd className="ml-auto rounded-md bg-white/20 px-1.5 py-0.5 font-mono text-[10px]">⌘K</kbd>
+          <Plus className="size-4" strokeWidth={3} /> Quick add
+          <kbd className="ml-auto rounded bg-black/25 px-1.5 py-0.5 font-mono text-[10px] not-italic">⌘K</kbd>
         </motion.button>
-        <nav className="mt-6 flex flex-col gap-1">
-          {NAV.map(({ to, label, icon: Icon }) => (
-            <NavLink key={to} to={to} end={to === '/'} className="relative">
-              {({ isActive }) => (
-                <motion.div whileHover={{ x: 3 }} transition={spring} className={cx('relative flex h-11 items-center gap-3 rounded-2xl px-4 text-sm font-medium transition-colors', isActive ? 'text-ink' : 'text-ink-3 hover:text-ink')}>
-                  {isActive && <motion.span layoutId="rail-pill" transition={spring} className="absolute inset-0 rounded-2xl border border-line bg-surface-2" />}
-                  <Icon className="relative size-[18px]" strokeWidth={isActive ? 2.4 : 2} />
-                  <span className="relative">{label}</span>
-                </motion.div>
-              )}
-            </NavLink>
+        <nav className="mt-6 flex-1 space-y-5 overflow-y-auto no-scrollbar">
+          {NAV_GROUPS.map((g) => (
+            <div key={g.label}>
+              <p className="mb-1.5 px-5 text-[10px] font-black uppercase tracking-[0.25em] text-ink-3">{g.label}</p>
+              {g.items.map((it) => (
+                <RailLink key={it.to} {...it} />
+              ))}
+            </div>
           ))}
         </nav>
-        <div className="mt-auto flex items-center justify-between rounded-2xl border border-line px-4 py-3 text-xs text-ink-3">
+        <div className="mx-5 mb-4 flex items-center justify-between border border-line bg-surface px-3 py-2.5 text-xs font-semibold uppercase tracking-wider text-ink-3">
           <span className="flex items-center gap-2">
-            <LiveDot online={online} /> {online ? 'Live sync' : 'Offline'}
+            <LiveDot online={online} /> {online ? 'Telemetry live' : 'Offline'}
           </span>
-          <button onClick={() => setSettings(true)} className="rounded-full p-1.5 transition hover:bg-surface-2 hover:text-ink" aria-label="Settings">
+          <button onClick={() => setSettings(true)} className="rounded p-1.5 transition hover:bg-surface-2 hover:text-ink" aria-label="Settings">
             <SettingsIcon className="size-4" />
           </button>
         </div>
+        <div className="kerb h-[6px] w-full opacity-90" />
       </aside>
+
+      <Hud />
 
       {/* Mobile top-right status */}
       <div className="fixed right-3 top-[calc(env(safe-area-inset-top)+10px)] z-30 lg:hidden">
@@ -177,13 +246,15 @@ export function Shell({ children }: { children: ReactNode }) {
         </button>
       </div>
 
+      <AnimatePresence initial={false}>
+        <Wipe k={section} />
+      </AnimatePresence>
       <AnimatePresence mode="wait" initial={false}>
         <motion.main
           key={location.pathname}
-          initial={{ opacity: 0, y: 14, filter: 'blur(8px)' }}
-          animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
-          exit={{ opacity: 0, y: -10, filter: 'blur(6px)' }}
-          transition={{ duration: 0.32, ease: easeOut }}
+          initial={{ opacity: 0, scale: 0.992 }}
+          animate={{ opacity: 1, scale: 1, transition: { duration: 0.4, delay: 0.16, ease: [0.2, 0.8, 0.2, 1] } }}
+          exit={{ opacity: 0, transition: { duration: 0.12 } }}
           className="pt-[env(safe-area-inset-top)]"
         >
           {children}
@@ -196,25 +267,37 @@ export function Shell({ children }: { children: ReactNode }) {
         onClick={openQuick}
         whileTap={{ scale: 0.88, rotate: 90 }}
         transition={bouncy}
-        className="fixed bottom-[calc(env(safe-area-inset-bottom)+84px)] right-4 z-40 grid size-14 place-items-center rounded-2xl bg-accent text-accent-ink shadow-[0_14px_34px_-8px_var(--accent)] lg:hidden"
+        className="fixed bottom-[calc(env(safe-area-inset-bottom)+84px)] right-4 z-40 grid size-14 place-items-center rounded-2xl bg-accent text-white shadow-[0_14px_34px_-8px_var(--accent)] lg:hidden"
       >
         <Plus className="size-6" strokeWidth={2.5} />
       </motion.button>
-      <nav className="glass-bar fixed inset-x-3 bottom-[calc(env(safe-area-inset-bottom)+10px)] z-40 flex h-[64px] items-stretch rounded-[26px] px-1.5 lg:hidden">
-        {NAV.map(({ to, label, icon: Icon }) => (
+      <nav className="glass-bar fixed inset-x-3 bottom-[calc(env(safe-area-inset-bottom)+10px)] z-40 flex h-[64px] items-stretch rounded-2xl px-1.5 lg:hidden">
+        {NAV.filter((n) => MOBILE_TABS.includes(n.to)).map(({ to, label, icon: Icon }) => (
           <NavLink key={to} to={to} end={to === '/'} onClick={() => haptic()} className="relative flex flex-1 flex-col items-center justify-center gap-0.5">
             {({ isActive }) => (
               <>
-                {isActive && <motion.span layoutId="tab-pill" transition={spring} className="absolute inset-x-1 inset-y-1.5 rounded-[20px] bg-accent-soft" />}
-                <motion.span animate={{ y: isActive ? -1 : 0, scale: isActive ? 1.08 : 1 }} transition={bouncy} className="relative">
-                  <Icon className={cx('size-[21px]', isActive ? 'text-accent' : 'text-ink-3')} strokeWidth={isActive ? 2.4 : 2} />
-                </motion.span>
-                <span className={cx('relative text-[10px] font-semibold', isActive ? 'text-accent' : 'text-ink-3')}>{label}</span>
+                {isActive && <motion.span layoutId="tab-pill" transition={spring} className="absolute inset-x-1 inset-y-1.5 rounded-xl bg-accent-soft" />}
+                <Icon className={cx('relative size-[21px]', isActive ? 'text-accent' : 'text-ink-3')} strokeWidth={isActive ? 2.4 : 2} />
+                <span className={cx('relative text-[10px] font-bold uppercase', isActive ? 'text-accent' : 'text-ink-3')}>{label.split(' ')[0]}</span>
               </>
             )}
           </NavLink>
         ))}
+        <button onClick={() => setMore(true)} className="relative flex flex-1 flex-col items-center justify-center gap-0.5 text-ink-3">
+          <LayoutGrid className="size-[21px]" />
+          <span className="text-[10px] font-bold uppercase">More</span>
+        </button>
       </nav>
+      <Sheet open={more} onClose={() => setMore(false)} title="Everything">
+        <div className="grid grid-cols-3 gap-2">
+          {NAV.map(({ to, label, icon: Icon }) => (
+            <NavLink key={to} to={to} end={to === '/'} onClick={() => setMore(false)} className="flex flex-col items-center gap-2 rounded-xl border border-line bg-bg py-4 text-xs font-bold uppercase">
+              <Icon className="size-5 text-accent" />
+              {label}
+            </NavLink>
+          ))}
+        </div>
+      </Sheet>
 
       <QuickAdd open={quick} onClose={() => setQuick(false)} kind={quickKind} setKind={setQuickKind} />
       <SettingsSheet open={settings} onClose={() => setSettings(false)} />

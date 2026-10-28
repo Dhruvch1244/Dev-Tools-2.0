@@ -24,8 +24,8 @@ export default defineConfig({
         name: 'Dev Tools 2.0',
         short_name: 'DT 2.0',
         description: 'Your personal life OS — tasks, notes, money, drops, habits.',
-        theme_color: '#07070c',
-        background_color: '#07070c',
+        theme_color: '#0b0c10',
+        background_color: '#0b0c10',
         display: 'standalone',
         start_url: '/',
         icons: [

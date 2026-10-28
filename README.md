@@ -5,12 +5,13 @@ No accounts, no cloud, no restrictions: your data is one SQLite file in `data/`.
 
 | | |
 |---|---|
-| **Today** | Greeting, live clock, rings for tasks / budget / habits / water, today's tasks, renewals, latest drops |
-| **Tasks** | Due dates + times, priorities, Today / Upcoming / Someday / Done, swipe-to-delete with undo, reminders |
-| **Notes** | Masonry board, colours, pins, search; a card *morphs* into the editor and autosaves |
-| **Money** | Expenses & income by month, daily spend chart, category bars with budget markers, subscriptions with "Paid" (auto-logs the expense and rolls the date) |
-| **Drop** | Phone ⇄ laptop: text, links, OTPs and files (drag, paste or pick), with upload progress, image previews and device badges |
-| **Life** | Habit streaks with a 7-day grid, water glass, sleep, weight trend, mood, daily journal (autosaves) |
+| **Today** | Greeting, live clock, rings for tasks / budget / habits / water, plus today's Gym · Fuel · DSA status |
+| **Gym** | Your 7-day split (Push › Pull › Legs › Rest › Upper › Lower › Rest), start-lights session start, set logging with last-session ghosts, F1 sector colours (purple = all-time best, green = beat last time, yellow = below), rest timer, weekly volume, PR board, editable templates, "skipped a day" shift with undo |
+| **Fuel** | 146 common Indian dishes per household serving (roti, dal, sabzi, poha, idli…) + custom foods, meals, shift-light calorie gauge, macros, BMR/TDEE/target calculator (Mifflin–St Jeor), copy yesterday, 7-day chart |
+| **DSA Season** | 13-week advanced roadmap (156 practice problems, 2/day), concept briefings with tables, weekly timed tests, 3 monthly Grand Prix mega tests + finale, spaced revision queue, points & streaks, live Codeforces / LeetCode / CodeChef contests with reminders, CF/LC rating sync |
+| **Visualizer** | 15 animated algorithms (prefix sums, two pointers, sliding window, binary search, monotonic stack, backtracking tree, tree BFS, heap, grid BFS, topo sort, Dijkstra, union-find, coin-change DP, LCS table, KMP) with the executing line highlighted in C++ / Java / Python |
+| **Code lab** | Write C++ / Java / Python, run it on this laptop (real g++ / javac / python3), and call `viz` helpers to replay your own run as an animation |
+| **Tasks / Notes / Money / Drop / Life** | Tasks with reminders, notes, expenses & budgets & subscriptions, phone⇄laptop drop, habits/health/journal |
 
 Everything syncs **live** between devices: a write on your phone shows up on your laptop instantly (Server-Sent Events).
 
@@ -18,7 +19,8 @@ Everything syncs **live** between devices: a write on your phone shows up on you
 
 - **Server:** [Hono](https://hono.dev) on Node 26, built-in `node:sqlite` (no native modules), SSE for live sync
 - **Web:** React 19, Vite, TypeScript, Tailwind CSS v4, [Motion](https://motion.dev), TanStack Query, installable PWA (works offline with last-known data)
-- **Design:** spring physics everywhere, shared-layout transitions, animated aurora + grain, tuned dark *and* light themes, honours *Reduce motion*
+- **Design:** the dsgn philosophy in an F1 race voice — carbon-black surfaces, racing red, Titillium Web italic display type, skewed colour-wipe transitions, start lights, timing-screen colours; spring physics throughout; honours *Reduce motion*
+- **Code runner:** `POST /api/run` compiles/runs with time + memory limits, one queue for all runs. Disable with `RUNNER=off`.
 
 ## Run it
 

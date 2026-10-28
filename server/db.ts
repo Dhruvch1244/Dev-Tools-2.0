@@ -56,6 +56,39 @@ db.exec(`
     device TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
   );
   CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+
+  -- Gym: one workout per session, sets denormalise the date so history queries stay single-table.
+  CREATE TABLE IF NOT EXISTS workouts (
+    id TEXT PRIMARY KEY, date TEXT NOT NULL, day_type TEXT NOT NULL, notes TEXT,
+    started_at TEXT, finished_at TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS sets (
+    id TEXT PRIMARY KEY, workout_id TEXT NOT NULL REFERENCES workouts(id) ON DELETE CASCADE,
+    date TEXT NOT NULL, exercise TEXT NOT NULL, set_no INTEGER NOT NULL, weight REAL NOT NULL, reps INTEGER NOT NULL,
+    created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS sets_exercise ON sets (exercise, date);
+
+  -- Fuel: macros are snapshotted onto the log row, so editing a food later never rewrites past days.
+  CREATE TABLE IF NOT EXISTS food_logs (
+    id TEXT PRIMARY KEY, date TEXT NOT NULL, meal TEXT NOT NULL, food_id TEXT, name TEXT NOT NULL,
+    qty REAL NOT NULL, unit TEXT, kcal REAL NOT NULL, protein REAL NOT NULL, carbs REAL NOT NULL, fat REAL NOT NULL,
+    created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS custom_foods (
+    id TEXT PRIMARY KEY, name TEXT NOT NULL, serving TEXT NOT NULL, kcal REAL NOT NULL,
+    protein REAL NOT NULL, carbs REAL NOT NULL, fat REAL NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+  );
+
+  -- DSA: one row per problem from the season plan (keyed by its plan id, not a uuid).
+  CREATE TABLE IF NOT EXISTS dsa_progress (
+    problem TEXT PRIMARY KEY, status TEXT NOT NULL DEFAULT 'todo', confidence INTEGER, minutes INTEGER,
+    notes TEXT, sol_cpp TEXT, sol_java TEXT, sol_py TEXT, solved_at TEXT, revisit_at TEXT, updated_at TEXT NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS dsa_tests (
+    id TEXT PRIMARY KEY, kind TEXT NOT NULL, ref TEXT NOT NULL, started_at TEXT NOT NULL, finished_at TEXT,
+    duration_min INTEGER NOT NULL, results TEXT, score REAL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+  );
 `);
 
 type Resource = { cols: string[]; order: string; dateCol?: string };
@@ -70,6 +103,11 @@ export const RESOURCES: Record<string, Resource> = {
   habits: { cols: ['name', 'emoji', 'color', 'archived'], order: 'created_at ASC' },
   health: { cols: ['date', 'kind', 'value'], order: 'date DESC', dateCol: 'date' },
   journal: { cols: ['date', 'body', 'mood'], order: 'date DESC', dateCol: 'date' },
+  workouts: { cols: ['date', 'day_type', 'notes', 'started_at', 'finished_at'], order: 'date DESC, created_at DESC', dateCol: 'date' },
+  sets: { cols: ['workout_id', 'date', 'exercise', 'set_no', 'weight', 'reps'], order: 'date ASC, set_no ASC', dateCol: 'date' },
+  food_logs: { cols: ['date', 'meal', 'food_id', 'name', 'qty', 'unit', 'kcal', 'protein', 'carbs', 'fat'], order: 'date DESC, created_at ASC', dateCol: 'date' },
+  custom_foods: { cols: ['name', 'serving', 'kcal', 'protein', 'carbs', 'fat'], order: 'name ASC' },
+  dsa_tests: { cols: ['kind', 'ref', 'started_at', 'finished_at', 'duration_min', 'results', 'score'], order: 'started_at DESC' },
 };
 
 /** node:sqlite only binds string/number/bigint/null/bytes, so coerce booleans and drop unknown keys. */

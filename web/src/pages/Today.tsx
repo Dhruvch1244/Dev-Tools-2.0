@@ -9,6 +9,11 @@ import { daysBetween, greeting, monthKey, monthRange, money, relativeDay, timeAg
 import type { Budget, Drop, Expense, Subscription, Task } from '../lib/types';
 import { AnimatedNumber, Card, Page, ProgressRing, Rise, SectionTitle, cx } from '../components/ui';
 import { TaskRow, useTaskToggle } from './Tasks';
+import { DAY_META, dayTypeOn } from '../core/gym';
+import { targets, DEFAULT_PROFILE, sumMacros } from '../core/fuel';
+import { problemsForDay, currentWeek, WEEKS } from '../core/dsa/plan';
+import { useDsa, useSeason } from '../lib/dsa';
+import type { FoodLog } from '../lib/types';
 import { useHabits, useHealthToday } from './Life';
 
 function Headline({ name }: { name?: string }) {
@@ -83,6 +88,42 @@ function Stat({ to, icon, label, children, sub, ring, color }: { to: string; ico
   );
 }
 
+/** Gym · Fuel · DSA at a glance — the three personal programmes. */
+function RaceWeekend() {
+  const { settings } = useSettings();
+  const t = today();
+  const day = dayTypeOn(t, settings.gymShift ?? 0);
+  const meta = DAY_META[day];
+  const { data: food = [] } = useList<FoodLog>('food_logs', { from: t, to: t });
+  const kcal = sumMacros(food).kcal;
+  const target = targets(settings.fuel ?? DEFAULT_PROFILE).kcal;
+  const { start } = useSeason();
+  const { get } = useDsa();
+  const laps = problemsForDay(start, t);
+  const wk = currentWeek(start, t);
+  const lapsDone = laps.filter((p) => ['solved', 'revisit'].includes(get(p.id)?.status ?? '')).length;
+  const tiles = [
+    { to: '/gym', k: 'Gym', v: day === 'rest' ? 'Rest day' : `${meta.label} day`, s: meta.focus, c: meta.color },
+    { to: '/fuel', k: 'Fuel', v: `${Math.max(0, Math.round(target - kcal))} kcal left`, s: `${Math.round(kcal)} / ${target} eaten`, c: 'var(--green)' },
+    { to: '/dsa', k: 'DSA', v: wk === 0 ? 'Pre-season' : laps.length ? `${lapsDone}/${laps.length} laps` : 'Qualifying day', s: wk === 0 ? `Round 1 starts ${start}` : `R${Math.min(wk, 13)} · ${WEEKS[Math.min(wk, 13) - 1]?.gp} GP`, c: 'var(--purple)' },
+  ];
+  return (
+    <div className="mt-3 grid gap-3 sm:grid-cols-3">
+      {tiles.map((x, i) => (
+        <motion.div key={x.k} initial={{ opacity: 0, x: -30, skewX: -10 }} animate={{ opacity: 1, x: 0, skewX: 0 }} transition={{ delay: 0.35 + i * 0.08, type: 'spring', stiffness: 260, damping: 24 }}>
+          <Link to={x.to} className="group relative block overflow-hidden rounded-xl border border-line bg-surface p-4 transition hover:border-accent">
+            <span className="absolute inset-y-0 left-0 w-[3px]" style={{ background: x.c }} />
+            <p className="text-[10px] font-black uppercase tracking-[0.25em] text-ink-3">{x.k}</p>
+            <p className="text-2xl font-black italic uppercase leading-tight">{x.v}</p>
+            <p className="truncate text-xs text-ink-3">{x.s}</p>
+            <ArrowRight className="absolute right-4 top-1/2 size-5 -translate-y-1/2 text-ink-3 opacity-0 transition group-hover:translate-x-1 group-hover:opacity-100" />
+          </Link>
+        </motion.div>
+      ))}
+    </div>
+  );
+}
+
 export function TodayPage() {
   const { settings } = useSettings();
   const currency = settings.currency ?? 'INR';
@@ -137,6 +178,8 @@ export function TodayPage() {
           <AnimatedNumber value={water} /> glasses
         </Stat>
       </div>
+
+      <RaceWeekend />
 
       <div className="mt-4 grid gap-4 lg:grid-cols-5">
         <Card className="lg:col-span-3">

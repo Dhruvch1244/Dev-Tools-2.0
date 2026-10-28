@@ -23,12 +23,16 @@ export function Rise({ className, ...props }: HTMLMotionProps<'div'>) {
 
 export function PageHeader({ eyebrow, title, action }: { eyebrow?: string; title: ReactNode; action?: ReactNode }) {
   return (
-    <Rise className="mb-6 flex items-end justify-between gap-4 sm:mb-8">
+    <Rise className="mb-6 flex flex-wrap items-end justify-between gap-4 sm:mb-8">
       <div className="min-w-0">
-        {eyebrow && <p className="mb-1 text-xs font-semibold uppercase tracking-[0.18em] text-ink-3">{eyebrow}</p>}
-        <h1 className="font-display text-4xl font-semibold tracking-tight sm:text-5xl">{title}</h1>
+        {eyebrow && (
+          <motion.p initial={{ x: -20, opacity: 0 }} animate={{ x: 0, opacity: 1 }} transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1], delay: 0.2 }} className="slant mb-3 inline-block whitespace-nowrap bg-accent px-3 py-0.5 text-[12px] font-black italic uppercase tracking-[0.12em] text-white">
+            {eyebrow}
+          </motion.p>
+        )}
+        <h1 className="font-display text-[clamp(2.2rem,5vw,3.6rem)] leading-[0.95]">{title}</h1>
       </div>
-      {action}
+      {action && <div className="shrink-0">{action}</div>}
     </Rise>
   );
 }
@@ -44,7 +48,7 @@ export function Card({ className, children, ...props }: HTMLMotionProps<'div'>) 
 export function SectionTitle({ children, action }: { children: ReactNode; action?: ReactNode }) {
   return (
     <div className="mb-3 flex items-center justify-between gap-2">
-      <h2 className="font-display text-lg font-semibold tracking-tight">{children}</h2>
+      <h2 className="font-display text-[17px]">{children}</h2>
       {action}
     </div>
   );
@@ -59,8 +63,8 @@ export function Button({ variant = 'primary', size = 'md', className, ...props }
       whileTap={{ scale: 0.95 }}
       transition={spring}
       className={cx(
-        'inline-flex shrink-0 items-center justify-center gap-2 rounded-full font-medium transition-colors disabled:pointer-events-none disabled:opacity-40',
-        size === 'md' ? 'h-11 px-5 text-sm' : 'h-9 px-3.5 text-[13px]',
+        'inline-flex shrink-0 items-center justify-center gap-2 rounded-lg font-bold uppercase tracking-wide transition-colors disabled:pointer-events-none disabled:opacity-40',
+        size === 'md' ? 'h-11 px-5 text-[13px]' : 'h-9 px-3.5 text-[12px]',
         variant === 'primary' && 'bg-accent text-accent-ink shadow-[0_8px_24px_-8px_var(--accent)] hover:brightness-110',
         variant === 'soft' && 'bg-accent-soft text-accent hover:bg-accent/25',
         variant === 'ghost' && 'text-ink-2 hover:bg-surface-2 hover:text-ink',
@@ -101,16 +105,16 @@ export function Segmented<T extends string>({ options, value, onChange, classNam
 }) {
   const id = useId();
   return (
-    <div role="tablist" className={cx('glass inline-flex rounded-full p-1', className)}>
+    <div role="tablist" className={cx('glass inline-flex rounded-lg p-1', className)}>
       {options.map((o) => (
         <button
           key={o.value}
           role="tab"
           aria-selected={value === o.value}
           onClick={() => (haptic(), onChange(o.value))}
-          className={cx('relative h-8 flex-1 rounded-full px-3.5 text-[13px] font-medium transition-colors', value === o.value ? 'text-accent-ink' : 'text-ink-2 hover:text-ink')}
+          className={cx('relative h-8 flex-1 rounded-md px-3.5 text-[12px] font-bold uppercase tracking-wide transition-colors', value === o.value ? 'text-accent-ink' : 'text-ink-2 hover:text-ink')}
         >
-          {value === o.value && <motion.span layoutId={`seg-${id}`} transition={spring} className="absolute inset-0 rounded-full bg-accent" />}
+          {value === o.value && <motion.span layoutId={`seg-${id}`} transition={spring} className="absolute inset-0 rounded-md bg-accent" />}
           <span className="relative z-10 whitespace-nowrap">{o.label}</span>
         </button>
       ))}
@@ -229,7 +233,7 @@ export function Chip({ active, onClick, children }: { active?: boolean; onClick?
       transition={bouncy}
       onClick={onClick}
       className={cx(
-        'inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border px-3 text-[13px] font-medium transition-colors',
+        'inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border px-3 text-[13px] font-semibold transition-colors',
         active ? 'border-transparent bg-accent text-accent-ink' : 'border-line bg-surface text-ink-2 hover:text-ink',
       )}
     >
