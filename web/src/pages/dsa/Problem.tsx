@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useParams } from 'react-router';
+import { Link, useParams, useSearchParams } from 'react-router';
+import { moduleById } from '../../core/dsa/course';
 import { AnimatePresence, motion } from 'motion/react';
 import { useQuery } from '@tanstack/react-query';
 import DOMPurify from 'dompurify';
@@ -399,6 +400,10 @@ const NOTE_SECTIONS: [string, string][] = [
 export function DsaProblem() {
   const id = useParams().id ?? '';
   const p = findProblem(id);
+  // Opened from the Academy (a lesson's warm-up grid): the back link returns there, not to the season.
+  const [search] = useSearchParams();
+  const fromLearn = search.get('from') === 'learn';
+  const fromModule = fromLearn ? moduleById(search.get('m') ?? '') : undefined;
   const { get, save, ready } = useDsa();
   const { lang, setLang } = useSeason();
   const lc = useQuestion(id);
@@ -567,8 +572,8 @@ export function DsaProblem() {
     <Page>
       {test && <TestBanner test={test} />}
       <Rise className="mb-3">
-        <Link to={week ? `/dsa/week/${week.n}` : '/dsa'} className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-ink-3 hover:text-ink">
-          <ArrowLeft className="size-4" /> {week ? `R${week.n} · ${week.gp} GP` : 'Season HQ'}
+        <Link to={fromLearn ? '/dsa/learn' : week ? `/dsa/week/${week.n}` : '/dsa'} className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-ink-3 hover:text-ink">
+          <ArrowLeft className="size-4" /> {fromLearn ? `Learn${fromModule ? ` · R${fromModule.course.week} ${fromModule.module.corner} ${fromModule.module.title}` : ''}` : week ? `R${week.n} · ${week.gp} GP` : 'Season HQ'}
         </Link>
       </Rise>
       <PageHeader

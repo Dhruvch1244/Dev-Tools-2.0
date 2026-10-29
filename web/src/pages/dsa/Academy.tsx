@@ -147,7 +147,7 @@ export function AcademyHome() {
               {recent.map(({ p, prob, mod }) => (
                 <li key={p.problem} className="flex items-center gap-2 rounded-md bg-bg px-3 py-2 text-sm">
                   <span className={cx('size-2 shrink-0 rounded-full', p.status === 'solved' ? 'bg-green' : p.status === 'revisit' ? 'bg-yellow' : 'bg-ink-3')} />
-                  <Link to={`/dsa/p/${p.problem}`} className="min-w-0 flex-1 truncate font-semibold">
+                  <Link to={`/dsa/p/${p.problem}?from=learn`} className="min-w-0 flex-1 truncate font-semibold">
                     {prob?.title ?? p.problem}
                   </Link>
                   <span className="shrink-0 text-tiny uppercase text-ink-3">{p.status}</span>
@@ -330,7 +330,7 @@ export function Lesson() {
                   </div>
                 ))}
               </div>
-              {warmups.length > 0 && <WarmupGrid items={warmups} />}
+              {warmups.length > 0 && <WarmupGrid items={warmups} module={m.id} />}
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 {nextModule ? (
                   <Button className="h-12" onClick={() => nav(`/dsa/learn/${nextModule.id}`)}>
@@ -374,7 +374,7 @@ export function Lesson() {
 }
 
 /** Warm-ups handed out after a lesson, with your status on each. */
-function WarmupGrid({ items }: { items: Extract<Card, { kind: 'problem' }>[] }) {
+function WarmupGrid({ items, module }: { items: Extract<Card, { kind: 'problem' }>[]; module: string }) {
   const { get } = useDsa();
   return (
     <div className="space-y-2 text-left">
@@ -385,7 +385,7 @@ function WarmupGrid({ items }: { items: Extract<Card, { kind: 'problem' }>[] }) 
         const st = get(p.id)?.status;
         return (
           <motion.div key={p.id} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.8 + k * 0.08 }}>
-            <Link to={`/dsa/p/${p.id}`} className="flex items-center gap-3 rounded-xl border border-line bg-surface p-3">
+            <Link to={`/dsa/p/${p.id}?from=learn&m=${module}`} className="flex items-center gap-3 rounded-xl border border-line bg-surface p-3">
               <span className="font-mono text-sm font-bold text-ink-3">P{k + 1}</span>
               <div className="min-w-0 flex-1">
                 <p className="truncate font-semibold">{p.title}</p>

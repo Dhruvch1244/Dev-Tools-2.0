@@ -86,6 +86,7 @@ Rules:
 - Be concrete about THEIR code: quote the exact line/expression when pointing at a bug.
 - Use Markdown. Prefer short paragraphs, bullet points and small tables (complexity tables are welcome). Keep code snippets to a few lines.
 - Name the pattern (two pointers, monotonic stack, DP on intervals, …) when useful.
+- Always judge the code exactly as given in this message — it may have changed since earlier turns. Never say your earlier replies were wrong; just answer about the current code.
 - Be brief: aim for under 220 words unless reviewing or explaining.`;
 
 export const FUEL_SYSTEM = `You are a practical sports nutritionist who knows Indian home cooking well. Suggest realistic Indian meals (home-style, common ingredients, approximate portions in katori/roti/pieces) that fit the remaining macros. Use Markdown with a short table per option (item, portion, ~kcal, ~protein). Give 2–3 options, each under ~10% off the remaining calories, prioritise hitting protein. Be brief.`;
@@ -131,7 +132,15 @@ export function dsaPrompt(a: DsaAsk) {
     if (a.judge.failing) parts.push(`First failing case — input: ${a.judge.failing.input.join(' | ')}; expected: ${a.judge.failing.expected ?? '?'}; my output: ${a.judge.failing.output ?? '(none — crashed or timed out)'}`);
     if (a.judge.stderr) parts.push('stderr:', '```', a.judge.stderr.slice(0, 1500), '```');
   }
-  if (a.history?.length) parts.push('# Conversation so far', ...a.history.slice(-6).map((h) => `${h.role === 'user' ? 'Me' : 'Coach'}: ${h.text.slice(0, 1500)}`));
+  // Review / debug / explain judge the code as it is NOW. Feeding back earlier replies (about an
+  // older version of the code) made the model "correct itself" — "my earlier replies were wrong".
+  const fresh = a.mode === 'review' || a.mode === 'debug' || a.mode === 'explain';
+  if (!fresh && a.history?.length)
+    parts.push(
+      '# Earlier in this chat (about earlier versions of my code — for context only)',
+      ...a.history.slice(-6).map((h) => `${h.role === 'user' ? 'Me' : 'Coach'}: ${h.text.slice(0, 1500)}`),
+      'The code above is my latest version. Answer about it as it is now; do not apologise for, retract or re-litigate earlier replies.',
+    );
   const task = {
     hint: [
       'Give me hint level 1 of 3: only the key observation or the pattern to think about. No algorithm steps, no code.',
