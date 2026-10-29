@@ -46,7 +46,7 @@ export function DsaWeek() {
           )}
         </div>
       </Rise>
-      <PageHeader eyebrow={`Round ${w.n} · ${parseDate(dates.start).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })} – ${parseDate(dates.end).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}`} title={`${w.gp} GP`} action={w.n <= 2 ? <Link to="/dsa/learn"><Button><GraduationCap className="size-4" /> Learn this week</Button></Link> : undefined} />
+      <PageHeader eyebrow={`Round ${w.n} · ${parseDate(dates.start).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })} – ${parseDate(dates.end).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}`} title={`${w.gp} GP`} action={w.n <= 4 ? <Link to="/dsa/learn"><Button><GraduationCap className="size-4" /> Learn this week</Button></Link> : undefined} />
       <Rise className="-mt-4 mb-6 text-lg text-ink-2">{w.topic}</Rise>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">

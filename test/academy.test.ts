@@ -66,3 +66,19 @@ test('stars and unlocking', () => {
   assert.deepEqual([...unlocked(c, {})], [c.modules[0].id]);
   assert.deepEqual([...unlocked(c, { [c.modules[0].id]: 2 })], [c.modules[0].id, c.modules[1].id]);
 });
+
+test('week 3-4 sims compute the right answers', () => {
+  const last = (id: string, inputs?: Record<string, string>) => run(id, inputs).at(-1)!;
+  assert.equal(last('bs-first').vars!.answer, 4);
+  assert.equal(last('bs-first', { nums: '1, 3, 5', t: '9' }).vars!.answer, 3);
+  assert.equal(last('koko').vars!.answer, 4);
+  assert.equal(last('koko', { piles: '30, 11, 23, 4, 20', h: '6' }).vars!.answer, 23);
+  assert.equal(last('rotated-min').vars!.answer, 0);
+  assert.equal(last('rotated-min', { nums: '11, 13, 15, 17' }).vars!.answer, 11);
+  assert.equal(last('histogram').vars!.best, 10);
+  assert.equal(last('rpn').vars!.top, 12);
+  assert.equal(last('rpn', { tokens: '10 6 9 3 + -11 * / * 17 + 5 +' }).vars!.top, 22);
+  assert.equal(last('valid-parens').vars!.valid, false);
+  assert.equal(last('valid-parens', { s: '()[]{}' }).vars!.valid, true);
+  assert.deepEqual(last('next-greater').arrays!.find((a) => a.name === 'next greater')!.values, [4, 2, 4, 5, 5, 5, -1]);
+});

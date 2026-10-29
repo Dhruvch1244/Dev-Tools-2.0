@@ -132,7 +132,7 @@ export function AcademyHome() {
             R{c.week} · {WEEKS[c.week - 1].gp}
           </button>
         ))}
-        <span className="slant shrink-0 bg-surface px-4 py-1.5 text-mini font-black italic uppercase text-ink-3">R3+ soon</span>
+        <span className="slant shrink-0 bg-surface px-4 py-1.5 text-mini font-black italic uppercase text-ink-3">R5+ soon</span>
       </Rise>
       <Rise className="mb-2">
         <p className="text-2xl font-black italic uppercase leading-tight">{course.title}</p>

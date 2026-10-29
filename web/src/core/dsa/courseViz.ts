@@ -234,4 +234,225 @@ const trapWater: Algo = {
   },
 };
 
-export const COURSE_ALGOS: Algo[] = [twoSumHash, prefixBuild, productExceptSelf, firstMissing, moveZeroes, slidingMax, trapWater];
+// ---------------------------------------------------------------------------------------------
+// Week 3 — binary search
+// ---------------------------------------------------------------------------------------------
+const bsFirst: Algo = {
+  id: 'bs-first',
+  title: 'Binary search — first index with nums[i] ≥ target',
+  pattern: 'Binary search',
+  problem: 'search-insert-position',
+  blurb: 'The answer always lives in [lo, hi). ok(mid) true → keep mid (hi = mid); false → discard it (lo = mid + 1).',
+  inputs: [
+    { key: 'nums', label: 'sorted nums', value: '1, 3, 3, 5, 7, 7, 9, 12' },
+    { key: 't', label: 'target', value: '7' },
+  ],
+  run(inp) {
+    const a = nums(inp.nums);
+    const t = Number(inp.t);
+    const { frames, push } = recorder();
+    let lo = 0;
+    let hi = a.length;
+    const dim = () => Object.fromEntries(a.map((_, i) => [i, 'dim' as Mark]).filter(([i]) => (i as number) < lo || (i as number) >= hi));
+    push({ msg: `Answer is somewhere in [0, ${hi}) — ${hi} is allowed: "past the end" means every value < ${t}.`, arrays: [{ name: 'nums', values: a, pointers: [{ name: 'lo', index: lo }, { name: 'hi', index: Math.min(hi, a.length - 1) }] }], vars: { lo, hi, mid: '-' } });
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      const ok = a[mid] >= t;
+      push({ msg: `mid = (${lo} + ${hi}) // 2 = ${mid}; nums[mid] = ${a[mid]} ${ok ? '≥' : '<'} ${t}.`, arrays: [{ name: 'nums', values: a, pointers: [{ name: 'lo', index: lo }, { name: 'mid', index: mid }], marks: { ...dim(), [mid]: 'active' } }], vars: { lo, hi, mid } });
+      if (ok) hi = mid;
+      else lo = mid + 1;
+      push({ msg: ok ? `ok(mid) → the answer is mid or left of it: hi = ${hi}.` : `not ok → mid and everything left can't be it: lo = ${lo}.`, arrays: [{ name: 'nums', values: a, pointers: [{ name: 'lo', index: Math.min(lo, a.length - 1) }], marks: dim() }], vars: { lo, hi, mid } });
+    }
+    push({ msg: `lo == hi == ${lo}: ${lo < a.length ? `first index with value ≥ ${t}` : 'every value is smaller — insert at the end'}.`, arrays: [{ name: 'nums', values: a, marks: lo < a.length ? { [lo]: 'hit' } : {} }], vars: { lo, hi, mid: '-', answer: lo } });
+    return frames;
+  },
+};
+
+const koko: Algo = {
+  id: 'koko',
+  title: 'Search on the answer — Koko eating bananas',
+  pattern: 'Binary search on the answer',
+  problem: 'koko-eating-bananas',
+  blurb: 'Faster speed never needs more hours, so "can she finish at speed k?" is monotonic — binary search k itself.',
+  inputs: [
+    { key: 'piles', label: 'piles', value: '3, 6, 7, 11' },
+    { key: 'h', label: 'hours', value: '8' },
+  ],
+  run(inp) {
+    const piles = nums(inp.piles);
+    const h = Number(inp.h) || 1;
+    const { frames, push } = recorder();
+    let lo = 1;
+    let hi = Math.max(...piles);
+    const hoursAt = (k: number) => piles.reduce((acc, p) => acc + Math.ceil(p / k), 0);
+    push({ msg: `Speed is between 1 and the biggest pile (${hi}) — faster than that never helps.`, arrays: [{ name: 'piles', values: piles }], vars: { lo, hi, mid: '-', hours: '-' } });
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      const hours = hoursAt(mid);
+      push({ msg: `Try k = ${mid}: ${piles.map((p) => `⌈${p}/${mid}⌉`).join(' + ')} = ${hours} h ${hours <= h ? '≤' : '>'} ${h}.`, arrays: [{ name: 'piles', values: piles, marks: Object.fromEntries(piles.map((_, i) => [i, 'active' as Mark])) }], vars: { lo, hi, mid, hours } });
+      if (hours <= h) hi = mid;
+      else lo = mid + 1;
+      push({ msg: hours <= h ? `Finishes in time → maybe slower works too: hi = ${hi}.` : `Too slow → need faster: lo = ${lo}.`, arrays: [{ name: 'piles', values: piles }], vars: { lo, hi, mid, hours } });
+    }
+    push({ msg: `Minimum speed: ${lo} bananas/hour (${hoursAt(lo)} h).`, arrays: [{ name: 'piles', values: piles }], vars: { lo, hi, mid: '-', hours: hoursAt(lo), answer: lo } });
+    return frames;
+  },
+};
+
+const rotatedMin: Algo = {
+  id: 'rotated-min',
+  title: 'Minimum in a rotated sorted array',
+  pattern: 'Binary search',
+  problem: 'find-minimum-in-rotated-sorted-array',
+  blurb: 'Compare nums[mid] with nums[hi]: bigger means the drop (the minimum) is to the right of mid.',
+  inputs: [{ key: 'nums', label: 'rotated nums', value: '4, 5, 6, 7, 0, 1, 2' }],
+  run(inp) {
+    const a = nums(inp.nums);
+    const { frames, push } = recorder();
+    let lo = 0;
+    let hi = a.length - 1;
+    const dim = () => Object.fromEntries(a.map((_, i) => [i, 'dim' as Mark]).filter(([i]) => (i as number) < lo || (i as number) > hi));
+    push({ msg: 'The minimum is where the array "drops". Search [lo, hi] inclusive.', arrays: [{ name: 'nums', values: a, pointers: [{ name: 'lo', index: lo }, { name: 'hi', index: hi }] }], vars: { lo, hi, mid: '-' } });
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      const right = a[mid] > a[hi];
+      push({ msg: `mid = ${mid}: nums[mid] = ${a[mid]} ${right ? '>' : '≤'} nums[hi] = ${a[hi]}.`, arrays: [{ name: 'nums', values: a, pointers: [{ name: 'lo', index: lo }, { name: 'mid', index: mid }, { name: 'hi', index: hi }], marks: { ...dim(), [mid]: 'active' } }], vars: { lo, hi, mid } });
+      if (right) lo = mid + 1;
+      else hi = mid;
+      push({ msg: right ? `[mid, hi] isn't sorted → the drop is right of mid: lo = ${lo}.` : `[mid, hi] is sorted → the minimum is mid or left: hi = ${hi}.`, arrays: [{ name: 'nums', values: a, pointers: [{ name: 'lo', index: lo }, { name: 'hi', index: hi }], marks: dim() }], vars: { lo, hi, mid } });
+    }
+    push({ msg: `Minimum: ${a[lo]} at index ${lo}.`, arrays: [{ name: 'nums', values: a, marks: { [lo]: 'hit' } }], vars: { lo, hi, mid: '-', answer: a[lo] } });
+    return frames;
+  },
+};
+
+// ---------------------------------------------------------------------------------------------
+// Week 4 — stacks
+// ---------------------------------------------------------------------------------------------
+const validParens: Algo = {
+  id: 'valid-parens',
+  title: 'Valid parentheses — a stack of open brackets',
+  pattern: 'Stack',
+  problem: 'valid-parentheses',
+  blurb: 'Push every opener; a closer must match the top. Valid only if the stack ends empty.',
+  inputs: [{ key: 's', label: 's', value: '{[()()]}(' }],
+  run(inp) {
+    const s = [...(inp.s || '')];
+    const pair: Record<string, string> = { ')': '(', ']': '[', '}': '{' };
+    const { frames, push } = recorder();
+    const st: string[] = [];
+    push({ msg: 'Empty stack.', arrays: [{ name: 's', values: s }, { name: 'stack', values: [] }], vars: { depth: 0 } });
+    for (let i = 0; i < s.length; i++) {
+      const c = s[i];
+      if (!(c in pair)) {
+        st.push(c);
+        push({ msg: `'${c}' opens → push.`, arrays: [{ name: 's', values: s, pointers: [{ name: 'i', index: i }] }, { name: 'stack', values: [...st], marks: { [st.length - 1]: 'active' } }], vars: { depth: st.length } });
+      } else if (st.at(-1) === pair[c]) {
+        st.pop();
+        push({ msg: `'${c}' matches the top '${pair[c]}' → pop.`, arrays: [{ name: 's', values: s, pointers: [{ name: 'i', index: i }], marks: { [i]: 'done' } }, { name: 'stack', values: [...st] }], vars: { depth: st.length } });
+      } else {
+        push({ msg: `'${c}' doesn't match ${st.length ? `top '${st.at(-1)}'` : 'anything (empty stack)'} → invalid.`, arrays: [{ name: 's', values: s, pointers: [{ name: 'i', index: i }], marks: { [i]: 'swap' } }, { name: 'stack', values: [...st] }], vars: { depth: st.length, valid: false } });
+        return frames;
+      }
+    }
+    push({ msg: st.length ? `End with ${st.length} unclosed → invalid. (Don't forget this check!)` : 'Stack empty at the end → valid.', arrays: [{ name: 's', values: s }, { name: 'stack', values: [...st], marks: Object.fromEntries(st.map((_, i) => [i, 'swap' as Mark])) }], vars: { depth: st.length, valid: st.length === 0 } });
+    return frames;
+  },
+};
+
+const nextGreater: Algo = {
+  id: 'next-greater',
+  title: 'Next greater element — monotonic stack',
+  pattern: 'Monotonic stack',
+  problem: 'next-greater-element-ii',
+  blurb: 'The stack holds indices still waiting for something bigger, values decreasing. A bigger value answers everyone smaller.',
+  inputs: [{ key: 'nums', label: 'nums', value: '2, 1, 2, 4, 3, 1, 5' }],
+  run(inp) {
+    const a = nums(inp.nums);
+    const { frames, push } = recorder();
+    const ans: (number | string)[] = a.map(() => '?');
+    const st: number[] = [];
+    const view = (i: number, marks: Record<number, Mark> = {}) => [
+      { name: 'nums', values: a, pointers: [{ name: 'i', index: i }], marks },
+      { name: 'stack (values)', values: st.map((j) => a[j]) },
+      { name: 'next greater', values: ans },
+    ];
+    for (let i = 0; i < a.length; i++) {
+      while (st.length && a[i] > a[st.at(-1)!]) {
+        const j = st.pop()!;
+        ans[j] = a[i];
+        push({ msg: `${a[i]} > ${a[j]} → ${a[j]}'s next greater is ${a[i]}. Pop.`, arrays: view(i, { [j]: 'hit', [i]: 'active' }), vars: { size: st.length } });
+      }
+      st.push(i);
+      push({ msg: `Push ${a[i]} — waiting for something bigger.`, arrays: view(i), vars: { size: st.length } });
+    }
+    for (const j of st) ans[j] = -1;
+    push({ msg: 'Still on the stack → nothing bigger to the right: −1.', arrays: view(a.length - 1), vars: { size: 0 } });
+    return frames;
+  },
+};
+
+const histogram: Algo = {
+  id: 'histogram',
+  title: 'Largest rectangle in a histogram',
+  pattern: 'Monotonic stack',
+  problem: 'largest-rectangle-in-histogram',
+  blurb: 'Keep bars in increasing height. When a lower bar arrives, each popped bar is as tall as it gets — its width runs from the new top to i.',
+  inputs: [{ key: 'h', label: 'heights', value: '2, 1, 5, 6, 2, 3' }],
+  run(inp) {
+    const h = nums(inp.h);
+    const { frames, push } = recorder();
+    const st: number[] = [];
+    let best = 0;
+    for (let i = 0; i <= h.length; i++) {
+      const cur = i === h.length ? 0 : h[i];
+      while (st.length && h[st.at(-1)!] > cur) {
+        const top = st.pop()!;
+        const left = st.length ? st.at(-1)! : -1;
+        const width = i - left - 1;
+        const area = h[top] * width;
+        best = Math.max(best, area);
+        const marks: Record<number, Mark> = {};
+        for (let k = left + 1; k < i; k++) marks[k] = 'hit';
+        push({ msg: `${i === h.length ? 'End (height 0)' : `Bar ${cur}`} < ${h[top]} → pop ${h[top]}: width = ${i} − ${left} − 1 = ${width}, area ${h[top]}×${width} = ${area}.`, arrays: [{ name: 'heights', values: h, pointers: i < h.length ? [{ name: 'i', index: i }] : [], marks }, { name: 'stack (heights)', values: st.map((j) => h[j]) }], vars: { area, best } });
+      }
+      if (i < h.length) {
+        st.push(i);
+        push({ msg: `Push ${h[i]}.`, arrays: [{ name: 'heights', values: h, pointers: [{ name: 'i', index: i }] }, { name: 'stack (heights)', values: st.map((j) => h[j]) }], vars: { area: '-', best } });
+      }
+    }
+    push({ msg: `Largest rectangle: ${best}.`, arrays: [{ name: 'heights', values: h }], vars: { area: '-', best } });
+    return frames;
+  },
+};
+
+const rpn: Algo = {
+  id: 'rpn',
+  title: 'Evaluate reverse Polish notation',
+  pattern: 'Stack',
+  problem: 'evaluate-reverse-polish-notation',
+  blurb: 'Numbers go on the stack; an operator pops two (right operand first!), applies, pushes the result.',
+  inputs: [{ key: 'tokens', label: 'tokens', value: '4 13 5 / + 2 *' }],
+  run(inp) {
+    const toks = (inp.tokens || '').split(/[\s,]+/).filter(Boolean);
+    const { frames, push } = recorder();
+    const st: number[] = [];
+    for (let i = 0; i < toks.length; i++) {
+      const t = toks[i];
+      if (['+', '-', '*', '/'].includes(t) && st.length >= 2) {
+        const b = st.pop()!;
+        const a = st.pop()!;
+        const r = t === '+' ? a + b : t === '-' ? a - b : t === '*' ? a * b : Math.trunc(a / b);
+        st.push(r);
+        push({ msg: `'${t}': pop ${b} (right), pop ${a} (left) → ${a} ${t} ${b} = ${r}${t === '/' ? ' (truncate toward 0)' : ''}. Push.`, arrays: [{ name: 'tokens', values: toks, pointers: [{ name: 'i', index: i }] }, { name: 'stack', values: [...st], marks: { [st.length - 1]: 'hit' } }], vars: { top: r } });
+      } else {
+        st.push(Number(t));
+        push({ msg: `Number ${t} → push.`, arrays: [{ name: 'tokens', values: toks, pointers: [{ name: 'i', index: i }] }, { name: 'stack', values: [...st], marks: { [st.length - 1]: 'active' } }], vars: { top: Number(t) } });
+      }
+    }
+    push({ msg: `Result: ${st.at(-1)}.`, arrays: [{ name: 'tokens', values: toks }, { name: 'stack', values: [...st] }], vars: { top: st.at(-1) ?? 0 } });
+    return frames;
+  },
+};
+
+export const COURSE_ALGOS: Algo[] = [twoSumHash, prefixBuild, productExceptSelf, firstMissing, moveZeroes, slidingMax, trapWater, bsFirst, koko, rotatedMin, validParens, nextGreater, histogram, rpn];

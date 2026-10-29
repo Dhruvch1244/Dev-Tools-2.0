@@ -32,6 +32,7 @@ const TITLE_OVERRIDES: Record<string, string> = {
   'find-k-th-smallest-pair-distance': 'Find K-th Smallest Pair Distance',
   'design-add-and-search-words-data-structure': 'Design Add and Search Words',
   'my-calendar-iii': 'My Calendar III',
+  sqrtx: 'Sqrt(x)',
 };
 const titleOf = (slug: string) => TITLE_OVERRIDES[slug] ?? slug.split('-').map((w) => (/^(ii|iii|iv|k|bst)$/.test(w) ? w.toUpperCase() : w[0].toUpperCase() + w.slice(1))).join(' ').replace(/ (Of|In|A|An|The|To|And|With|From|On|At|For|By)\b/g, (m) => m.toLowerCase());
 const P = (week: number, list: string): Problem[] =>
@@ -485,6 +486,8 @@ export const ALL_PRACTICE = WEEKS.flatMap((w) => w.problems);
 /** Easy warm-ups the Academy hands out before each week's real set (not counted in season points). */
 export const WARMUPS: Problem[] = [
   ...P(1, 'contains-duplicate:E two-sum:E valid-anagram:E running-sum-of-1d-array:E range-sum-query-immutable:E find-pivot-index:E'),
+  ...P(3, 'binary-search:E search-insert-position:E first-bad-version:E sqrtx:E guess-number-higher-or-lower:E arranging-coins:E'),
+  ...P(4, 'baseball-game:E backspace-string-compare:E implement-queue-using-stacks:E remove-all-adjacent-duplicates-in-string:E next-greater-element-i:E final-prices-with-a-special-discount-in-a-shop:E'),
   ...P(2, 'valid-palindrome:E two-sum-ii-input-array-is-sorted:M squares-of-a-sorted-array:E move-zeroes:E remove-duplicates-from-sorted-array:E merge-sorted-array:E maximum-average-subarray-i:E best-time-to-buy-and-sell-stock:E contains-duplicate-ii:E'),
 ];
 export const findProblem = (id: string) => [...ALL_PRACTICE, ...WEEKS.flatMap((w) => w.test), ...MEGAS.flatMap((m) => m.problems), ...WARMUPS].find((p) => p.id === id);

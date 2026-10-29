@@ -771,7 +771,669 @@ With pointers at both ends: if \`height[l] < height[r]\`, the right side already
   ],
 };
 
-export const COURSES: Course[] = [W1, W2];
+// =============================================================================================
+// Week 3 — Binary Search & Search on Answer
+// =============================================================================================
+const W3: Course = {
+  week: 3,
+  title: 'Binary Search & Search on Answer',
+  tagline: 'Halve the search space every step — even when the thing you search is the answer itself.',
+  modules: [
+    {
+      id: 'w3-template',
+      title: 'One template, no off-by-ones',
+      corner: 'T1',
+      blurb: 'Find the first index where a yes/no question flips to yes.',
+      cards: [
+        {
+          kind: 'learn',
+          title: 'Find where false turns true',
+          body: `Almost every binary search is: **the first index where a monotonic predicate becomes true** (F F F T T T).
+
+\`\`\`python
+lo, hi = 0, len(nums)        # the answer is in [lo, hi]; hi = "none are true"
+while lo < hi:
+    mid = (lo + hi) // 2
+    if ok(mid): hi = mid      # mid might be the answer — keep it
+    else:       lo = mid + 1  # mid is definitely not — drop it
+return lo
+\`\`\`
+
+**Invariant:** everything left of \`lo\` is false, everything from \`hi\` on is true. The loop ends with \`lo == hi\` — the first true.
+
+- Search Insert Position / lower bound: \`ok(i) = nums[i] >= target\`
+- First Bad Version: \`ok(v) = isBadVersion(v)\`
+- Exact match? Run it, then check \`lo < n and nums[lo] == target\`.
+
+Each step halves the range: n = 10⁶ takes about **20 steps**.`,
+          viz: { algo: 'bs-first' },
+        },
+        { kind: 'sim', title: 'Lower bound, step by step', intro: 'Watch [lo, hi) shrink. Dimmed cells are proven not to be the answer.', algo: 'bs-first' },
+        { kind: 'predict', title: 'Where does mid land?', algo: 'bs-first', inputs: { nums: '2, 4, 4, 4, 8, 10, 15, 20, 25', t: '9' }, var: 'mid', questions: 3 },
+        {
+          kind: 'blank',
+          title: 'Complete the template',
+          code: `while lo < hi:
+    mid = (lo + hi) // 2
+    if nums[mid] >= target:
+        hi = ____
+    else:
+        lo = mid + 1`,
+          choices: ['mid', 'mid - 1', 'mid + 1', 'lo'],
+          answer: 0,
+          why: 'nums[mid] ≥ target means mid itself could be the first one — keep it in range with hi = mid.',
+        },
+        {
+          kind: 'bug',
+          title: 'This loops forever on nums = [1, 3], target = 3. Tap the buggy line.',
+          code: `def first_ge(nums, t):
+    lo, hi = 0, len(nums)
+    while lo < hi:
+        mid = (lo + hi) // 2
+        if nums[mid] >= t:
+            hi = mid
+        else:
+            lo = mid
+    return lo`,
+          bug: 7,
+          why: 'With lo = 0, hi = 1: mid = 0, and lo = mid changes nothing — the range never shrinks.',
+          fix: '`lo = mid + 1` — mid failed the test, so drop it.',
+        },
+        {
+          kind: 'mcq',
+          q: 'In C++ or Java, why write mid = lo + (hi − lo) / 2 instead of (lo + hi) / 2?',
+          choices: ['It is faster', 'lo + hi can overflow a 32-bit int when both are large', 'It rounds up instead of down', 'Python requires it'],
+          answer: 1,
+          why: 'With lo and hi near 2³¹, their sum overflows to a negative number. lo + (hi − lo) / 2 never exceeds hi.',
+        },
+        {
+          kind: 'mcq',
+          q: 'About how many loop iterations for n = 1 000 000?',
+          choices: ['~10', '~20', '~1 000', '~500 000'],
+          answer: 1,
+          why: 'log₂(10⁶) ≈ 19.9 — each step halves the range.',
+        },
+        { kind: 'problem', id: 'binary-search', title: 'Binary Search', diff: 'E', why: 'The template plus an exact-match check.' },
+        { kind: 'problem', id: 'search-insert-position', title: 'Search Insert Position', diff: 'E', why: 'Literally the lower bound you just traced.' },
+        { kind: 'problem', id: 'first-bad-version', title: 'First Bad Version', diff: 'E', why: 'ok(v) is an API call — same template.' },
+      ],
+    },
+    {
+      id: 'w3-bounds',
+      title: 'Bounds, grids and peaks',
+      corner: 'T2',
+      blurb: 'Lower vs upper bound, a 2D matrix as one array, and peaks without sorting.',
+      cards: [
+        {
+          kind: 'learn',
+          title: 'Same template, different questions',
+          body: `| You want | ok(i) | Result |
+|---|---|---|
+| first index ≥ t (**lower bound**) | nums[i] ≥ t | lo |
+| first index > t (**upper bound**) | nums[i] > t | lo |
+| last index of t | nums[i] > t | lo − 1 (if nums[lo−1] == t) |
+| count of t | — | upper − lower |
+| integer √x | i·i > x | lo − 1 |
+
+**Search a 2D Matrix** (each row sorted, rows follow on): pretend it's one array of m·n cells — index k is row \`k // n\`, column \`k % n\`.
+
+**Find Peak Element:** not sorted, but if \`nums[mid] < nums[mid+1]\` you're on a slope going up, so a peak exists to the right → \`lo = mid + 1\`; else \`hi = mid\`.`,
+        },
+        {
+          kind: 'mcq',
+          q: 'nums = [5, 7, 7, 8, 8, 10], target = 8. Lower bound = 3, upper bound = 5. First and last position of 8?',
+          choices: ['[3, 4]', '[3, 5]', '[4, 5]', '[2, 4]'],
+          answer: 0,
+          why: 'First = lower bound = 3; last = upper bound − 1 = 4.',
+        },
+        {
+          kind: 'mcq',
+          q: 'A 3 × 4 matrix treated as one array: which cell is flat index 7?',
+          choices: ['(1, 3)', '(2, 1)', '(1, 2)', '(3, 1)'],
+          answer: 0,
+          why: 'row = 7 // 4 = 1, col = 7 % 4 = 3.',
+        },
+        {
+          kind: 'mcq',
+          q: 'Find Peak Element: nums[mid] < nums[mid + 1]. Where must a peak exist?',
+          choices: ['Left of mid', 'Right of mid (mid + 1 onwards)', 'At mid', 'Nowhere — you need to sort'],
+          answer: 1,
+          why: 'Climbing up from mid: either it keeps rising to the end (the last element is a peak) or it turns down somewhere — a peak.',
+        },
+        {
+          kind: 'match',
+          title: 'Match the problem to its predicate',
+          pairs: [
+            ['Search Insert Position', 'nums[i] ≥ target'],
+            ['First Bad Version', 'isBadVersion(i)'],
+            ['Last position of target', 'nums[i] > target, then − 1'],
+            ['Sqrt(x)', 'i · i > x, then − 1'],
+          ],
+        },
+        { kind: 'problem', id: 'sqrtx', title: 'Sqrt(x)', diff: 'E', why: 'Search the answer with i·i > x.' },
+        { kind: 'problem', id: 'guess-number-higher-or-lower', title: 'Guess Number Higher or Lower', diff: 'E', why: 'Binary search driven by an API.' },
+      ],
+    },
+    {
+      id: 'w3-rotated',
+      title: 'Rotated arrays: one half is always sorted',
+      corner: 'T3',
+      blurb: 'Find the drop, or the target, in a sorted array that was rotated.',
+      cards: [
+        {
+          kind: 'learn',
+          title: 'Look at the sorted half',
+          body: `A rotated sorted array (e.g. [4, 5, 6, 7, 0, 1, 2]) is two sorted runs. Any mid splits it so that **at least one half is sorted**.
+
+**Minimum:** compare \`nums[mid]\` with \`nums[hi]\`. If it's bigger, the drop is to the right → \`lo = mid + 1\`; otherwise the minimum is mid or left → \`hi = mid\`.
+
+**Search for a target:**
+- If \`nums[lo] <= nums[mid]\` the left half is sorted: go left if \`nums[lo] <= t < nums[mid]\`, else right.
+- Otherwise the right half is sorted: go right if \`nums[mid] < t <= nums[hi]\`, else left.
+
+**With duplicates** (Search in Rotated Sorted Array II) you sometimes can't tell which half is sorted (\`nums[lo] == nums[mid] == nums[hi]\`) — shrink both ends by one. Worst case becomes O(n).`,
+          viz: { algo: 'rotated-min' },
+        },
+        { kind: 'sim', title: 'Find the drop', intro: 'Compare with nums[hi] and throw away the half that cannot hold the minimum.', algo: 'rotated-min' },
+        { kind: 'predict', title: 'Next mid', algo: 'rotated-min', inputs: { nums: '11, 13, 15, 17, 19, 2, 5, 9' }, var: 'mid', questions: 3 },
+        {
+          kind: 'mcq',
+          q: 'nums = [4, 5, 6, 7, 0, 1, 2], lo = 0, mid = 3. Which half is sorted?',
+          choices: ['Left: [4, 5, 6, 7]', 'Right: [7, 0, 1, 2]', 'Both', 'Neither'],
+          answer: 0,
+          why: 'nums[lo] = 4 ≤ nums[mid] = 7, so lo..mid is increasing. The drop is on the right.',
+        },
+        {
+          kind: 'bug',
+          title: 'On [3, 1, 2] this returns 3. Tap the buggy line.',
+          code: `lo, hi = 0, len(nums) - 1
+while lo < hi:
+    mid = (lo + hi) // 2
+    if nums[mid] > nums[hi]:
+        lo = mid + 1
+    else:
+        hi = mid - 1
+return nums[lo]`,
+          bug: 6,
+          why: 'When nums[mid] ≤ nums[hi], mid itself may be the minimum (here mid = 1 holds 1). hi = mid − 1 throws it away.',
+          fix: '`hi = mid`',
+        },
+        {
+          kind: 'mcq',
+          q: 'Search in Rotated Sorted Array II (duplicates allowed): worst-case time?',
+          choices: ['O(log n)', 'O(n)', 'O(n log n)', 'O(1)'],
+          answer: 1,
+          why: 'With many equal values (e.g. [1,1,1,1,1,2,1]) each step may only shrink the range by one.',
+        },
+      ],
+    },
+    {
+      id: 'w3-answer',
+      title: 'Search on the answer',
+      corner: 'T4',
+      blurb: 'When “can I do it with X?” is monotonic, binary search X.',
+      cards: [
+        {
+          kind: 'learn',
+          title: 'Binary search what they ask for',
+          body: `Sometimes there's no array to search — but the **answer** has a range, and checking a guess is easy and **monotonic**.
+
+| Problem | Search X | ok(X) | Range |
+|---|---|---|---|
+| Koko Eating Bananas | speed | hours(X) ≤ h | 1 … max pile |
+| Ship Packages in D Days | capacity | days(X) ≤ D | max weight … sum |
+| Split Array Largest Sum | biggest part | parts(X) ≤ k | max … sum |
+| Min Days for m Bouquets | day | bouquets(X) ≥ m | min … max bloom |
+| Magnetic Force (max of min) | distance | can place m balls | **last** true |
+
+Write \`ok\` as a greedy O(n) check, then run the template over the range. Total **O(n · log(range))**.
+
+For "maximise the minimum", ok is true for small X and false for big X — search the **last true** (or flip the predicate).`,
+          viz: { algo: 'koko' },
+        },
+        { kind: 'sim', title: 'Koko picks a speed', intro: 'Each guess costs one pass over the piles; the range halves each time.', algo: 'koko' },
+        { kind: 'predict', title: 'How many hours at this speed?', algo: 'koko', inputs: { piles: '30, 11, 23, 4, 20', h: '6' }, var: 'hours', questions: 3 },
+        {
+          kind: 'order',
+          title: 'Order the feasibility check for Ship Packages',
+          lines: ['def can_ship(cap):', '    days, load = 1, 0', '    for w in weights:', '        if load + w > cap:', '            days, load = days + 1, 0', '        load += w', '    return days <= D'],
+          why: 'Greedy: fill today’s ship until the next package would overflow, then start a new day.',
+        },
+        {
+          kind: 'mcq',
+          q: 'Ship Packages: what range do you binary search for the capacity?',
+          choices: ['1 … sum(weights)', 'max(weights) … sum(weights)', '0 … D', 'min(weights) … max(weights)'],
+          answer: 1,
+          why: 'Below the heaviest package nothing ships; with the total you ship everything in one day.',
+        },
+        {
+          kind: 'match',
+          title: 'Match the problem to what you binary search',
+          pairs: [
+            ['Koko Eating Bananas', 'eating speed'],
+            ['Capacity to Ship Packages', 'ship capacity'],
+            ['Split Array Largest Sum', 'the largest part’s sum'],
+            ['Min Days to Make m Bouquets', 'the day number'],
+          ],
+        },
+        {
+          kind: 'mcq',
+          q: 'Magnetic Force Between Two Balls (maximise the minimum gap). Which X do you want?',
+          choices: ['The first d where you can place m balls', 'The last d where you can still place m balls', 'The middle of the range', 'The smallest gap in the array'],
+          answer: 1,
+          why: 'Small gaps are always placeable; big ones aren’t. The answer is the largest d that still works — the last true.',
+        },
+        { kind: 'problem', id: 'arranging-coins', title: 'Arranging Coins', diff: 'E', why: 'Search k with k(k+1)/2 ≤ n — search on the answer in miniature.' },
+        { kind: 'problem', id: 'koko-eating-bananas', title: 'Koko Eating Bananas', diff: 'M', why: 'From this week’s set — now you know the shape.' },
+      ],
+    },
+    {
+      id: 'w3-hard',
+      title: 'Hard mode: medians, matrices, timestamps',
+      corner: 'T5',
+      blurb: 'The same idea on less obvious search spaces.',
+      cards: [
+        {
+          kind: 'learn',
+          title: 'What exactly are you searching?',
+          body: `- **Median of Two Sorted Arrays** — binary search the **cut** in the smaller array. Take i from A and j = (m + n + 1) / 2 − i from B. The cut is right when \`A[i−1] ≤ B[j]\` and \`B[j−1] ≤ A[i]\`. If \`B[j−1] > A[i]\`, take more from A (move i right). O(log min(m, n)).
+- **Kth Smallest in a Sorted Matrix** — binary search the **value**: count cells ≤ mid by walking from the bottom-left corner in O(n); find the first value with count ≥ k.
+- **Time Based Key-Value Store** — timestamps arrive increasing, so each key's list is sorted: \`get(key, t)\` is the last timestamp ≤ t → \`bisect_right(times, t) − 1\`.
+- **Split Array Largest Sum** — exactly Ship Packages with k days.`,
+        },
+        {
+          kind: 'mcq',
+          q: 'Median of [1, 3, 8] and [7, 9, 10, 11]: with i = 2 and j = 2, B[j−1] = 9 > A[i] = 8. What next?',
+          choices: ['Move i right (take more from A)', 'Move i left', 'Stop — the cut is right', 'Swap the arrays'],
+          answer: 0,
+          why: 'B’s left side is too big, so B gives up an element and A contributes one more: i moves right.',
+        },
+        {
+          kind: 'mcq',
+          q: 'Kth Smallest Element in a Sorted Matrix: what is the binary search over?',
+          choices: ['Row indices', 'The value range from matrix[0][0] to matrix[n−1][n−1]', 'The diagonal', 'Column indices'],
+          answer: 1,
+          why: 'You search values: “how many cells are ≤ mid?” is monotonic in mid and costs O(n) to count.',
+        },
+        {
+          kind: 'mcq',
+          q: 'Time Based Key-Value Store: get(key, t) should return…',
+          choices: ['the value at the first timestamp ≥ t', 'the value at the last timestamp ≤ t', 'the newest value', 'the value at exactly t or ""'],
+          answer: 1,
+          why: 'The latest value set at or before time t — the index bisect_right(times, t) − 1 (empty if that is −1).',
+        },
+        {
+          kind: 'mcq',
+          q: 'Split Array Largest Sum: nums = [7, 2, 5, 10, 8], k = 2. The minimised largest sum is…',
+          choices: ['15', '18', '21', '32'],
+          answer: 1,
+          why: '[7, 2, 5] | [10, 8] → max(14, 18) = 18; no split does better.',
+        },
+      ],
+    },
+    {
+      id: 'w3-boss',
+      title: 'Qualifying: Week 3',
+      corner: 'Q',
+      blurb: 'Mixed, timed — spot the binary search hiding in each question.',
+      boss: true,
+      cards: [
+        {
+          kind: 'speed',
+          title: 'Q1 — pick the move',
+          seconds: 75,
+          items: [
+            { q: 'First index with value ≥ x in a sorted array', choices: ['Linear scan', 'Lower-bound binary search', 'Hash map', 'Two pointers'], answer: 1 },
+            { q: 'Minimum speed to finish within h hours', choices: ['Greedy only', 'Binary search on the answer', 'Sort piles', 'Heap'], answer: 1 },
+            { q: 'Count of x in a sorted array', choices: ['upper bound − lower bound', 'Hash set', 'Scan from the middle', 'Sum of array'], answer: 0 },
+            { q: 'Target in a rotated sorted array', choices: ['Sort first', 'Binary search, check the sorted half', 'Two pointers', 'Prefix sums'], answer: 1 },
+            { q: 'Maximise the minimum distance between m balls', choices: ['Binary search the last feasible distance', 'Sort and take gaps', 'DP', 'Sliding window'], answer: 0 },
+            { q: 'k-th smallest in a row/column-sorted matrix', choices: ['Flatten and sort', 'Binary search on value + count', 'BFS', 'Two pointers per row'], answer: 1 },
+          ],
+        },
+        { kind: 'predict', title: 'Final sector: Koko', algo: 'koko', inputs: { piles: '25, 10, 23, 4, 18, 9', h: '9' }, var: 'hours', questions: 3 },
+        {
+          kind: 'mcq',
+          q: 'Koko with n piles and a biggest pile of M: total time?',
+          choices: ['O(n)', 'O(n log M)', 'O(M log n)', 'O(n · M)'],
+          answer: 1,
+          why: 'log M guesses, each an O(n) pass over the piles.',
+        },
+        {
+          kind: 'mcq',
+          q: 'Min Days to Make m Bouquets (k adjacent flowers each): when do you return −1 straight away?',
+          choices: ['When m > k', 'When m · k > number of flowers', 'When bloomDay is unsorted', 'Never'],
+          answer: 1,
+          why: 'You need m·k distinct flowers; if there aren’t that many, no day works.',
+        },
+      ],
+    },
+  ],
+};
+
+// =============================================================================================
+// Week 4 — Stacks & Monotonic Stack / Queue
+// =============================================================================================
+const W4: Course = {
+  week: 4,
+  title: 'Stacks & Monotonic Stack / Queue',
+  tagline: 'Keep only what can still matter — and answer it the moment it’s settled.',
+  modules: [
+    {
+      id: 'w4-stack',
+      title: 'Stacks: last in, first out',
+      corner: 'T1',
+      blurb: 'Matching, undo, nesting — the most recent unresolved thing sits on top.',
+      cards: [
+        {
+          kind: 'learn',
+          title: 'The most recent open thing',
+          body: `A stack gives O(1) **push**, **pop** and **peek** at the top. Reach for it whenever the thing you need is the **most recent one still unresolved**: an open bracket, an operator waiting for operands, a day waiting for a warmer one.
+
+- **Valid Parentheses:** push openers; a closer must match the top; the stack must be **empty at the end**.
+- **Min Stack:** push \`(value, min so far)\` pairs, so \`getMin()\` is just the top's second field — O(1).
+- In code: Python \`list\` (append/pop), C++ \`std::stack\` or \`vector\`, Java **\`ArrayDeque\`** (not the old synchronized \`Stack\` class).`,
+          viz: { algo: 'valid-parens' },
+        },
+        { kind: 'sim', title: 'Brackets on a stack', intro: 'Openers go on, matching closers pop — and the final check catches the leftover "(".', algo: 'valid-parens' },
+        { kind: 'predict', title: 'Stack depth next', algo: 'valid-parens', inputs: { s: '([]{()})' }, var: 'depth', questions: 4 },
+        {
+          kind: 'bug',
+          title: 'isValid("((") returns True. Tap the buggy line.',
+          code: `def isValid(s):
+    pairs = {')': '(', ']': '[', '}': '{'}
+    stack = []
+    for c in s:
+        if c in pairs:
+            if not stack or stack.pop() != pairs[c]:
+                return False
+        else:
+            stack.append(c)
+    return True`,
+          bug: 9,
+          why: 'Unclosed openers are still on the stack at the end — the string is not valid.',
+          fix: '`return not stack`',
+        },
+        {
+          kind: 'mcq',
+          q: 'Min Stack: how does getMin() stay O(1) after pops?',
+          choices: ['Re-scan the stack', 'Store each element with the minimum at the time it was pushed', 'Keep a sorted copy', 'Use a heap'],
+          answer: 1,
+          why: 'Popping restores the previous (value, min) pair automatically, so the min is always the top’s stored min.',
+        },
+        {
+          kind: 'mcq',
+          q: 'In Java, which class should back a stack?',
+          choices: ['java.util.Stack', 'ArrayDeque', 'LinkedList only', 'PriorityQueue'],
+          answer: 1,
+          why: 'Stack is a synchronized legacy Vector; ArrayDeque is faster and the recommended LIFO structure.',
+        },
+        { kind: 'problem', id: 'baseball-game', title: 'Baseball Game', diff: 'E', why: 'Push scores, pop to undo.' },
+        { kind: 'problem', id: 'backspace-string-compare', title: 'Backspace String Compare', diff: 'E', why: '"#" pops the last character.' },
+        { kind: 'problem', id: 'implement-queue-using-stacks', title: 'Implement Queue using Stacks', diff: 'E', why: 'Two stacks, amortised O(1).' },
+        { kind: 'problem', id: 'remove-all-adjacent-duplicates-in-string', title: 'Remove All Adjacent Duplicates in String', diff: 'E', why: 'Pop when the top equals the next char.' },
+      ],
+    },
+    {
+      id: 'w4-eval',
+      title: 'Evaluating & decoding',
+      corner: 'T2',
+      blurb: 'Expressions, nested strings and collisions — all with one stack.',
+      cards: [
+        {
+          kind: 'learn',
+          title: 'Postpone until you can finish',
+          body: `- **Reverse Polish Notation:** numbers go on the stack; an operator pops **b then a** and pushes \`a op b\`. Division truncates toward zero.
+- **Basic Calculator (+, −, parentheses):** keep a running \`result\` and \`sign\`. On \`(\` push \`(result, sign)\` and start fresh; on \`)\` pop and combine: \`result = saved + savedSign × result\`.
+- **Decode String** "3[a2[c]]": on \`[\` push \`(current string, count)\`; on \`]\` pop and set \`current = prev + current × count\` → "accaccacc".
+- **Asteroid Collision:** stack of survivors. A left-mover (negative) fights right-movers on top: the smaller explodes, equal both explode.`,
+          viz: { algo: 'rpn' },
+        },
+        { kind: 'sim', title: 'Evaluate RPN', intro: 'Watch operators pop two values — right operand first.', algo: 'rpn' },
+        { kind: 'predict', title: 'What’s on top now?', algo: 'rpn', inputs: { tokens: '2 1 + 3 * 4 - 6 2 / +' }, var: 'top', questions: 4 },
+        {
+          kind: 'mcq',
+          q: 'RPN tokens "6 3 −": you pop 3, then 6. The result is…',
+          choices: ['3', '−3', '9', '2'],
+          answer: 0,
+          why: 'The first pop is the right operand: a = 6, b = 3 → 6 − 3 = 3. Swapping them is the classic bug.',
+        },
+        {
+          kind: 'blank',
+          title: 'RPN division in Python (truncate toward zero)',
+          code: `b, a = stack.pop(), stack.pop()
+if tok == '/':
+    stack.append(____)`,
+          choices: ['int(a / b)', 'a // b', 'b // a', 'round(a / b)'],
+          answer: 0,
+          why: '// floors: −7 // 2 = −4, but the problem wants −3. int(a / b) truncates toward zero.',
+        },
+        {
+          kind: 'mcq',
+          q: 'Decode String: "3[a2[c]]" becomes…',
+          choices: ['accaccacc', 'acacac', 'aaacc', 'acc'],
+          answer: 0,
+          why: 'Inner first: 2[c] = "cc" → "acc"; then 3 × "acc".',
+        },
+        {
+          kind: 'mcq',
+          q: 'Asteroid Collision on [5, 10, −5]?',
+          choices: ['[5, 10]', '[5]', '[10]', '[5, 10, −5]'],
+          answer: 0,
+          why: '−5 meets 10 first (top of the stack): 10 is bigger, −5 explodes. 5 and 10 move the same way and never meet.',
+        },
+      ],
+    },
+    {
+      id: 'w4-mono',
+      title: 'Monotonic stack: who’s next bigger?',
+      corner: 'T3',
+      blurb: 'Keep the stack sorted; each pop answers a question in O(1).',
+      cards: [
+        {
+          kind: 'learn',
+          title: 'Waiting for something bigger',
+          body: `Keep indices whose values are **decreasing** on the stack. When a bigger value arrives, everything smaller it pops has just found its **next greater element**. Each index is pushed once and popped once → **O(n)**.
+
+| You need | Stack order | Pop when |
+|---|---|---|
+| next greater | decreasing | a[i] > a[top] |
+| next smaller | increasing | a[i] < a[top] |
+| stock span | decreasing (price, span) | price ≤ today — add its span |
+| remove k digits (smallest number) | increasing | top > digit and k > 0 |
+
+**Circular arrays** (Next Greater Element II): loop i over 0 … 2n−1 and use \`i % n\`; only push in the first pass.`,
+          viz: { algo: 'monotonic-stack' },
+        },
+        { kind: 'sim', title: 'Daily temperatures', intro: 'The stack holds days still waiting for a warmer one.', algo: 'monotonic-stack' },
+        { kind: 'predict', title: 'Stack size after this step', algo: 'next-greater', var: 'size', questions: 4 },
+        {
+          kind: 'mcq',
+          q: 'For “next greater element”, the stack keeps values in which order (bottom → top)?',
+          choices: ['Increasing', 'Decreasing', 'Sorted by index only', 'Any order'],
+          answer: 1,
+          why: 'A new value pops every smaller value on top, so what remains below it is bigger — decreasing.',
+        },
+        {
+          kind: 'mcq',
+          q: 'Remove K Digits: num = "1432219", k = 3. Smallest result?',
+          choices: ['"1219"', '"1229"', '"2219"', '"1432"'],
+          answer: 0,
+          why: 'Pop 4 (> 3), 3 (> 2), then the second 2 (> 1): "1219".',
+        },
+        {
+          kind: 'match',
+          title: 'Match the problem to its pop rule',
+          pairs: [
+            ['Daily Temperatures', 'pop while today is warmer'],
+            ['Online Stock Span', 'pop while price ≤ today, add their spans'],
+            ['Remove K Digits', 'pop while top > digit and k > 0'],
+            ['Next Smaller Element', 'increasing stack, pop while top > current'],
+          ],
+        },
+        { kind: 'problem', id: 'next-greater-element-i', title: 'Next Greater Element I', diff: 'E', why: 'Monotonic stack + a map for the lookups.' },
+        { kind: 'problem', id: 'final-prices-with-a-special-discount-in-a-shop', title: 'Final Prices With a Special Discount', diff: 'E', why: 'Next smaller-or-equal element.' },
+      ],
+    },
+    {
+      id: 'w4-hist',
+      title: 'Largest rectangle & maximal rectangle',
+      corner: 'T4',
+      blurb: 'When a bar gets popped, its full width is finally known.',
+      cards: [
+        {
+          kind: 'learn',
+          title: 'Pop = this bar can’t extend any further',
+          body: `Keep bar indices with **increasing heights**. When a lower bar arrives at i, each popped bar \`top\` is as tall as its rectangle gets, and its width runs between the new stack top and i:
+
+> width = i − stack.top − 1 (or i if the stack is empty), area = height[top] × width
+
+Add a **sentinel height 0** at the end to flush the stack. O(n).
+
+**Maximal Rectangle (0/1 matrix):** for each row build heights (\`h[j] = h[j] + 1\` if the cell is 1, else 0) and run the histogram. O(rows × cols).`,
+          viz: { algo: 'histogram' },
+        },
+        { kind: 'sim', title: 'Histogram, bar by bar', intro: 'Green cells show the rectangle measured at each pop.', algo: 'histogram' },
+        { kind: 'predict', title: 'Area of this pop', algo: 'histogram', inputs: { h: '2, 4, 2, 1, 3, 3' }, var: 'area', questions: 3 },
+        {
+          kind: 'mcq',
+          q: 'A bar of height 5 is popped at i = 4 and the new stack top is index 1. Its rectangle area?',
+          choices: ['5', '10', '15', '20'],
+          answer: 1,
+          why: 'width = 4 − 1 − 1 = 2 → 5 × 2 = 10.',
+        },
+        {
+          kind: 'mcq',
+          q: 'Maximal Rectangle on an R × C grid using the histogram trick costs…',
+          choices: ['O(R · C)', 'O(R² · C²)', 'O(R · C · log C)', 'O(2^C)'],
+          answer: 0,
+          why: 'Each row updates C heights and runs an O(C) histogram.',
+        },
+        { kind: 'problem', id: 'largest-rectangle-in-histogram', title: 'Largest Rectangle in Histogram', diff: 'H', why: 'From this week’s set — the sim above, in code.' },
+      ],
+    },
+    {
+      id: 'w4-contrib',
+      title: 'Contribution counting',
+      corner: 'T5',
+      blurb: 'Sum over all subarrays without listing them: ask how many subarrays each element wins.',
+      cards: [
+        {
+          kind: 'learn',
+          title: 'Each element’s share',
+          body: `**Sum of Subarray Minimums:** instead of n² subarrays, ask for each a[i]: in how many subarrays is it the minimum?
+
+- **L** = distance to the previous **smaller** element (strictly less)
+- **R** = distance to the next **smaller-or-equal** element
+
+a[i] is the minimum of **L × R** subarrays → answer = Σ a[i] · L · R (mod 10⁹+7). Both distances come from monotonic stacks in O(n).
+
+Example [3, 1, 2, 4]: 3·1·1 + 1·2·3 + 2·1·2 + 4·1·1 = 3 + 6 + 4 + 4 = **17**.
+
+**Duplicates:** use strict on one side and non-strict on the other, or a subarray with two equal minimums is counted twice.`,
+        },
+        {
+          kind: 'mcq',
+          q: 'In [3, 1, 2, 4], the 1 is the minimum of how many subarrays?',
+          choices: ['3', '4', '6', '8'],
+          answer: 2,
+          why: 'L = 2 (it can start at index 0 or 1), R = 3 (end at index 1, 2 or 3) → 2 × 3 = 6.',
+        },
+        {
+          kind: 'mcq',
+          q: 'Sum of Subarray Minimums for [3, 1, 2, 4]?',
+          choices: ['10', '15', '17', '20'],
+          answer: 2,
+          why: '3 + 6 + 4 + 4 = 17 (matches LeetCode’s example).',
+        },
+        {
+          kind: 'mcq',
+          q: 'Why “strictly smaller” on one side but “smaller or equal” on the other?',
+          choices: ['It is faster', 'So a subarray with two equal minimums is credited to exactly one of them', 'To handle negatives', 'Because the mod requires it'],
+          answer: 1,
+          why: 'With both strict, [2, 2] would credit both 2s; with both non-strict, neither. Mixing them assigns it to one.',
+        },
+      ],
+    },
+    {
+      id: 'w4-deque',
+      title: 'Deques: windows, prefixes and fleets',
+      corner: 'T6',
+      blurb: 'Monotonic queues for windows — and a stack that counts car fleets.',
+      cards: [
+        {
+          kind: 'learn',
+          title: 'Two ends, two jobs',
+          body: `- **Sliding Window Maximum:** a deque of indices with decreasing values; pop the back while smaller, pop the front when it leaves the window. Front = max. O(n).
+- **Shortest Subarray with Sum ≥ K (negatives allowed):** a sliding window fails with negatives, so use prefix sums P and a deque of indices with **increasing P**. For each i: while \`P[i] − P[front] ≥ K\` record and pop the front; while \`P[back] ≥ P[i]\` pop the back (a later, smaller prefix is a better start).
+- **Car Fleet:** sort cars by position (closest to the target first) and compute each car's arrival time. A car arriving no later than the fleet in front joins it; a later one starts a new fleet.`,
+          viz: { algo: 'sliding-max' },
+        },
+        { kind: 'sim', title: 'Window maximum', intro: 'The deque front is always the max of the current window.', algo: 'sliding-max' },
+        {
+          kind: 'mcq',
+          q: 'Car Fleet: target = 12, position = [10, 8, 0, 5, 3], speed = [2, 4, 1, 1, 3]. How many fleets arrive?',
+          choices: ['2', '3', '4', '5'],
+          answer: 1,
+          why: 'Times from the front: 10→1, 8→1 (joins), 5→7, 3→3 (joins 7), 0→12. Fleets: {10, 8}, {5, 3}, {0} = 3.',
+        },
+        {
+          kind: 'mcq',
+          q: 'Shortest Subarray with Sum ≥ K: why pop the back while P[back] ≥ P[i]?',
+          choices: ['To keep the deque short', 'A later index with a smaller-or-equal prefix is always a better start', 'Because P is sorted', 'To handle k = 0'],
+          answer: 1,
+          why: 'Starting at i gives a bigger sum and a shorter subarray than starting at back, so back can never be the best start.',
+        },
+        {
+          kind: 'mcq',
+          q: 'Which of these needs the deque of prefix sums rather than a plain sliding window?',
+          choices: ['Minimum Size Subarray Sum (all positive)', 'Shortest Subarray with Sum ≥ K (negatives allowed)', 'Max Consecutive Ones III', 'Longest Substring Without Repeats'],
+          answer: 1,
+          why: 'Negatives break the “shrink when the sum is big enough” logic of a sliding window.',
+        },
+      ],
+    },
+    {
+      id: 'w4-boss',
+      title: 'Qualifying: Week 4',
+      corner: 'Q',
+      blurb: 'Mixed, timed — and the warm-up for Grand Prix I (weeks 1–4).',
+      boss: true,
+      cards: [
+        {
+          kind: 'speed',
+          title: 'Q1 — pick the structure',
+          seconds: 75,
+          items: [
+            { q: 'Do the brackets match?', choices: ['Stack', 'Queue', 'Heap', 'Hash set'], answer: 0 },
+            { q: 'Days until a warmer temperature', choices: ['Monotonic stack', 'Binary search', 'Prefix sums', 'Two pointers'], answer: 0 },
+            { q: 'Max of every window of size k', choices: ['Monotonic deque', 'Stack', 'Sort each window', 'Hash map'], answer: 0 },
+            { q: 'Largest rectangle in a histogram', choices: ['Increasing stack + widths', 'Two pointers', 'DP on heights only', 'Binary search'], answer: 0 },
+            { q: 'Evaluate 2 1 + 3 *', choices: ['Stack of numbers', 'Queue', 'Recursion only', 'Hash map'], answer: 0 },
+            { q: 'Sum of minimums of all subarrays', choices: ['Contribution: a[i]·L·R with monotonic stacks', 'Enumerate all subarrays', 'Sliding window', 'Sort'], answer: 0 },
+          ],
+        },
+        { kind: 'predict', title: 'Final sector: next greater', algo: 'next-greater', inputs: { nums: '1, 5, 3, 6, 7, 2, 4' }, var: 'size', questions: 3 },
+        {
+          kind: 'mcq',
+          q: 'Daily Temperatures [73, 74, 75, 71, 69, 72, 76, 73]: the answer for 71 (index 3) is…',
+          choices: ['1', '2', '3', '0'],
+          answer: 1,
+          why: '72 at index 5 is the next warmer day: 5 − 3 = 2.',
+        },
+        {
+          kind: 'mcq',
+          q: 'Over n elements, how many pushes + pops can a monotonic stack do in total?',
+          choices: ['At most 2n', 'n²', 'n log n', 'Unbounded'],
+          answer: 0,
+          why: 'Each index is pushed once and popped at most once — that is why it is O(n).',
+        },
+      ],
+    },
+  ],
+};
+
+export const COURSES: Course[] = [W1, W2, W3, W4];
 export const courseFor = (week: number) => COURSES.find((c) => c.week === week);
 export const moduleById = (id: string) => COURSES.flatMap((c) => c.modules.map((m) => ({ course: c, module: m }))).find((x) => x.module.id === id);
 
