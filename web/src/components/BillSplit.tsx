@@ -7,6 +7,7 @@ import { emojiFor } from '../lib/categories';
 import { ME, RECEIPT_CATEGORIES, balances, balancesSummary, settleMessage, splitShares, type Receipt } from '../core/money';
 import type { Expense, PersonRow, SplitRow } from '../lib/types';
 import { shrink } from './AiSnap';
+import { PersonPicker } from './Contacts';
 import { Button, Input, Sheet, cx } from './ui';
 import { useToast } from './toast';
 
@@ -15,7 +16,6 @@ const inr = (n: number) => `₹${Math.round(n).toLocaleString('en-IN')}`;
 /** Photo of a bill → AI reads it → pick who was in → log my share, track what others owe. */
 export function BillSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { data: people = [] } = useList<PersonRow>('people');
-  const peopleApi = useResource<PersonRow>('people');
   const { create } = useResource<Expense>('expenses');
   const splitsApi = useResource<SplitRow>('splits');
   const toast = useToast();
@@ -29,7 +29,6 @@ export function BillSheet({ open, onClose }: { open: boolean; onClose: () => voi
   const [mode, setMode] = useState<'equal' | 'items'>('equal');
   const [assign, setAssign] = useState<Record<number, string[]>>({});
   const [payer, setPayer] = useState<string>(ME);
-  const [newName, setNewName] = useState('');
 
   const reset = () => (setPhoto(null), setR(null), setErr(''), setWho([ME]), setMode('equal'), setAssign({}), setPayer(ME));
   const manual = () => setR({ merchant: '', date: today(), items: [], extras: 0, total: 0, category: 'Food', note: '' });
@@ -64,18 +63,15 @@ export function BillSheet({ open, onClose }: { open: boolean; onClose: () => voi
     const exp = mine > 0 ? await create({ amount: mine, kind: 'expense', category: r.category, note: who.length > 1 ? `${note} (my share of ${inr(r.total)})` : note, date: r.date ?? today() }) : null;
     for (const [pid, amt] of Object.entries(shares)) {
       if (pid === ME || !amt) continue;
-      if (payer === ME) await splitsApi.create({ expense_id: exp?.id ?? null, person_id: pid, amount: amt, note, date: r.date ?? today(), settled_at: null });
+      // What they had (by-item split), else everything on the bill — it flavours the "pay me" message.
+      const mine_ = r.items.filter((_, i) => (assign[i] ?? []).includes(pid)).map((i) => i.name);
+      const items = JSON.stringify((mode === 'items' && mine_.length ? mine_ : r.items.map((i) => i.name)).slice(0, 12));
+      if (payer === ME) await splitsApi.create({ expense_id: exp?.id ?? null, person_id: pid, amount: amt, note, date: r.date ?? today(), settled_at: null, items });
       else if (pid === payer) await splitsApi.create({ expense_id: exp?.id ?? null, person_id: pid, amount: -mine, note, date: r.date ?? today(), settled_at: null });
     }
     toast({ message: who.length > 1 ? (payer === ME ? `Logged ${inr(mine)} · others owe you ${inr(r.total - mine)}` : `Logged ${inr(mine)} · you owe ${nameOf(payer)}`) : `Logged ${inr(r.total)}` });
     reset();
     onClose();
-  };
-  const addPerson = async () => {
-    if (!newName.trim()) return;
-    const p = await peopleApi.create({ name: newName.trim(), every_days: 0 });
-    setWho((w) => [...w, p.id]);
-    setNewName('');
   };
 
   return (
@@ -113,9 +109,9 @@ export function BillSheet({ open, onClose }: { open: boolean; onClose: () => voi
             <Input value={r.merchant} onChange={(e) => setR({ ...r, merchant: e.target.value })} placeholder="Where — Toit, Swiggy, Uber…" />
             <Input type="number" inputMode="decimal" value={r.total || ''} onChange={(e) => setR({ ...r, total: Number(e.target.value) || 0 })} placeholder="Total ₹" className="text-right font-mono" />
           </div>
-          <div className="flex gap-2">
-            <input type="date" value={r.date ?? today()} onChange={(e) => setR({ ...r, date: e.target.value })} className="field w-40" />
-            <div className="no-scrollbar flex flex-1 gap-1.5 overflow-x-auto">
+          <input type="date" value={r.date ?? today()} onChange={(e) => setR({ ...r, date: e.target.value })} className="field" aria-label="Date" />
+          <div className="-mx-1 px-1">
+            <div className="no-scrollbar flex gap-1.5 overflow-x-auto">
               {RECEIPT_CATEGORIES.map((c) => (
                 <button key={c} onClick={() => setR({ ...r, category: c })} className={cx('h-10 shrink-0 rounded-md px-2.5 text-mini font-bold', r.category === c ? 'bg-accent text-white' : 'bg-surface-2 text-ink-2')}>
                   {emojiFor(c)} {c}
@@ -158,21 +154,7 @@ export function BillSheet({ open, onClose }: { open: boolean; onClose: () => voi
             <p className="mb-2 flex items-center gap-1.5 text-micro font-black uppercase tracking-[0.2em] text-ink-3">
               <Users className="size-3.5" /> Who was in?
             </p>
-            <div className="flex flex-wrap gap-1.5">
-              {[{ id: ME, name: 'Me', emoji: '🙋' }, ...people].map((p) => (
-                <button key={p.id} onClick={() => p.id !== ME && toggleWho(p.id)} className={cx('h-10 rounded-md px-3 text-sm font-semibold', who.includes(p.id) ? 'bg-accent text-white' : 'bg-surface-2 text-ink-2')}>
-                  {p.emoji ?? ''} {p.name}
-                </button>
-              ))}
-              <form onSubmit={(e) => (e.preventDefault(), void addPerson())} className="flex gap-1">
-                <input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="+ name" className="field h-10 w-24 !py-0 text-sm" />
-                {newName.trim() && (
-                  <button type="submit" className="grid size-10 place-items-center rounded-md bg-surface-2" aria-label="Add person">
-                    <Plus className="size-4" />
-                  </button>
-                )}
-              </form>
-            </div>
+            <PersonPicker selected={who} onToggle={(id) => id !== ME && toggleWho(id)} extra={[{ id: ME, name: 'Me', emoji: '🙋' }]} />
           </div>
 
           {who.length > 1 && (
@@ -235,6 +217,8 @@ export function OwedCard({ onScan }: { onScan: () => void }) {
   const { update } = useResource<SplitRow>('splits');
   const toast = useToast();
   const [open, setOpen] = useState<string | null>(null);
+  // A new random opener each time a tally is opened; 🎲 reshuffles.
+  const [seed, setSeed] = useState(Math.random());
   const bs = balances(splits);
   const nameOf = (id: string) => people.find((p) => p.id === id)?.name ?? 'Someone';
   const sum = balancesSummary(bs, nameOf);
@@ -249,26 +233,34 @@ export function OwedCard({ onScan }: { onScan: () => void }) {
   return (
     <div className="rounded-3xl border border-line bg-surface p-5">
       <div className="mb-3 flex items-start justify-between gap-2">
-        <div>
-          <p className="flex items-center gap-2 text-micro font-black uppercase tracking-[0.25em] text-ink-3">
-            <ReceiptText className="size-3.5 text-accent" /> Shared bills
-          </p>
-          <p className="text-2xl font-black italic">
-            {sum.owed > 0 ? <span className="text-green">{inr(sum.owed)} to collect</span> : 'All square'}
-            {sum.owe > 0 && <span className="ml-2 text-base text-accent-2">· you owe {inr(sum.owe)}</span>}
-          </p>
-        </div>
+        <p className="flex items-center gap-2 pt-2 text-micro font-black uppercase tracking-[0.25em] text-ink-3">
+          <ReceiptText className="size-3.5 text-accent" /> Shared bills
+        </p>
         <Button size="sm" onClick={onScan}>
           <Sparkles className="size-4" /> Scan bill
         </Button>
       </div>
+      {bs.length > 0 ? (
+        <div className="mb-3 grid grid-cols-2 gap-2">
+          <div className="rounded-lg bg-green/10 px-3 py-2">
+            <p className="text-micro font-bold uppercase tracking-wider text-ink-3">To collect</p>
+            <p className="font-mono text-xl font-bold text-green">{inr(sum.owed)}</p>
+          </div>
+          <div className={cx('rounded-lg px-3 py-2', sum.owe > 0 ? 'bg-accent/10' : 'bg-bg')}>
+            <p className="text-micro font-bold uppercase tracking-wider text-ink-3">You owe</p>
+            <p className={cx('font-mono text-xl font-bold', sum.owe > 0 ? 'text-accent-2' : 'text-ink-3')}>{inr(sum.owe)}</p>
+          </div>
+        </div>
+      ) : (
+        <p className="mb-2 text-2xl font-black italic">All square ✓</p>
+      )}
       <ul className="space-y-2">
         {bs.map((b) => {
           const p = people.find((x) => x.id === b.person_id);
-          const msg = settleMessage(p?.name ?? 'there', b, settings.upi);
+          const msg = settleMessage(p?.name ?? 'there', b, settings.upi, seed);
           return (
             <li key={b.person_id} className="rounded-lg border border-line bg-bg">
-              <button onClick={() => setOpen(open === b.person_id ? null : b.person_id)} className="flex w-full items-center gap-3 p-3 text-left">
+              <button onClick={() => (setOpen(open === b.person_id ? null : b.person_id), setSeed(Math.random()))} className="flex w-full items-center gap-3 p-3 text-left">
                 <span className="grid size-9 place-items-center rounded-full bg-surface-2">{p?.emoji || (p?.name ?? '?').slice(0, 1)}</span>
                 <span className="min-w-0 flex-1">
                   <span className="block font-bold">{p?.name ?? 'Someone'}</span>
@@ -284,8 +276,13 @@ export function OwedCard({ onScan }: { onScan: () => void }) {
                   <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
                     <pre className="mx-3 whitespace-pre-wrap rounded-md bg-surface p-3 font-sans text-sm text-ink-2">{msg}</pre>
                     <div className="flex gap-2 p-3">
+                      {b.net > 0 && (
+                        <Button size="sm" variant="ghost" aria-label="Another message" onClick={() => (haptic(8), setSeed(Math.random()))}>
+                          🎲
+                        </Button>
+                      )}
                       <Button size="sm" variant="soft" className="flex-1" onClick={() => void share(msg, toast)}>
-                        <Share2 className="size-4" /> Send tally
+                        <Share2 className="size-4" /> Send
                       </Button>
                       <Button size="sm" className="flex-1" onClick={() => settle(b.person_id)}>
                         <Check className="size-4" /> Settled

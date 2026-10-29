@@ -272,14 +272,12 @@ export function DsaHq() {
   const testFor = (kind: string, ref: string) => tests.find((x) => x.kind === kind && x.ref === ref && x.finished_at);
   const radar = useMemo(() => mastery(list, tests), [list, tests]);
   const navigate = useNavigate();
-  const testsApi = useResource<DsaTest>('dsa_tests');
   const toast = useToast();
   const startMock = async () => {
     const p = pickMock(list, tests, wk);
     if (!p) return toast({ message: 'No unseen problems left to draw from — impressive.' });
-    await testsApi.create({ kind: 'mock', ref: p.id, started_at: new Date().toISOString(), duration_min: p.diff === 'H' ? 60 : 45, results: '{}' });
-    toast({ message: `Mock interview: ${p.title} · ${p.diff === 'H' ? 60 : 45} min — go!` });
-    navigate(`/dsa/p/${p.id}`);
+    // The interview room starts the clock once you pick a length.
+    navigate(`/dsa/interview/${p.id}`);
   };
 
   return (

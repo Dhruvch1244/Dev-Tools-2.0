@@ -24,6 +24,7 @@ const DsaProblem = lazy(() => import('./pages/dsa/Problem').then((m) => ({ defau
 const VizGallery = lazy(() => import('./pages/dsa/Viz').then((m) => ({ default: m.VizGallery })));
 const VizPlayer = lazy(() => import('./pages/dsa/Viz').then((m) => ({ default: m.VizPlayer })));
 const CodeLab = lazy(() => import('./pages/dsa/Viz').then((m) => ({ default: m.CodeLab })));
+const DsaInterview = lazy(() => import('./pages/dsa/Interview').then((m) => ({ default: m.DsaInterview })));
 const DsaTestPage = lazy(() => import('./pages/dsa/Test').then((m) => ({ default: m.DsaTestPage })));
 
 export function App() {
@@ -53,6 +54,7 @@ export function App() {
         <Route path="/dsa/viz" element={<VizGallery />} />
         <Route path="/dsa/viz/:id" element={<VizPlayer />} />
         <Route path="/dsa/lab" element={<CodeLab />} />
+        <Route path="/dsa/interview/:id" element={<DsaInterview />} />
         <Route path="/dsa/test/:kind/:ref" element={<DsaTestPage />} />
         <Route path="*" element={<TodayPage />} />
       </Routes>

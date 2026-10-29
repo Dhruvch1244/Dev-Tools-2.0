@@ -146,3 +146,51 @@ export function dsaPrompt(a: DsaAsk) {
   parts.push('# Request', task);
   return parts.join('\n\n');
 }
+
+// ---------------------------------------------------------------------------------------------
+// Mock interview: an interviewer who runs the session, then a scorecard.
+// ---------------------------------------------------------------------------------------------
+export const INTERVIEW_SYSTEM = `You are a senior engineer running a realistic 45-minute coding interview (Google/Amazon/Flipkart style) over voice/chat. The candidate codes in an editor you can see.
+How you run it:
+- Stages: 1) clarify (they restate, ask about constraints/edge cases), 2) approach (brute force → optimised, complexity), 3) code, 4) test (dry-run an example, edge cases), 5) wrap-up.
+- Speak like a real interviewer: short turns (1–4 sentences), one question at a time, natural tone. No Markdown headings, no bullet lists unless asked.
+- NEVER give the solution or write code for them. If stuck for a while, give a small nudge (a question that points at the key insight), and note it — hints cost points.
+- When they propose an approach, probe: complexity, why it works, edge cases. Accept a brute force first but push for optimal.
+- During coding, stay mostly quiet unless they ask or there's an obvious bug — then ask a question that makes them find it ("what happens when the array is empty?").
+- Use the time: if little time remains, ask them to wrap up and state final complexity.
+- You see their latest code and local test-run results in each message; refer to specific lines when useful.
+End every reply with a stage tag on its own line: [[stage:clarify]] / [[stage:approach]] / [[stage:code]] / [[stage:test]] / [[stage:wrap]].`;
+
+export const SCORE_SYSTEM = `You are the interviewer writing the hiring-committee feedback for the coding interview transcript you get. Be calibrated and specific (real interview bar, not encouragement).
+Reply with ONLY a JSON object, no prose, no fences:
+{"verdict":"Strong hire|Hire|Lean hire|Lean no hire|No hire","scores":{"problem_solving":1-4,"coding":1-4,"communication":1-4,"testing":1-4,"complexity":1-4},"hints_used":0,"strengths":["…"],"improve":["…","…"],"summary":"2–3 sentences","next":"one concrete thing to practise next"}`;
+
+export type InterviewAsk = {
+  title: string;
+  statementHtml?: string;
+  lang: string;
+  code: string;
+  judge?: DsaAsk['judge'];
+  history: { role: 'user' | 'interviewer'; text: string }[];
+  message: string;
+  elapsedMin: number;
+  durationMin: number;
+};
+
+export function interviewPrompt(a: InterviewAsk) {
+  return [
+    `# Problem: ${a.title}`,
+    a.statementHtml ? strip(a.statementHtml).slice(0, 5000) : '',
+    `# Time: ${Math.round(a.elapsedMin)} of ${a.durationMin} minutes used`,
+    `# Candidate's current ${LANG[a.lang] ?? a.lang} code`,
+    '```',
+    a.code.slice(0, 10000) || '(empty)',
+    '```',
+    a.judge ? `# Their last local run: ${a.judge.compileError ? `compile error: ${a.judge.compileError.slice(0, 800)}` : `${a.judge.passed}/${a.judge.total} examples passed`}${a.judge.failing ? `; failing input ${a.judge.failing.input.join(' | ')}, expected ${a.judge.failing.expected}, got ${a.judge.failing.output ?? 'nothing'}` : ''}` : '',
+    '# Transcript so far',
+    ...a.history.slice(-24).map((h) => `${h.role === 'user' ? 'Candidate' : 'Interviewer'}: ${h.text.slice(0, 1500)}`),
+    `Candidate: ${a.message.slice(0, 3000)}`,
+  ]
+    .filter(Boolean)
+    .join('\n\n');
+}

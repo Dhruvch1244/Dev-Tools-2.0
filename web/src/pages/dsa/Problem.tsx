@@ -130,7 +130,7 @@ export function RunPanel({ lang, code }: { lang: Lang; code: string }) {
   );
 }
 
-type LcQuestion = {
+export type LcQuestion = {
   id: string;
   title: string;
   difficulty: string;
@@ -150,7 +150,7 @@ export function useQuestion(slug: string) {
   return useQuery({ queryKey: ['lc', slug], queryFn: () => api<LcQuestion>(`/lc/${slug}`), staleTime: Infinity, retry: 1 });
 }
 
-function Statement({ q, error }: { q?: LcQuestion; error?: Error | null }) {
+export function Statement({ q, error }: { q?: LcQuestion; error?: Error | null }) {
   const [hints, setHints] = useState(0);
   const html = useMemo(() => (q ? DOMPurify.sanitize(q.html, { ADD_ATTR: ['target'] }) : ''), [q]);
   if (error) return <p className="text-sm text-warn">Couldn't load the statement: {error.message}. Open it on LeetCode instead — it'll be cached here once it loads.</p>;
@@ -189,7 +189,7 @@ function Statement({ q, error }: { q?: LcQuestion; error?: Error | null }) {
 }
 
 /** Runs the solution against LeetCode's examples (or custom input) with the generated harness. */
-function JudgePanel({ slug, lang, code, q, onAllPass, onResult }: { slug: string; lang: Lang; code: string; q?: LcQuestion; onAllPass: () => void; onResult: (s: JudgeSummary) => void }) {
+export function JudgePanel({ slug, lang, code, q, onAllPass, onResult }: { slug: string; lang: Lang; code: string; q?: LcQuestion; onAllPass: () => void; onResult: (s: JudgeSummary) => void }) {
   const [res, setRes] = useState<JudgeResult | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [running, setRunning] = useState(false);

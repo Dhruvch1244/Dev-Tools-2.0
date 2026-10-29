@@ -73,7 +73,7 @@ export function splitShares(r: { total: number; items: ReceiptItem[] }, people: 
   return out;
 }
 
-export type Split = { id: string; person_id: string; amount: number; note: string | null; date: string; settled_at: string | null };
+export type Split = { id: string; person_id: string; amount: number; note: string | null; date: string; settled_at: string | null; items?: string | null };
 export type Balance = { person_id: string; net: number; open: Split[] };
 
 /** Open splits per person; net > 0 means they owe you. Settled people drop out. */
@@ -89,12 +89,47 @@ export function balances(splits: Split[]): Balance[] {
 const inr = (n: number) => `₹${Math.abs(Math.round(n)).toLocaleString('en-IN')}`;
 const day = (d: string) => new Date(`${d}T12:00:00`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
 
-/** A friendly WhatsApp-ready tally for one person. */
-export function settleMessage(name: string, b: Balance, upi?: string) {
+/** Food-aware one-liners; {item} is something from the bill, {place} the restaurant, {amt} the total. */
+const FUN_FOOD = [
+  'That {item} was elite. My bank balance after it? Not so much 🥲',
+  '{item} tasted like a podium finish 🏆. The bill tasted like a DNF.',
+  'Still thinking about that {item} 🤤. Also thinking about {amt}.',
+  'Breaking news: {item} was 10/10. The split is {amt}. More at 11 📺',
+  'The {item} has been digested. The payment has not 😌',
+  'Friendship status: strong 💪. {item} status: eaten. Payment status: pending ⏳',
+  '{item} at {place} was a vibe ✨. Let’s keep the vibe going: {amt} 🙏',
+  'I covered the {item}, you cover my emotional damage: {amt} 😤😂',
+  'Pit stop for the {item} was quick. Payment pit stop next 🏎️',
+  'We ate {item} like it was free. Plot twist: it wasn’t 💸',
+];
+const FUN_PLAIN = [
+  'Gentle nudge from your favourite person 🫶',
+  'No rush… but also, rush a little 😄',
+  'Pit wall to driver: box this one, {amt} 🏁',
+  'Your UPI app misses you. So does my wallet 🥹',
+  'Settling up keeps friendships on track 🚦',
+];
+const pick = <T,>(xs: T[], r: number) => xs[Math.floor(r * xs.length) % xs.length];
+
+/**
+ * A friendly WhatsApp-ready tally for one person, opening with a random food-themed line built from
+ * what was on their bills. Pass `seed` (0–1) to reshuffle; it defaults to Math.random().
+ */
+export function settleMessage(name: string, b: Balance, upi?: string, seed = Math.random()) {
   const lines = b.open.map((s) => `• ${s.note || 'Shared bill'} (${day(s.date)}) — ${s.amount < 0 ? 'I owe ' : ''}${inr(s.amount)}`);
-  const head = b.net > 0 ? `Hey ${name}! Quick tally of what's pending 🙂` : `Hey ${name}, I owe you for these 🙂`;
-  const foot = b.net > 0 ? `Total: ${inr(b.net)}${upi ? ` — UPI ${upi} whenever you can` : ' — send whenever you can'} 🙏` : `Total: ${inr(b.net)} — sending it now.`;
-  return [head, ...lines, foot].join('\n');
+  if (b.net < 0) return [`Hey ${name}, I owe you for these 🙂`, ...lines, `Total: ${inr(b.net)} — sending it now.`].join('\n');
+  const items = b.open.flatMap((s) => {
+    try {
+      return (JSON.parse(s.items ?? '[]') as string[]).filter((x) => typeof x === 'string' && x.trim());
+    } catch {
+      return [];
+    }
+  });
+  const place = b.open.find((s) => s.note)?.note ?? 'that place';
+  const r2 = (seed * 7919) % 1;
+  const fun = (items.length ? pick(FUN_FOOD, seed) : pick(FUN_PLAIN, seed)).replace('{item}', items.length ? pick(items, r2) : 'food').replace('{place}', place).replace('{amt}', inr(b.net));
+  const foot = `Total: ${inr(b.net)}${upi ? ` → UPI ${upi}` : ''} 🙏`;
+  return [`Hey ${name}! ${fun}`, '', ...lines, foot].join('\n');
 }
 
 /** One-line overview: "Rahul owes ₹600 · Priya owes ₹250 · you owe Amit ₹120". */

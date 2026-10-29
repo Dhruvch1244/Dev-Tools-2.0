@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { Cake, Check, Phone, Plus, Trash2, Users } from 'lucide-react';
+import { BookUser, Cake, Check, Phone, Plus, Trash2, Users } from 'lucide-react';
 import { useList, useResource } from '../lib/api';
 import { haptic, relativeDay, today } from '../lib/format';
 import { listItem } from '../lib/motion';
 import { nextBirthday, nextContact, overdueDays, rhythmLabel } from '../core/people';
-import type { PersonRow } from '../lib/types';
+import type { ContactRow, PersonRow } from '../lib/types';
+import { ImportContactsSheet } from '../components/Contacts';
 import { useToast } from '../components/toast';
 import { Button, Card, Empty, Input, Page, PageHeader, Rise, Sheet, Textarea, cx } from '../components/ui';
 
@@ -24,6 +25,7 @@ export function PeoplePage() {
   const { update, remove, create } = useResource<PersonRow>('people');
   const toast = useToast();
   const [editing, setEditing] = useState<Partial<PersonRow> | null>(null);
+  const [importing, setImporting] = useState(false);
   const t = today();
   const sorted = [...people].sort((a, b) => (nextContact(a, t) ?? '9999').localeCompare(nextContact(b, t) ?? '9999'));
   const dueNow = sorted.filter((p) => nextContact(p, t) === t);
@@ -42,9 +44,14 @@ export function PeoplePage() {
         eyebrow={dueNow.length ? `${dueNow.length} to call today` : 'Keep in touch'}
         title="Pit crew"
         action={
-          <Button onClick={() => setEditing({ ...BLANK })}>
-            <Plus className="size-4" /> Person
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="soft" onClick={() => setImporting(true)}>
+              <BookUser className="size-4" /> Import
+            </Button>
+            <Button onClick={() => setEditing({ ...BLANK })}>
+              <Plus className="size-4" /> Person
+            </Button>
+          </div>
         }
       />
 
@@ -102,6 +109,7 @@ export function PeoplePage() {
         )}
       </Card>
 
+      <ImportContactsSheet open={importing} onClose={() => setImporting(false)} />
       <PersonSheet
         person={editing}
         onClose={() => setEditing(null)}
@@ -114,6 +122,7 @@ export function PeoplePage() {
 
 function PersonSheet({ person, onClose, onSave, onDelete }: { person: Partial<PersonRow> | null; onClose: () => void; onSave: (p: Partial<PersonRow>) => void; onDelete: (id: string) => void }) {
   const [d, setD] = useState<Partial<PersonRow>>(person ?? BLANK);
+  const { data: contacts = [] } = useList<ContactRow>('contacts');
   const [was, setWas] = useState(person);
   if (person !== was) (setWas(person), person && setD(person));
   const label = 'text-micro font-black uppercase tracking-[0.2em] text-ink-3';
@@ -125,6 +134,18 @@ function PersonSheet({ person, onClose, onSave, onDelete }: { person: Partial<Pe
           <Input value={d.emoji ?? ''} onChange={(e) => setD({ ...d, emoji: e.target.value || null })} placeholder="👩" className="text-center text-xl" aria-label="Emoji" />
           <Input value={d.name ?? ''} onChange={(e) => setD({ ...d, name: e.target.value })} placeholder="Name — Mom, Rahul…" autoFocus={!d.id} />
         </div>
+        {!d.id && (d.name?.trim().length ?? 0) >= 2 && (
+          <div className="flex flex-wrap gap-1.5">
+            {contacts
+              .filter((c) => c.name.toLowerCase().includes(d.name!.trim().toLowerCase()))
+              .slice(0, 5)
+              .map((c) => (
+                <button type="button" key={c.id} onClick={() => setD({ ...d, name: c.name, phone: c.phone, birthday: c.birthday ?? d.birthday ?? null })} className="flex items-center gap-1.5 rounded-md bg-surface-2 px-2.5 py-1.5 text-mini text-ink-2">
+                  <BookUser className="size-3.5" /> {c.name}
+                </button>
+              ))}
+          </div>
+        )}
         <Input type="tel" inputMode="tel" value={d.phone ?? ''} onChange={(e) => setD({ ...d, phone: e.target.value || null })} placeholder="Phone (for the Call button)" />
         <label className="block">
           <span className={label}>Birthday</span>

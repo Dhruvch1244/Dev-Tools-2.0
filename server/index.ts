@@ -18,10 +18,11 @@ import { listBackups, runBackup } from './backup.ts';
 import * as google from './google.ts';
 import { briefsTick, eveningRecap, morningBrief } from './briefs.ts';
 import { syncLeetCode } from './lcsync.ts';
-import { DSA_SYSTEM, FUEL_SYSTEM, ask, dsaPrompt, type DsaAsk, type Prompt } from './coach.ts';
+import { DSA_SYSTEM, FUEL_SYSTEM, INTERVIEW_SYSTEM, SCORE_SYSTEM, ask, dsaPrompt, interviewPrompt, type DsaAsk, type InterviewAsk, type Prompt } from './coach.ts';
 import { CAPTURE_SYSTEM, CHAT_SYSTEM, JOURNAL_GUIDE, chatPrompt, lifeContext, workRemindersTick, cookTick, lifePingsTick, planTick, type ChatTurn } from './assistant.ts';
 import { normaliseActions, splitActions } from '../web/src/core/aiActions.ts';
 import { generateReview, listReviews, mondayOf, reviewTick } from './review.ts';
+import { contactKey, normalisePhone } from '../web/src/core/vcard.ts';
 import { RECEIPT_SYSTEM, normaliseReceipt } from '../web/src/core/money.ts';
 import { AI_FOOD_SYSTEM, aiUserText, extractJson, normaliseAi } from '../web/src/core/aiFood.ts';
 
@@ -343,6 +344,39 @@ app.post('/api/push/action', async (c) => {
   return c.json({ ok: true });
 });
 
+// ---- Contacts import (vCard or contact picker): upsert, deduped by phone (or name without one) ----
+app.post('/api/contacts/import', async (c) => {
+  const { contacts } = await c.req.json<{ contacts: { name?: string; phone?: string | null; birthday?: string | null }[] }>();
+  if (!Array.isArray(contacts)) return c.json({ error: 'contacts[] required' }, 400);
+  const existing = db.prepare('SELECT id, name, phone FROM contacts').all() as { id: string; name: string; phone: string | null }[];
+  const byKey = new Map(existing.map((r) => [contactKey(r), r.id]));
+  let added = 0;
+  let updated = 0;
+  db.exec('BEGIN');
+  try {
+    for (const raw of contacts.slice(0, 5000)) {
+      const name = String(raw.name ?? '').trim().slice(0, 80);
+      if (!name) continue;
+      const phone = raw.phone ? normalisePhone(String(raw.phone)) : null;
+      const bday = raw.birthday && /^\d{4}-\d{2}-\d{2}$/.test(raw.birthday) ? raw.birthday : null;
+      const id = byKey.get(contactKey({ name, phone }));
+      if (id) (db.prepare('UPDATE contacts SET name = ?, birthday = coalesce(?, birthday), updated_at = ? WHERE id = ?').run(name, bday, now(), id), updated++);
+      else {
+        const nid = randomUUID();
+        db.prepare('INSERT INTO contacts (id, name, phone, birthday, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)').run(nid, name, phone, bday, now(), now());
+        byKey.set(contactKey({ name, phone }), nid);
+        added++;
+      }
+    }
+    db.exec('COMMIT');
+  } catch (e) {
+    db.exec('ROLLBACK');
+    throw e;
+  }
+  emit('contacts');
+  return c.json({ added, updated, total: (db.prepare('SELECT count(*) n FROM contacts').get() as { n: number }).n });
+});
+
 // ---- Daily check-offs (supplements) ----
 app.get('/api/checks', (c) => c.json(db.prepare('SELECT * FROM checks WHERE kind = ? AND date >= ?').all(c.req.query('kind') ?? '', c.req.query('from') ?? '0000')));
 app.post('/api/checks/toggle', async (c) => {
@@ -446,6 +480,28 @@ app.post('/api/coach/fuel', async (c) => {
   const dietLine = { veg: 'I am strictly vegetarian: no meat, no fish, no eggs (dairy like paneer, curd, milk and whey is fine). Never suggest any of those.', egg: 'I am eggetarian: no meat or fish, eggs and dairy are fine.', nonveg: 'I eat everything.' }[diet];
   const prompt = `Plan my ${meal} so I finish the day on target.\nRemaining today: ${Math.round(remaining.kcal)} kcal, ${Math.round(remaining.protein)} g protein, ${Math.round(remaining.carbs)} g carbs, ${Math.round(remaining.fat)} g fat.\nFoods I eat often: ${usual.slice(0, 20).join(', ') || 'typical North Indian home food'}.\n${dietLine}`;
   return coachStream(c, FUEL_SYSTEM, prompt);
+});
+
+// ---- DSA mock interview: streamed interviewer turns, then a JSON scorecard ----
+app.post('/api/coach/interview', async (c) => {
+  const body = await c.req.json<InterviewAsk & { slug: string }>();
+  const statementHtml = await getQuestion(body.slug).then((q) => q.html).catch(() => undefined);
+  return coachStream(c, INTERVIEW_SYSTEM, interviewPrompt({ ...body, statementHtml }));
+});
+app.post('/api/dsa/mock/score', async (c) => {
+  const body = await c.req.json<InterviewAsk & { slug: string }>();
+  const statementHtml = await getQuestion(body.slug).then((q) => q.html).catch(() => undefined);
+  try {
+    const reply = await ask(SCORE_SYSTEM, interviewPrompt({ ...body, statementHtml, message: '(interview over — write the feedback)' }), { onDelta: () => {}, signal: c.req.raw.signal });
+    const j = extractJson(reply) as Record<string, unknown>;
+    const sc = (j.scores ?? {}) as Record<string, number>;
+    const clamp = (n: unknown) => Math.max(1, Math.min(4, Math.round(Number(n) || 1)));
+    const scores = Object.fromEntries(['problem_solving', 'coding', 'communication', 'testing', 'complexity'].map((k) => [k, clamp(sc[k])]));
+    const list = (v: unknown) => (Array.isArray(v) ? v.filter((x) => typeof x === 'string').slice(0, 5) : []);
+    return c.json({ verdict: typeof j.verdict === 'string' ? j.verdict : 'Lean no hire', scores, hints_used: Number(j.hints_used) || 0, strengths: list(j.strengths), improve: list(j.improve), summary: String(j.summary ?? ''), next: String(j.next ?? '') });
+  } catch (e) {
+    return c.json({ error: (e as Error).message }, 502);
+  }
 });
 
 // ---- Pit Wall: general assistant that sees today's snapshot, and one-shot quick capture ----
