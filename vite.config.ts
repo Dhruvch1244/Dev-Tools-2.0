@@ -35,6 +35,8 @@ export default defineConfig({
         ],
       },
       workbox: {
+        // Push + notification-click handlers (web/public/push-sw.js) layered onto the generated SW.
+        importScripts: ['/push-sw.js'],
         navigateFallback: '/index.html',
         navigateFallbackDenylist: [/^\/api/],
         runtimeCaching: [

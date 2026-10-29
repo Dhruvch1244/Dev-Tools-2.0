@@ -63,6 +63,21 @@ Tailscale gives your phone a private, encrypted path to it from anywhere (home, 
 
 HTTPS matters: it's what allows the service worker (offline mode) and notifications on the phone.
 
+## Push reminders
+
+Tasks with a due **time** (and contest reminders from DSA Season) send a push notification to every
+device that opted in — even when the app is closed. The laptop runs the scheduler (checks every 20 s),
+so it has to be awake; reminders more than 6 h late are skipped instead of arriving stale.
+
+1. Open the app through HTTPS (`https://<laptop>.<tailnet>.ts.net`, or `localhost` on the laptop) — push
+   needs a secure context and the built app (`npm start`), not `npm run dev`.
+2. On iPhone, **Add to Home Screen first** and open it from there — iOS only allows push for installed web apps.
+3. Settings (⚙) → **Push reminders → Enable**, then **Send test**.
+
+Notifications have **Mark done** and **Snooze 10 min** buttons (Android/desktop; iOS shows the notification only).
+VAPID keys are generated once into `data/vapid.json` (owner-only permissions) — back it up with `data/`,
+or every device has to re-enable push.
+
 ## Data & backup
 
 - Database: `data/life.db` · Dropped files: `data/files/`

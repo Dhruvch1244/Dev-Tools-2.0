@@ -10,6 +10,7 @@ import { Readable } from 'node:stream';
 import { db, FILES_DIR, RESOURCES, pickColumns } from './db.ts';
 import { profiles, upcomingContests } from './contests.ts';
 import { run, type Lang } from './runner.ts';
+import { publicKey, pushAll, startReminderLoop, subscribe, subscriptions, taskAction, unsubscribe } from './push.ts';
 
 const PORT = Number(process.env.PORT ?? 4300);
 // Loopback by default: `tailscale serve` proxies to it, so only devices on your tailnet can reach it.
@@ -220,6 +221,29 @@ app.post('/api/run', async (c) => {
   return c.json(await run(lang, code, stdin));
 });
 
+// ---- Push reminders ----
+app.get('/api/push/key', (c) => c.json({ publicKey }));
+app.get('/api/push/subs', (c) => c.json(subscriptions()));
+app.post('/api/push/subscribe', async (c) => {
+  const sub = await c.req.json();
+  if (!sub?.endpoint || !sub?.keys?.p256dh || !sub?.keys?.auth) return c.json({ error: 'invalid subscription' }, 400);
+  subscribe(sub, deviceFrom(c.req.header('user-agent')));
+  return c.json({ ok: true });
+});
+app.post('/api/push/unsubscribe', async (c) => {
+  const { endpoint } = await c.req.json<{ endpoint: string }>();
+  unsubscribe(endpoint);
+  return c.json({ ok: true });
+});
+app.post('/api/push/test', async (c) => c.json(await pushAll({ tag: 'test', title: '🏁 Push reminders are on', body: 'This device will get task reminders, even with the app closed.', url: '/tasks' })));
+app.post('/api/push/action', async (c) => {
+  const { taskId, action } = await c.req.json<{ taskId: string; action: 'done' | 'snooze' }>();
+  if (!taskId || !['done', 'snooze'].includes(action)) return c.json({ error: 'bad action' }, 400);
+  taskAction(taskId, action);
+  emit('tasks');
+  return c.json({ ok: true });
+});
+
 app.get('/api/health-check', (c) => c.json({ ok: true, time: now() }));
 
 // ---- Built web app (production) ----
@@ -228,6 +252,8 @@ if (process.env.NODE_ENV === 'production') {
   // Read per request (it's tiny) so a rebuild never leaves deep links pointing at deleted asset hashes.
   app.get('*', async (c) => c.html(await readFile('./dist/index.html', 'utf8')));
 }
+
+startReminderLoop();
 
 serve({ fetch: app.fetch, port: PORT, hostname: HOST }, (info) => {
   console.log(`✦ Dev Tools 2.0 API on http://${HOST}:${info.port}`);
