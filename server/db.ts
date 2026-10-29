@@ -134,6 +134,8 @@ addColumn('food_logs', 'micros', 'TEXT');
 // Repeating tasks roll their due date forward when ticked; remind_before = minutes of early warning.
 addColumn('tasks', 'repeat', 'TEXT');
 addColumn('tasks', 'remind_before', 'INTEGER');
+// Pinned drops stay at the top and survive "clear old".
+addColumn('drops', 'pinned', 'INTEGER NOT NULL DEFAULT 0');
 
 type Resource = { cols: string[]; order: string; dateCol?: string };
 

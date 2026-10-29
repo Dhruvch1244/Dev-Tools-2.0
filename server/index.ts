@@ -163,7 +163,7 @@ function deviceFrom(ua = '') {
   return 'laptop';
 }
 
-app.get('/api/drops', (c) => c.json(db.prepare('SELECT * FROM drops ORDER BY created_at DESC LIMIT 200').all()));
+app.get('/api/drops', (c) => c.json(db.prepare('SELECT * FROM drops ORDER BY pinned DESC, created_at DESC LIMIT 500').all()));
 
 app.post('/api/drops', async (c) => {
   const body = await c.req.parseBody();
@@ -191,14 +191,40 @@ app.get('/api/drops/:id/file', async (c) => {
   const path = row && join(FILES_DIR, row.id);
   if (!row || !path || !existsSync(path)) return c.json({ error: 'not found' }, 404);
   const disposition = c.req.query('inline') ? 'inline' : 'attachment';
-  return new Response(Readable.toWeb(createReadStream(path)) as ReadableStream, {
-    headers: {
-      'content-type': row.mime,
-      'content-length': String((await stat(path)).size),
-      'content-disposition': `${disposition}; filename*=UTF-8''${encodeURIComponent(row.filename)}`,
-      'cache-control': 'private, max-age=31536000, immutable',
-    },
-  });
+  const size = (await stat(path)).size;
+  const headers: Record<string, string> = {
+    'content-type': row.mime,
+    'accept-ranges': 'bytes',
+    'content-disposition': `${disposition}; filename*=UTF-8''${encodeURIComponent(row.filename)}`,
+    'cache-control': 'private, max-age=31536000, immutable',
+  };
+  // Byte ranges: iOS Safari won't play a video (or seek audio) without them.
+  const range = /^bytes=(\d*)-(\d*)$/.exec(c.req.header('range') ?? '');
+  if (range && size > 0) {
+    const start = range[1] ? Number(range[1]) : Math.max(0, size - Number(range[2]));
+    const end = range[1] && range[2] ? Math.min(Number(range[2]), size - 1) : size - 1;
+    if (start > end || start >= size) return new Response(null, { status: 416, headers: { 'content-range': `bytes */${size}` } });
+    return new Response(Readable.toWeb(createReadStream(path, { start, end })) as ReadableStream, { status: 206, headers: { ...headers, 'content-length': String(end - start + 1), 'content-range': `bytes ${start}-${end}/${size}` } });
+  }
+  return new Response(Readable.toWeb(createReadStream(path)) as ReadableStream, { headers: { ...headers, 'content-length': String(size) } });
+});
+
+app.patch('/api/drops/:id', async (c) => {
+  const { pinned } = await c.req.json<{ pinned?: boolean | number }>();
+  db.prepare('UPDATE drops SET pinned = ?, updated_at = ? WHERE id = ?').run(pinned ? 1 : 0, now(), c.req.param('id'));
+  emit('drops');
+  return c.json(db.prepare('SELECT * FROM drops WHERE id = ?').get(c.req.param('id')) ?? null);
+});
+
+/** Delete unpinned drops older than N days (default 7) and their files. */
+app.post('/api/drops/clear', async (c) => {
+  const { days = 7 } = await c.req.json<{ days?: number }>().catch(() => ({ days: 7 }));
+  const cutoff = new Date(Date.now() - Math.max(0, Number(days) || 0) * 86_400_000).toISOString();
+  const rows = db.prepare('SELECT id FROM drops WHERE pinned = 0 AND created_at < ?').all(cutoff) as { id: string }[];
+  for (const r of rows) await unlink(join(FILES_DIR, r.id)).catch(() => {});
+  db.prepare('DELETE FROM drops WHERE pinned = 0 AND created_at < ?').run(cutoff);
+  emit('drops');
+  return c.json({ removed: rows.length });
 });
 
 app.delete('/api/drops/:id', async (c) => {

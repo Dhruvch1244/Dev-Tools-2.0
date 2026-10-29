@@ -14,7 +14,7 @@ export type Habit = Stamped & { name: string; emoji: string | null; color: strin
 export type HabitLog = { habit_id: string; date: string };
 export type Health = Stamped & { date: string; kind: 'water' | 'sleep' | 'weight' | 'mood'; value: number };
 export type Journal = Stamped & { date: string; body: string | null; mood: number | null };
-export type Drop = Stamped & { kind: 'text' | 'file'; text: string | null; filename: string | null; mime: string | null; size: number | null; device: string | null };
+export type Drop = Stamped & { kind: 'text' | 'file'; text: string | null; filename: string | null; mime: string | null; size: number | null; device: string | null; pinned?: number };
 export type Settings = {
   name?: string;
   currency?: string;
