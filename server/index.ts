@@ -24,6 +24,7 @@ import { normaliseActions, splitActions } from '../web/src/core/aiActions.ts';
 import { generateReview, listReviews, mondayOf, reviewTick } from './review.ts';
 import { contactKey, normalisePhone } from '../web/src/core/vcard.ts';
 import { STORY_SYSTEM, storyPrompt, type Answer } from '../web/src/core/journal.ts';
+import { INSIGHTS_SYSTEM, SUMMARY_SYSTEM, insightsPrompt, lifeRollup, moodLifts, normaliseInsights, type Day } from '../web/src/core/lifeInsights.ts';
 import { RECEIPT_SYSTEM, normaliseReceipt } from '../web/src/core/money.ts';
 import { AI_FOOD_SYSTEM, aiUserText, extractJson, normaliseAi } from '../web/src/core/aiFood.ts';
 import { gym } from './gym.ts';
@@ -62,6 +63,13 @@ app.onError((err, c) => {
   const status = /constraint|NOT NULL/i.test(err.message) ? 400 : 500;
   return c.json({ error: err.message }, status);
 });
+
+function logCall(personId: string, date: string | null) {
+  const day = localStamp(new Date()).slice(0, 10);
+  if (date === day) db.prepare("INSERT OR IGNORE INTO checks (kind, ref, date) VALUES ('call', ?, ?)").run(personId, day);
+  else db.prepare("DELETE FROM checks WHERE kind = 'call' AND ref = ? AND date = ?").run(personId, day);
+  emit('checks');
+}
 
 // ---- Generic CRUD for simple tables ----
 app.get('/api/r/:res', (c) => {
@@ -105,6 +113,8 @@ app.patch('/api/r/:res/:id', async (c) => {
   db.prepare(`UPDATE ${name} SET ${keys.map((k) => `${k} = ?`).join(', ')} WHERE id = ?`).run(...Object.values(patch), c.req.param('id'));
   // Ticking off a repeating task rolls it to the next due date instead of closing it.
   if (name === 'tasks' && (patch as Record<string, unknown>).done === 1) (completeTask(c.req.param('id')), emit('expenses'));
+  // Every "Talked" is kept as a call check, so daily calls (Mom) get a streak; an undo drops today's.
+  if (name === 'people' && 'last_contact' in patch) logCall(c.req.param('id'), patch.last_contact as string | null);
   emit(name);
   if (name === 'tasks' && !('gcal_event_id' in patch) && ['due', 'title', 'place', 'duration_min', 'kind', 'notes'].some((k) => k in patch)) void google.syncTask(c.req.param('id')).then(() => emit('tasks'));
   if (name === 'routines' && !('gcal_event_id' in patch)) void google.syncRoutine(c.req.param('id')).then(() => emit('routines'));
@@ -170,7 +180,65 @@ app.post('/api/journal/:date/story', async (c) => {
     const story = (await ask(STORY_SYSTEM, storyPrompt(date, answers, dayFactsText(date)), { onDelta: () => {}, signal: c.req.raw.signal })).trim();
     db.prepare('UPDATE journal SET body = ?, updated_at = ? WHERE date = ?').run(story, now(), date);
     emit('journal');
+    // Read the day's mood, people, places and life facts in the background — the story shows first.
+    void readInsights(date).catch(() => {});
     return c.json({ body: story });
+  } catch (e) {
+    return c.json({ error: (e as Error).message }, 502);
+  }
+});
+
+/** The AI reads a journal day into Insights (mood, people, places, life facts) and stores them. */
+async function readInsights(date: string, signal?: AbortSignal) {
+  const row = db.prepare('SELECT answers, body, mood FROM journal WHERE date = ?').get(date) as { answers: string | null; body: string | null; mood: number | null } | undefined;
+  const answers = (JSON.parse(row?.answers ?? '[]') as Answer[]).filter((x) => x?.a?.trim());
+  if (!answers.length && !row?.body?.trim()) return null;
+  const reply = await ask(INSIGHTS_SYSTEM, insightsPrompt(date, answers, row?.body ?? null), { onDelta: () => {}, signal: signal ?? new AbortController().signal });
+  const ins = normaliseInsights(extractJson(reply));
+  // The day's mood fills in from what you wrote, unless you set one yourself.
+  db.prepare('UPDATE journal SET insights = ?, mood = coalesce(mood, ?), updated_at = ? WHERE date = ?').run(JSON.stringify(ins), ins.mood, now(), date);
+  emit('journal');
+  return ins;
+}
+
+app.post('/api/journal/:date/insights', async (c) => {
+  try {
+    return c.json((await readInsights(c.req.param('date'), c.req.raw.signal)) ?? { error: 'Nothing written that day' });
+  } catch (e) {
+    return c.json({ error: (e as Error).message }, 502);
+  }
+});
+// Backfill: read the most recent days that have writing but no insights yet (a few per call).
+app.post('/api/life/scan', async (c) => {
+  const rows = db.prepare("SELECT date FROM journal WHERE insights IS NULL AND (trim(coalesce(body,'')) != '' OR answers IS NOT NULL) ORDER BY date DESC LIMIT 6").all() as { date: string }[];
+  let done = 0;
+  for (const r of rows) {
+    if (c.req.raw.signal.aborted) break;
+    if (await readInsights(r.date, c.req.raw.signal).catch(() => null)) done++;
+  }
+  const left = (db.prepare("SELECT count(*) n FROM journal WHERE insights IS NULL AND (trim(coalesce(body,'')) != '' OR answers IS NOT NULL)").get() as { n: number }).n;
+  return c.json({ done, left });
+});
+// "State of my life": a short AI recap over the last 30 days of insights, cached until asked again.
+app.post('/api/life/summary', async (c) => {
+  const rows = db.prepare("SELECT date, mood, insights FROM journal WHERE insights IS NOT NULL AND date >= date('now','localtime','-30 days') ORDER BY date DESC").all() as { date: string; mood: number | null; insights: string }[];
+  if (!rows.length) return c.json({ error: 'Write a few journal days first' }, 400);
+  const days: Day[] = rows.map((r) => ({ date: r.date, mood: r.mood, insights: normaliseInsights(JSON.parse(r.insights)) }));
+  const r = lifeRollup(days);
+  const data = [
+    `Days written: ${r.days}. Mood (7-day avg, 1-5): ${r.mood?.toFixed(1) ?? '?'}${r.moodDelta != null ? ` (${r.moodDelta >= 0 ? '+' : ''}${r.moodDelta.toFixed(1)} vs the week before)` : ''}. Energy ${r.energy?.toFixed(1) ?? '?'}, stress ${r.stress?.toFixed(1) ?? '?'}.`,
+    `Themes: ${r.tags.map((t) => `${t.tag}×${t.n}`).join(', ')}`,
+    `People: ${r.people.map((p) => `${p.name}×${p.n}${p.note ? ` (${p.note})` : ''}`).join(', ')}`,
+    `Mood lifts: ${moodLifts(days).map((m) => `${m.tag} ${m.lift > 0 ? '+' : ''}${m.lift.toFixed(1)}`).join(', ') || 'not enough data'}`,
+    `Life log:\n${r.log.slice(0, 25).map((f) => `${f.date} [${f.kind}] ${f.text}`).join('\n')}`,
+    `Day summaries:\n${days.slice(0, 20).map((d) => `${d.date} mood ${d.insights.mood ?? '?'}: ${d.insights.summary ?? ''}`).join('\n')}`,
+  ].join('\n\n');
+  try {
+    const text = (await ask(SUMMARY_SYSTEM, data, { onDelta: () => {}, signal: c.req.raw.signal })).trim();
+    const summary = { at: now(), text };
+    db.prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value').run('lifeSummary', JSON.stringify(summary));
+    emit('settings');
+    return c.json(summary);
   } catch (e) {
     return c.json({ error: (e as Error).message }, 502);
   }
@@ -360,6 +428,7 @@ app.post('/api/push/action', async (c) => {
   }
   if (personId && action === 'talked') {
     db.prepare('UPDATE people SET last_contact = ?, updated_at = ? WHERE id = ?').run(localStamp(new Date()).slice(0, 10), now(), personId);
+    logCall(personId, localStamp(new Date()).slice(0, 10));
     emit('people');
     return c.json({ ok: true });
   }

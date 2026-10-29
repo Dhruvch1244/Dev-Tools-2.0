@@ -27,7 +27,7 @@ export function GuidedJournal({ autoStart }: { autoStart?: boolean }) {
   const t = today();
   const toast = useToast();
   const qc = useQueryClient();
-  const { data: entries = [] } = useList<Journal>('journal', { from: addDays(t, -60) });
+  const { data: entries = [], isSuccess: entriesLoaded } = useList<Journal>('journal', { from: addDays(t, -60) });
   const todays = entries.find((e) => e.date === t);
   const { data: facts } = useQuery({ queryKey: ['journal-facts', t], queryFn: () => api<DayFacts>(`/journal/${t}/facts`), staleTime: 5 * 60_000 });
   const [answers, setAnswers] = useState<Answer[]>([]);
@@ -44,15 +44,21 @@ export function GuidedJournal({ autoStart }: { autoStart?: boolean }) {
   }, [autoStart]);
   const saveTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
-  // Load saved answers, or draw tonight's questions once the day's facts are in.
+  // Load saved answers, or draw tonight's questions once the day's facts and saved entries are in
+  // (deciding before the entries arrive would draw fresh questions and hide a story already written).
   useEffect(() => {
-    if (loaded.current || !facts) return;
+    if (loaded.current || !facts || !entriesLoaded) return;
     const saved = parse(todays?.answers);
     loaded.current = true;
     if (saved.length) setAnswers(saved);
     else setAnswers(questionsFor(t, facts).map((q) => ({ q, a: '' })));
     if (todays?.body?.trim() && !autoStart) setMode('story');
-  }, [facts, todays, t, autoStart]);
+  }, [facts, todays, t, autoStart, entriesLoaded]);
+  // A story written on another device (phone → laptop) shows up here as soon as it syncs.
+  const body = todays?.body?.trim();
+  useEffect(() => {
+    if (body && mode === 'idle' && !writing) setMode('story');
+  }, [body, mode, writing]);
 
   const persist = (next: Answer[]) => {
     setAnswers(next);

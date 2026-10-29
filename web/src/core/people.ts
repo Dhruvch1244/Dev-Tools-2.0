@@ -14,6 +14,12 @@ export type Person = {
   call_at: string | null;
   last_contact: string | null;
   notes: string | null;
+  /** Circle and sub-group: "Work" › "Google", "College" › "IIT Delhi". */
+  circle?: string | null;
+  org?: string | null;
+  city?: string | null;
+  lat?: number | null;
+  lon?: number | null;
 };
 
 const DAY = 86_400_000;

@@ -1,131 +1,17 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { AnimatePresence, motion } from 'motion/react';
-import { Link } from 'react-router';
-import { BookOpen, Droplets, Flame, Minus, Moon, Plus, Scale, Trash2 } from 'lucide-react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { api, useList, useResource, useSettings, wasQueued } from '../lib/api';
-import { bouncy, listItem, spring } from '../lib/motion';
-import { addDays, haptic, parseDate, relativeDay, today } from '../lib/format';
-import type { Habit, HabitLog, Health, Journal } from '../lib/types';
-import { AnimatedNumber, Button, Card, Empty, IconButton, Input, Page, PageHeader, SectionTitle, cx } from '../components/ui';
+import { useEffect, useState } from 'react';
+import { motion } from 'motion/react';
+import { Droplets, Minus, Moon, Plus, Scale } from 'lucide-react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { api, useList, useSettings, wasQueued } from '../lib/api';
+import { bouncy, spring } from '../lib/motion';
+import { addDays, haptic, relativeDay, today } from '../lib/format';
+import type { Health } from '../lib/types';
+import { AnimatedNumber, Card, IconButton, Page, PageHeader, cx } from '../components/ui';
 import { GuidedJournal } from '../components/GuidedJournal';
+import { LifeInsights } from '../components/LifeInsights';
 import { useSearchParams } from 'react-router';
 
 export const MOODS = ['😞', '😕', '😐', '🙂', '😄'];
-
-// ---------- Habits ----------
-export function useHabits() {
-  const { data: habits = [] } = useList<Habit>('habits');
-  const from = addDays(today(), -120);
-  const { data: logs = [] } = useQuery({ queryKey: ['habit_logs', from], queryFn: () => api<HabitLog[]>(`/habit_logs?from=${from}`) });
-  const qc = useQueryClient();
-  const toggle = useMutation({
-    mutationFn: (v: HabitLog) => api('/habit_logs/toggle', { method: 'POST', body: JSON.stringify(v) }),
-    onMutate: (v) =>
-      qc.setQueryData<HabitLog[]>(['habit_logs', from], (old = []) =>
-        old.some((l) => l.habit_id === v.habit_id && l.date === v.date) ? old.filter((l) => !(l.habit_id === v.habit_id && l.date === v.date)) : [...old, v],
-      ),
-    onSettled: (d) => (wasQueued(d) ? undefined : qc.invalidateQueries({ queryKey: ['habit_logs'] })),
-  });
-  const done = useMemo(() => new Set(logs.map((l) => `${l.habit_id}|${l.date}`)), [logs]);
-  const isDone = (id: string, date: string) => done.has(`${id}|${date}`);
-  /** Consecutive days ending today (or yesterday, so an unchecked today doesn't zero the streak yet). */
-  const streak = (id: string) => {
-    let d = isDone(id, today()) ? today() : addDays(today(), -1);
-    let n = 0;
-    while (isDone(id, d)) (n++, (d = addDays(d, -1)));
-    return n;
-  };
-  return { habits: habits.filter((h) => !h.archived), isDone, streak, toggle: (habit_id: string, date: string) => (haptic(12), toggle.mutate({ habit_id, date })) };
-}
-
-const HABIT_COLORS = ['#8f7dff', '#ff7ac6', '#4fe3c1', '#ffb547', '#5cb8ff'];
-
-function Habits() {
-  const { habits, isDone, streak, toggle } = useHabits();
-  const { create, remove } = useResource<Habit>('habits');
-  const [name, setName] = useState('');
-  const [emoji, setEmoji] = useState('💪');
-  const week = Array.from({ length: 7 }, (_, i) => addDays(today(), i - 6));
-
-  return (
-    <Card className="lg:col-span-3">
-      <SectionTitle action={<Link to="/routines" className="text-xs font-bold uppercase text-accent hover:underline">Routines →</Link>}>Habits</SectionTitle>
-      <div className="mb-3 hidden grid-cols-[1fr_repeat(7,32px)_40px] items-center gap-1.5 pr-1 text-center text-micro font-semibold uppercase tracking-wider text-ink-3 sm:grid">
-        <span />
-        {week.map((d) => (
-          <span key={d} className={cx(d === today() && 'text-accent')}>
-            {parseDate(d).toLocaleDateString(undefined, { weekday: 'narrow' })}
-          </span>
-        ))}
-        <span />
-      </div>
-      <ul className="space-y-2">
-        <AnimatePresence initial={false}>
-          {habits.map((h, i) => {
-            const color = h.color ?? HABIT_COLORS[i % HABIT_COLORS.length];
-            const s = streak(h.id);
-            return (
-              <motion.li key={h.id} layout {...listItem} className="group grid grid-cols-[1fr_auto] items-center gap-1.5 rounded-2xl bg-surface p-2.5 sm:grid-cols-[1fr_repeat(7,32px)_40px]">
-                <div className="flex min-w-0 items-center gap-2.5 pl-1">
-                  <span className="text-xl">{h.emoji}</span>
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium">{h.name}</p>
-                    <p className={cx('flex items-center gap-1 text-xs', s ? 'text-amber' : 'text-ink-3')}>
-                      <motion.span key={s} initial={{ scale: 0.4, rotate: -20 }} animate={{ scale: 1, rotate: 0 }} transition={bouncy}>
-                        <Flame className={cx('size-3', s && 'fill-current')} />
-                      </motion.span>
-                      {s} day streak
-                    </p>
-                  </div>
-                </div>
-                {/* phone: just today; desktop: the week */}
-                <div className="flex gap-1.5 sm:contents">
-                  {week.map((d) => {
-                    const on = isDone(h.id, d);
-                    return (
-                      <motion.button
-                        key={d}
-                        aria-label={`${h.name} on ${relativeDay(d)}`}
-                        aria-pressed={on}
-                        onClick={() => toggle(h.id, d)}
-                        whileTap={{ scale: 0.8 }}
-                        transition={bouncy}
-                        className={cx('relative grid size-8 place-items-center rounded-xl border transition-colors', d !== today() && 'max-sm:hidden', on ? 'border-transparent' : 'border-line hover:border-line-strong')}
-                      >
-                        <motion.span initial={false} animate={{ scale: on ? 1 : 0, opacity: on ? 1 : 0 }} transition={bouncy} className="absolute inset-0 rounded-xl" style={{ background: color }} />
-                        {d === today() && !on && <span className="size-1.5 rounded-full bg-accent" />}
-                      </motion.button>
-                    );
-                  })}
-                </div>
-                <IconButton label={`Delete ${h.name}`} onClick={() => remove(h.id)} className="opacity-0 transition-opacity group-hover:opacity-100 max-sm:hidden">
-                  <Trash2 className="size-4" />
-                </IconButton>
-              </motion.li>
-            );
-          })}
-        </AnimatePresence>
-      </ul>
-      {habits.length === 0 && <Empty icon={<Flame className="size-6" />} title="Start a streak" hint="Gym, reading, no-sugar, 10k steps… small daily wins." />}
-      <form
-        className="mt-4 flex gap-2"
-        onSubmit={async (e) => {
-          e.preventDefault();
-          if (!name.trim()) return;
-          await create({ name: name.trim(), emoji: emoji || '✨', color: HABIT_COLORS[habits.length % HABIT_COLORS.length], archived: 0 });
-          setName('');
-        }}
-      >
-        <input aria-label="Emoji" value={emoji} onChange={(e) => setEmoji([...e.target.value].slice(-1).join(''))} className="field w-14 text-center text-lg" />
-        <Input placeholder="New habit" value={name} onChange={(e) => setName(e.target.value)} />
-        <Button type="submit" disabled={!name.trim()}>
-          Add
-        </Button>
-      </form>
-    </Card>
-  );
-}
 
 // ---------- Health ----------
 export function useHealthToday() {
@@ -263,9 +149,9 @@ export function LifePage() {
   const [params] = useSearchParams();
   return (
     <Page>
-      <PageHeader eyebrow="Habits · Health · Journal" title="Life" />
+      <PageHeader eyebrow="Mood · Health · Journal" title="Life" />
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
-        <Habits />
+        <LifeInsights />
         <HealthToday />
         <GuidedJournal autoStart={params.get('journal') === '1'} />
       </div>

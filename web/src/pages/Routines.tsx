@@ -8,8 +8,9 @@ import { addDays, parseDate, today } from '../lib/format';
 import { listItem, spring } from '../lib/motion';
 import { DAY_META, dayTypeOn } from '../core/gym';
 import { isGymRoutine } from '../core/weekPlan';
-import type { Habit, Routine, RoutineLog } from '../lib/types';
+import type { Habit, Routine, RoutineLog, Task } from '../lib/types';
 import { useToast } from '../components/toast';
+import { HabitCard, HabitHero, HabitSheet, NeverMissTwice, TodayBoard, WeekStrip, blankHabit, habitDraft, useCalls } from '../components/HabitBoard';
 import { Button, Card, Check, Input, Page, PageHeader, Rise, SectionTitle, Sheet, cx } from '../components/ui';
 
 const DAY_LETTERS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
@@ -38,10 +39,12 @@ const days = (r: Routine): number[] => JSON.parse(r.days);
 const minutesOf = (hm: string) => Number(hm.slice(0, 2)) * 60 + Number(hm.slice(3, 5));
 const hmOf = (iso: string) => new Date(iso).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: false });
 
-/** Today's routines and calendar events on one timeline. Shared with the Today page. */
-export function TodaySchedule({ compact }: { compact?: boolean }) {
-  const t = today();
+/** A day's routines, calendar events and plans on one timeline (live "now" line on today). Shared with Today. */
+export function TodaySchedule({ compact, date }: { compact?: boolean; date?: string }) {
+  const t = date ?? today();
+  const isToday = t === today();
   const { data: routines = [] } = useList<Routine>('routines');
+  const { data: tasks = [] } = useList<Task>('tasks');
   const { events, connected } = useGoogleEvents(t, t);
   const { done, toggle } = useRoutineLogs(t);
   const [now, setNow] = useState(new Date());
@@ -52,19 +55,20 @@ export function TodaySchedule({ compact }: { compact?: boolean }) {
   const dow = parseDate(t).getDay();
   const { settings } = useSettings();
   const gymToday = dayTypeOn(t, settings.gymShift ?? 0);
-  type Item = { key: string; start: number; end: number; title: string; kind: 'routine' | 'event'; routine?: Routine; event?: GEvent };
+  type Item = { key: string; start: number; end: number; title: string; kind: 'routine' | 'event' | 'plan'; routine?: Routine; event?: GEvent };
   const items: Item[] = [
     // The gym routine follows the split: "Gym · Upper day", or marked as a rest day.
     ...routines.filter((r) => r.active && days(r).includes(dow)).map((r) => ({ key: `r${r.id}`, start: minutesOf(r.time), end: minutesOf(r.time) + r.duration_min, title: `${r.emoji ?? ''} ${r.name}${isGymRoutine(r.name) ? (gymToday === 'rest' ? ' — rest day, skip 🛞' : ` · ${DAY_META[gymToday].label} day`) : ''}`.trim(), kind: 'routine' as const, routine: r })),
-    // Calendar copies of our own routines are already shown as routines.
-    ...events.filter((e) => !e.fromRoutine && !e.allDay).map((e) => ({ key: `e${e.id}`, start: minutesOf(hmOf(e.start)), end: minutesOf(hmOf(e.end)), title: e.title, kind: 'event' as const, event: e })),
+    // Calendar copies of our own routines and plans are already shown from here.
+    ...events.filter((e) => !e.fromRoutine && !e.allDay && !tasks.some((x) => x.gcal_event_id && x.gcal_event_id === e.id)).map((e) => ({ key: `e${e.id}`, start: minutesOf(hmOf(e.start)), end: minutesOf(hmOf(e.end)), title: e.title, kind: 'event' as const, event: e })),
+    ...tasks.filter((x) => x.kind === 'plan' && !x.done && x.due?.length === 16 && x.due.slice(0, 10) === t).map((x) => ({ key: `p${x.id}`, start: minutesOf(x.due!.slice(11)), end: minutesOf(x.due!.slice(11)) + (x.duration_min ?? 60), title: `📍 ${x.title}${x.place ? ` · ${x.place}` : ''}`, kind: 'plan' as const })),
   ].sort((a, b) => a.start - b.start);
-  const allDay = events.filter((e) => e.allDay);
-  const nowMin = now.getHours() * 60 + now.getMinutes();
+  const allDay = [...events.filter((e) => e.allDay).map((e) => ({ id: e.id, title: e.title })), ...tasks.filter((x) => x.kind === 'plan' && !x.done && x.due?.length === 10 && x.due === t).map((x) => ({ id: x.id, title: `📍 ${x.title}` }))];
+  const nowMin = isToday ? now.getHours() * 60 + now.getMinutes() : t < today() ? 24 * 60 : -1;
   const fmt = (m: number) => `${String(Math.floor(m / 60) % 24).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
-  const nowIdx = items.findIndex((i) => i.start > nowMin);
+  const nowIdx = isToday ? items.findIndex((i) => i.start > nowMin) : -2;
 
-  if (!items.length && !allDay.length) return <p className="py-4 text-sm text-ink-3">{compact ? 'Nothing scheduled today.' : 'Nothing scheduled today. Add a routine below or connect Google Calendar.'}</p>;
+  if (!items.length && !allDay.length) return <p className="py-4 text-sm text-ink-3">{compact ? `Nothing scheduled ${isToday ? 'today' : 'this day'}.` : `Nothing scheduled ${isToday ? 'today' : 'this day'}. Add a routine below or connect Google Calendar.`}</p>;
   return (
     <div>
       {allDay.length > 0 && (
@@ -89,13 +93,13 @@ export function TodaySchedule({ compact }: { compact?: boolean }) {
                   <span className="h-[2px] flex-1 bg-accent" />
                 </div>
               )}
-              <div className={cx('flex items-center gap-3 rounded-md border-l-[3px] bg-bg px-3 py-2', live ? 'border-accent' : it.kind === 'event' ? 'border-sky' : 'border-line-strong', past && !live && 'opacity-60')}>
+              <div className={cx('flex items-center gap-3 rounded-md border-l-[3px] bg-bg px-3 py-2', live ? 'border-accent' : it.kind === 'event' ? 'border-sky' : it.kind === 'plan' ? 'border-pink' : 'border-line-strong', past && !live && 'opacity-60')}>
                 <span className="w-24 shrink-0 font-mono text-xs text-ink-2">
                   {fmt(it.start)}–{fmt(it.end)}
                 </span>
                 <span className={cx('min-w-0 flex-1 truncate text-sm font-semibold', isDone && 'text-ink-3 line-through')}>{it.title}</span>
                 {live && <span className="slant bg-accent px-2 text-micro font-black text-white">NOW</span>}
-                {it.kind === 'event' ? (
+                {it.kind === 'plan' ? null : it.kind === 'event' ? (
                   <a href={it.event!.link} target="_blank" rel="noreferrer" className="text-ink-3 hover:text-ink" aria-label="Open in Google Calendar">
                     <CalendarDays className="size-4" />
                   </a>
@@ -106,14 +110,14 @@ export function TodaySchedule({ compact }: { compact?: boolean }) {
             </motion.li>
           );
         })}
-        {nowIdx === -1 && items.length > 0 && (
+        {isToday && nowIdx === -1 && items.length > 0 && (
           <div className="my-1 flex items-center gap-2">
             <span className="font-mono text-micro font-bold text-accent-2">{fmt(nowMin)}</span>
             <span className="h-[2px] flex-1 bg-accent" />
           </div>
         )}
       </ol>
-      {connected && <p className="mt-2 text-micro font-bold uppercase tracking-widest text-ink-3">Blue = Google Calendar</p>}
+      {connected && !compact && <p className="mt-2 text-micro font-bold uppercase tracking-widest text-ink-3">Blue = Google Calendar · Pink = plans</p>}
     </div>
   );
 }
@@ -336,9 +340,15 @@ export function RoutinesPage() {
   const { data: routines = [] } = useList<Routine>('routines');
   const { data: habits = [] } = useList<Habit>('habits');
   const { data: g } = useQuery({ queryKey: ['google-status'], queryFn: () => api<GStatus>('/google/status') });
-  const weekFrom = addDays(today(), -6);
+  const t = today();
+  const weekFrom = addDays(t, -6);
   const { done } = useRoutineLogs(weekFrom);
+  const calls = useCalls();
   const [editing, setEditing] = useState<Draft | null>(null);
+  const [habitEdit, setHabitEdit] = useState<ReturnType<typeof habitDraft> | null>(null);
+  const [day, setDay] = useState(t);
+  const [weekOffset, setWeekOffset] = useState(0);
+  const [showGoogle, setShowGoogle] = useState(false);
   const shift = settings.gymShift ?? 0;
   // The split is 7 days long, so each weekday keeps the same session type — "training days" is a fixed set.
   const gymDays = useMemo(() => [0, 1, 2, 3, 4, 5, 6].filter((wd) => {
@@ -348,41 +358,51 @@ export function RoutinesPage() {
   }), [shift]);
   const templates: Draft[] = [
     { ...blank, name: 'Gym', emoji: '🏋️', days: gymDays, time: '19:00', duration_min: 90, steps: ['Warm-up 10 min', 'Main lifts', 'Accessories', 'Stretch'] },
-    { ...blank, name: 'DSA practice', emoji: '💻', days: [1, 2, 3, 4, 5, 6], time: '21:00', duration_min: 75, steps: ["Today's 2 laps", 'Revision queue', 'Notes'] },
     { ...blank, name: 'Morning walk', emoji: '🚶', days: [0, 1, 2, 3, 4, 5, 6], time: '06:30', duration_min: 45 },
     { ...blank, name: 'Badminton', emoji: '🏸', days: [2, 4, 6], time: '18:00', duration_min: 90 },
     { ...blank, name: 'Wind-down', emoji: '🌙', days: [0, 1, 2, 3, 4, 5, 6], time: '22:30', duration_min: 30, steps: ['Phone away', 'Journal', 'Read 15 min'] },
+    { ...blank, name: 'DSA practice', emoji: '💻', days: [1, 2, 3, 4, 5, 6], time: '21:00', duration_min: 75, steps: ["Today's 2 laps", 'Revision queue', 'Notes'] },
   ];
   const toDraft = (r: Routine): Draft => ({ id: r.id, name: r.name, emoji: r.emoji ?? '⏱️', days: days(r), time: r.time, duration_min: r.duration_min, steps: r.steps ? JSON.parse(r.steps) : [], habit_id: r.habit_id, remind: !!r.remind, active: !!r.active });
   const week = Array.from({ length: 7 }, (_, i) => addDays(weekFrom, i));
+  const live = habits.filter((h) => !h.archived);
+  const callsToday = { done: calls.people.filter((p) => calls.called(p.id, t)).length, due: calls.people.length };
 
   return (
     <Page>
-      <PageHeader eyebrow="Paddock · Routines" title="Routines" action={<Button onClick={() => setEditing({ ...blank })}><Plus className="size-4" /> New routine</Button>} />
+      <PageHeader eyebrow="Race craft · Habits · Calendar" title="Routines" action={<Button onClick={() => setHabitEdit({ ...blankHabit })}><Plus className="size-4" /> Habit</Button>} />
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-        <Card>
-          <SectionTitle>Today</SectionTitle>
-          <TodaySchedule />
+        <div className="min-w-0 space-y-4">
+          <Rise>
+            <HabitHero extraToday={callsToday} />
+          </Rise>
+          <NeverMissTwice />
+          <TodayBoard onNew={() => setHabitEdit({ ...blankHabit })} />
+        </div>
+        <Card className="min-w-0">
+          <SectionTitle action={day !== t && <button onClick={() => (setDay(t), setWeekOffset(0))} className="text-mini font-bold uppercase text-accent">Today</button>}>
+            {day === t ? 'Today' : parseDate(day).toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'short' })}
+          </SectionTitle>
+          <WeekStrip selected={day} onSelect={setDay} offset={weekOffset} setOffset={setWeekOffset} />
+          <div className="mt-3">
+            <TodaySchedule date={day} />
+          </div>
         </Card>
-        <Rise>
-          <GoogleCard />
-        </Rise>
       </div>
 
-      <Rise className="mt-4">
-        <SectionTitle>Your routines</SectionTitle>
-        {routines.length === 0 && (
-          <div className="mb-3 rounded-lg border border-dashed border-line p-4">
-            <p className="mb-3 text-sm text-ink-2">Start from a template:</p>
-            <div className="flex flex-wrap gap-2">
-              {templates.map((t) => (
-                <Button key={t.name} size="sm" variant="soft" onClick={() => setEditing(t)}>
-                  {t.emoji} {t.name}
-                </Button>
-              ))}
-            </div>
+      {live.length > 0 && (
+        <Rise className="mt-6">
+          <SectionTitle>Your habits</SectionTitle>
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {live.map((h, i) => (
+              <HabitCard key={h.id} habit={h} index={i} onEdit={() => setHabitEdit(habitDraft(h))} />
+            ))}
           </div>
-        )}
+        </Rise>
+      )}
+
+      <Rise className="mt-6">
+        <SectionTitle action={<button onClick={() => setEditing({ ...blank })} className="flex items-center gap-1 text-mini font-bold uppercase text-accent"><Plus className="size-3.5" /> Routine</button>}>Routines · time blocks</SectionTitle>
         <ul className="grid gap-3 md:grid-cols-2">
           <AnimatePresence initial={false}>
             {routines.map((r) => {
@@ -424,19 +444,27 @@ export function RoutinesPage() {
             })}
           </AnimatePresence>
         </ul>
-        {routines.length > 0 && (
-          <div className="mt-3 flex flex-wrap gap-2">
-            {templates.filter((t) => !routines.some((r) => r.name === t.name)).map((t) => (
-              <Button key={t.name} size="sm" variant="ghost" onClick={() => setEditing(t)}>
-                <Plus className="size-3.5" /> {t.emoji} {t.name}
-              </Button>
-            ))}
-          </div>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {templates.filter((x) => !routines.some((r) => r.name === x.name)).map((x) => (
+            <Button key={x.name} size="sm" variant="ghost" onClick={() => setEditing(x)}>
+              <Plus className="size-3.5" /> {x.emoji} {x.name}
+            </Button>
+          ))}
+        </div>
+      </Rise>
+
+      <Rise className="mt-6">
+        {g?.connected && !showGoogle ? (
+          <button onClick={() => setShowGoogle(true)} className="flex w-full items-center gap-2 rounded-xl border border-line bg-surface px-4 py-3 text-left text-sm text-ink-2">
+            <CalendarCheck className="size-4 text-sky" /> Google Calendar synced{g.email ? ` · ${g.email}` : ''}
+            <span className="ml-auto text-mini font-bold uppercase text-ink-3">Manage</span>
+          </button>
+        ) : (
+          <GoogleCard />
         )}
-        {g?.connected === false && routines.length > 0 && <p className="mt-3 text-xs text-ink-3">Connect Google Calendar above to put these on your calendar.</p>}
       </Rise>
       <Editor draft={editing} onClose={() => setEditing(null)} />
+      <HabitSheet draft={habitEdit} onClose={() => setHabitEdit(null)} />
     </Page>
   );
 }
-

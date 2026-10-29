@@ -11,12 +11,14 @@ export type Note = Stamped & { title: string | null; body: string | null; pinned
 export type Expense = Stamped & { amount: number; kind: 'expense' | 'income'; category: string; note: string | null; date: string };
 export type Budget = Stamped & { category: string; amount: number };
 export type Subscription = Stamped & { name: string; amount: number; cycle: 'monthly' | 'yearly' | 'weekly'; next_date: string; category: string };
-export type Habit = Stamped & { name: string; emoji: string | null; color: string | null; archived: number };
+export type Habit = Stamped & { name: string; emoji: string | null; color: string | null; archived: number; cue?: string | null; tiny?: string | null; days?: string | null };
 export type HabitLog = { habit_id: string; date: string };
 export type Health = Stamped & { date: string; kind: 'water' | 'sleep' | 'weight' | 'mood'; value: number };
-export type Journal = Stamped & { date: string; body: string | null; mood: number | null; answers?: string | null };
+export type Journal = Stamped & { date: string; body: string | null; mood: number | null; answers?: string | null; insights?: string | null };
 export type Drop = Stamped & { kind: 'text' | 'file'; text: string | null; filename: string | null; mime: string | null; size: number | null; device: string | null; pinned?: number };
 export type Settings = {
+  /** The cached AI "state of my life" recap (Life page). */
+  lifeSummary?: { at: string; text: string };
   name?: string;
   currency?: string;
   waterGoal?: number;

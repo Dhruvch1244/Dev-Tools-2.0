@@ -15,7 +15,8 @@ import { planDay, type MealId } from '../core/mealPlan';
 import { problemsForDay, currentWeek, WEEKS } from '../core/dsa/plan';
 import { useDsa, useSeason } from '../lib/dsa';
 import type { Activity, FoodLog } from '../lib/types';
-import { useHabits, useHealthToday } from './Life';
+import { useHealthToday } from './Life';
+import { useHabits } from '../lib/habits';
 import { TodaySchedule } from './Routines';
 import { Upcoming } from '../components/Upcoming';
 import { WorkCard } from '../components/WorkCard';
@@ -222,7 +223,7 @@ export function TodayPage() {
         >
           <AnimatedNumber value={spent} format={(n) => money(n, currency, true)} />
         </Stat>
-        <Stat to="/life" icon={<Flame className="size-5" />} label="Habits" ring={habits.length ? habitsDone / habits.length : 0} color="var(--amber)" sub={best ? `Best streak ${best} days` : 'Build a streak'}>
+        <Stat to="/routines" icon={<Flame className="size-5" />} label="Habits" ring={habits.length ? habitsDone / habits.length : 0} color="var(--amber)" sub={best ? `Best streak ${best} days` : 'Build a streak'}>
           <AnimatedNumber value={habitsDone} />/{habits.length}
         </Stat>
         <Stat to="/life" icon={<Droplets className="size-5" />} label="Water" ring={water / waterGoal} color="#5cb8ff" sub={water >= waterGoal ? 'Goal reached 🎉' : `${waterGoal - water} more to go`}>
@@ -271,7 +272,7 @@ export function TodayPage() {
           <Card>
             <SectionTitle>Today's habits</SectionTitle>
             {habits.length === 0 ? (
-              <Link to="/life" className="text-sm text-accent hover:underline">
+              <Link to="/routines" className="text-sm text-accent hover:underline">
                 Add your first habit →
               </Link>
             ) : (

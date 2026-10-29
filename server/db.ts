@@ -158,6 +158,18 @@ addColumn('tasks', 'place', 'TEXT');
 addColumn('tasks', 'amount', 'REAL');
 addColumn('tasks', 'duration_min', 'INTEGER');
 addColumn('tasks', 'gcal_event_id', 'TEXT');
+// What the AI read out of a journal day (core/lifeInsights Insights JSON): mood, people, places, life facts.
+addColumn('journal', 'insights', 'TEXT');
+// Habit design: the cue it stacks on ("I get into bed"), the 2-minute version, and which weekdays it's due (JSON, null = daily).
+addColumn('habits', 'cue', 'TEXT');
+addColumn('habits', 'tiny', 'TEXT');
+addColumn('habits', 'days', 'TEXT');
+// Pit crew circles: a group and a sub-group ("Work" › "Google", "College" › "IIT Delhi") and where they live (city + coordinates for the map).
+addColumn('people', 'circle', 'TEXT');
+addColumn('people', 'org', 'TEXT');
+addColumn('people', 'city', 'TEXT');
+addColumn('people', 'lat', 'REAL');
+addColumn('people', 'lon', 'REAL');
 
 // Academy progress: one row per lesson module — best stars, total XP earned, attempts.
 db.exec(`CREATE TABLE IF NOT EXISTS learn (
@@ -174,9 +186,9 @@ export const RESOURCES: Record<string, Resource> = {
   expenses: { cols: ['amount', 'kind', 'category', 'note', 'date'], order: 'date DESC, created_at DESC', dateCol: 'date' },
   budgets: { cols: ['category', 'amount'], order: 'category ASC' },
   subscriptions: { cols: ['name', 'amount', 'cycle', 'next_date', 'category'], order: 'next_date ASC' },
-  habits: { cols: ['name', 'emoji', 'color', 'archived'], order: 'created_at ASC' },
+  habits: { cols: ['name', 'emoji', 'color', 'archived', 'cue', 'tiny', 'days'], order: 'created_at ASC' },
   health: { cols: ['date', 'kind', 'value'], order: 'date DESC', dateCol: 'date' },
-  journal: { cols: ['date', 'body', 'mood', 'answers'], order: 'date DESC', dateCol: 'date' },
+  journal: { cols: ['date', 'body', 'mood', 'answers', 'insights'], order: 'date DESC', dateCol: 'date' },
   workouts: { cols: ['date', 'day_type', 'notes', 'started_at', 'finished_at'], order: 'date DESC, created_at DESC', dateCol: 'date' },
   sets: { cols: ['workout_id', 'date', 'exercise', 'set_no', 'weight', 'reps'], order: 'date ASC, set_no ASC', dateCol: 'date' },
   food_logs: { cols: ['date', 'meal', 'food_id', 'name', 'qty', 'unit', 'kcal', 'protein', 'carbs', 'fat', 'micros'], order: 'date DESC, created_at ASC', dateCol: 'date' },
@@ -184,7 +196,7 @@ export const RESOURCES: Record<string, Resource> = {
   activities: { cols: ['date', 'type', 'started_at', 'duration_min', 'distance_km', 'kcal', 'rpe', 'notes', 'details', 'route'], order: 'date DESC, started_at DESC', dateCol: 'date' },
   routines: { cols: ['name', 'emoji', 'days', 'time', 'duration_min', 'steps', 'habit_id', 'remind', 'gcal_event_id', 'active'], order: 'time ASC' },
   saved_meals: { cols: ['name', 'meal', 'items'], order: 'name ASC' },
-  people: { cols: ['name', 'emoji', 'phone', 'birthday', 'every_days', 'weekday', 'call_at', 'last_contact', 'notes'], order: 'name ASC' },
+  people: { cols: ['name', 'emoji', 'phone', 'birthday', 'every_days', 'weekday', 'call_at', 'last_contact', 'notes', 'circle', 'org', 'city', 'lat', 'lon'], order: 'name ASC' },
   splits: { cols: ['expense_id', 'person_id', 'amount', 'note', 'date', 'settled_at', 'items'], order: 'date DESC, created_at DESC', dateCol: 'date' },
   contacts: { cols: ['name', 'phone', 'birthday'], order: 'name COLLATE NOCASE ASC' },
   shopping: { cols: ['name', 'qty', 'done', 'source', 'trip'], order: 'done ASC, name ASC' },
