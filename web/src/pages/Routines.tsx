@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router';
 import { AnimatePresence, motion } from 'motion/react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Bell, BellOff, CalendarCheck, CalendarDays, Check as CheckIcon, Copy, ExternalLink, Plus, RefreshCw, Trash2, Unplug, X } from 'lucide-react';
-import { api, useList, useResource, useSettings } from '../lib/api';
+import { api, useList, useResource, useSettings, wasQueued } from '../lib/api';
 import { addDays, parseDate, today } from '../lib/format';
 import { listItem, spring } from '../lib/motion';
 import { dayTypeOn } from '../core/gym';
@@ -28,7 +28,7 @@ export function useRoutineLogs(from: string) {
   const toggle = useMutation({
     mutationFn: (v: { routine_id: string; date: string }) => api('/routine_logs/toggle', { method: 'POST', body: JSON.stringify(v) }),
     onMutate: (v) => qc.setQueryData<RoutineLog[]>(['routine_logs', from], (old = []) => (old.some((l) => l.routine_id === v.routine_id && l.date === v.date) ? old.filter((l) => !(l.routine_id === v.routine_id && l.date === v.date)) : [...old, { ...v, steps: null }])),
-    onSettled: () => (qc.invalidateQueries({ queryKey: ['routine_logs'] }), qc.invalidateQueries({ queryKey: ['habit_logs'] })),
+    onSettled: (d) => (wasQueued(d) ? undefined : (qc.invalidateQueries({ queryKey: ['routine_logs'] }), qc.invalidateQueries({ queryKey: ['habit_logs'] }))),
   });
   return { done: (id: string, date: string) => logs.some((l) => l.routine_id === id && l.date === date), toggle: toggle.mutate };
 }

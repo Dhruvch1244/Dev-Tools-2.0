@@ -5,7 +5,7 @@ import { Activity, Trophy, Binary, CalendarClock, ChevronLeft, Droplets, Dumbbel
 import { mealForNow } from '../core/fuel';
 import { FoodSearch } from '../pages/Fuel';
 import { useHealthToday } from '../pages/Life';
-import { useLiveSync, useSettings } from '../lib/api';
+import { flushOutbox, useLiveSync, useOutbox, useSettings } from '../lib/api';
 import { bouncy, easeOut, spring } from '../lib/motion';
 import { haptic, today } from '../lib/format';
 import { useReminders } from '../lib/reminders';
@@ -54,6 +54,17 @@ function Logo() {
         <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.2em] text-ink-3">Season 26</p>
       </div>
     </div>
+  );
+}
+
+/** Writes made while the laptop was unreachable; they sync automatically — tap to retry now. */
+function Pending() {
+  const n = useOutbox();
+  if (!n) return null;
+  return (
+    <button onClick={() => void flushOutbox()} className="slant bg-yellow px-2 py-0.5 text-[10px] font-black uppercase text-black" title="Saved on this device — syncs when the laptop is reachable. Tap to retry.">
+      {n} pending
+    </button>
   );
 }
 
@@ -307,7 +318,7 @@ export function Shell({ children }: { children: ReactNode }) {
         </nav>
         <div className="mx-5 mb-4 flex items-center justify-between border border-line bg-surface px-3 py-2.5 text-xs font-semibold uppercase tracking-wider text-ink-3">
           <span className="flex items-center gap-2">
-            <LiveDot online={online} /> {online ? 'Telemetry live' : 'Offline'}
+            <LiveDot online={online} /> {online ? 'Telemetry live' : 'Offline'} <Pending />
           </span>
           <button onClick={() => setSettings(true)} className="rounded p-1.5 transition hover:bg-surface-2 hover:text-ink" aria-label="Settings">
             <SettingsIcon className="size-4" />
@@ -319,7 +330,8 @@ export function Shell({ children }: { children: ReactNode }) {
       <Hud />
 
       {/* Mobile top-right status */}
-      <div className="fixed right-3 top-[calc(env(safe-area-inset-top)+10px)] z-30 lg:hidden">
+      <div className="fixed right-3 top-[calc(env(safe-area-inset-top)+10px)] z-30 flex items-center gap-2 lg:hidden">
+        <Pending />
         <button onClick={() => setSettings(true)} className="glass-bar flex h-9 items-center gap-2 rounded-full px-3 text-ink-2" aria-label="Settings">
           <LiveDot online={online} />
           <SettingsIcon className="size-4" />

@@ -35,4 +35,4 @@ export type Activity = Stamped & { date: string; type: string; started_at: strin
 export type Routine = Stamped & { name: string; emoji: string | null; days: string; time: string; duration_min: number; steps: string | null; habit_id: string | null; remind: number; gcal_event_id: string | null; active: number };
 export type RoutineLog = { routine_id: string; date: string; steps: string | null };
 export type SavedMeal = Stamped & { name: string; meal: string | null; items: string };
-export type Briefs = { morning?: boolean; evening?: boolean; morningAt?: string; eveningAt?: string };
+export type Briefs = { morning?: boolean; evening?: boolean; morningAt?: string; eveningAt?: string; water?: boolean };

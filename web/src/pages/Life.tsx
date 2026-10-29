@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from 'motion/react';
 import { Link } from 'react-router';
 import { BookOpen, Droplets, Flame, Minus, Moon, Plus, Scale, Trash2 } from 'lucide-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { api, useList, useResource, useSettings } from '../lib/api';
+import { api, useList, useResource, useSettings, wasQueued } from '../lib/api';
 import { bouncy, listItem, spring } from '../lib/motion';
 import { addDays, haptic, parseDate, relativeDay, today } from '../lib/format';
 import type { Habit, HabitLog, Health, Journal } from '../lib/types';
@@ -23,7 +23,7 @@ export function useHabits() {
       qc.setQueryData<HabitLog[]>(['habit_logs', from], (old = []) =>
         old.some((l) => l.habit_id === v.habit_id && l.date === v.date) ? old.filter((l) => !(l.habit_id === v.habit_id && l.date === v.date)) : [...old, v],
       ),
-    onSettled: () => qc.invalidateQueries({ queryKey: ['habit_logs'] }),
+    onSettled: (d) => (wasQueued(d) ? undefined : qc.invalidateQueries({ queryKey: ['habit_logs'] })),
   });
   const done = useMemo(() => new Set(logs.map((l) => `${l.habit_id}|${l.date}`)), [logs]);
   const isDone = (id: string, date: string) => done.has(`${id}|${date}`);
@@ -138,7 +138,7 @@ export function useHealthToday() {
         const hit = old.some((h) => h.date === date && h.kind === kind);
         return hit ? old.map((h) => (h.date === date && h.kind === kind ? { ...h, value } : h)) : [{ id: 'tmp', date, kind, value, created_at: '', updated_at: '' }, ...old];
       }),
-    onSettled: () => qc.invalidateQueries({ queryKey: ['health'] }),
+    onSettled: (d) => (wasQueued(d) ? undefined : qc.invalidateQueries({ queryKey: ['health'] })),
   });
   const get = (kind: Health['kind'], date = t) => data.find((h) => h.date === date && h.kind === kind)?.value;
   const lastWeight = data.find((h) => h.kind === 'weight' && h.date < t);

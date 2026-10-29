@@ -12,12 +12,14 @@ self.addEventListener('push', (event) => {
       icon: '/icon-192.png',
       badge: '/icon-192.png',
       data: d,
-      actions: d.taskId
-        ? [
-            { action: 'done', title: '✓ Mark done' },
-            { action: 'snooze', title: '⏰ Snooze 10 min' },
-          ]
-        : [],
+      actions:
+        d.actions ??
+        (d.taskId
+          ? [
+              { action: 'done', title: '✓ Mark done' },
+              { action: 'snooze', title: '⏰ Snooze 10 min' },
+            ]
+          : []),
     }),
   );
 });
@@ -26,12 +28,13 @@ self.addEventListener('notificationclick', (event) => {
   const d = event.notification.data || {};
   event.notification.close();
 
-  if ((event.action === 'done' || event.action === 'snooze') && d.taskId) {
+  // Action buttons are handled server-side without opening the app.
+  if (event.action && (d.taskId || d.routineId || event.action === 'water')) {
     event.waitUntil(
       fetch('/api/push/action', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ taskId: d.taskId, action: event.action }),
+        body: JSON.stringify({ taskId: d.taskId, routineId: d.routineId, action: event.action }),
       }),
     );
     return;

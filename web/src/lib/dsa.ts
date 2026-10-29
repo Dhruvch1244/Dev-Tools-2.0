@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { marked } from 'marked';
-import { api, useSettings } from './api';
+import { api, useSettings, wasQueued } from './api';
 import { addDays, today } from './format';
 import { DEFAULT_START } from '../core/dsa/plan';
 import type { DsaProgress } from './types';
@@ -21,7 +21,7 @@ export function useDsa() {
         const base = { problem, status: 'todo', confidence: null, minutes: null, notes: null, sol_cpp: null, sol_java: null, sol_py: null, solved_at: null, revisit_at: null, updated_at: '' } as DsaProgress;
         return hit ? old.map((p) => (p.problem === problem ? { ...p, ...patch } : p)) : [...old, { ...base, ...patch }];
       }),
-    onSettled: () => qc.invalidateQueries({ queryKey: ['dsa'] }),
+    onSettled: (d) => (wasQueued(d) ? undefined : qc.invalidateQueries({ queryKey: ['dsa'] })),
   });
   return { list: data, ready: isSuccess, get: (id: string) => byId.get(id), save: save.mutate };
 }

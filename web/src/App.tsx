@@ -2,18 +2,19 @@ import { Route, Routes, useLocation } from 'react-router';
 import { Shell } from './components/Shell';
 import { TodayPage } from './pages/Today';
 import { TasksPage } from './pages/Tasks';
-import { NotesPage } from './pages/Notes';
-import { MoneyPage } from './pages/Money';
-import { DropPage } from './pages/Drop';
 import { LifePage } from './pages/Life';
-import { GymPage } from './pages/Gym';
 import { FuelPage } from './pages/Fuel';
-import { SportPage } from './pages/Sport';
 import { RoutinesPage } from './pages/Routines';
-import { ReportPage } from './pages/Report';
 import { lazy, Suspense } from 'react';
 
-// DSA pulls in CodeMirror and three language grammars (~400 KB); keep it out of the first load.
+// Only what Today, the shell and quick-add need is in the first load; every other page is fetched
+// on first visit (DSA alone pulls in CodeMirror + three grammars, ~400 KB).
+const NotesPage = lazy(() => import('./pages/Notes').then((m) => ({ default: m.NotesPage })));
+const MoneyPage = lazy(() => import('./pages/Money').then((m) => ({ default: m.MoneyPage })));
+const DropPage = lazy(() => import('./pages/Drop').then((m) => ({ default: m.DropPage })));
+const GymPage = lazy(() => import('./pages/Gym').then((m) => ({ default: m.GymPage })));
+const SportPage = lazy(() => import('./pages/Sport').then((m) => ({ default: m.SportPage })));
+const ReportPage = lazy(() => import('./pages/Report').then((m) => ({ default: m.ReportPage })));
 const DsaHq = lazy(() => import('./pages/dsa/Hq').then((m) => ({ default: m.DsaHq })));
 const DsaWeek = lazy(() => import('./pages/dsa/Week').then((m) => ({ default: m.DsaWeek })));
 const DsaProblem = lazy(() => import('./pages/dsa/Problem').then((m) => ({ default: m.DsaProblem })));

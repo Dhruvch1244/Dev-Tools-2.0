@@ -13,7 +13,7 @@ import { run, type Lang } from './runner.ts';
 import { getQuestion } from './leetcode.ts';
 import { judge, support } from './judge.ts';
 import { localStamp, publicKey, pushAll, remindersTick, subscribe, subscriptions, taskAction, unsubscribe } from './push.ts';
-import { schedule, startScheduler } from './scheduler.ts';
+import { claimToday, nowHM, schedule, startScheduler } from './scheduler.ts';
 import { listBackups, runBackup } from './backup.ts';
 import * as google from './google.ts';
 import { briefsTick, eveningRecap, morningBrief } from './briefs.ts';
@@ -71,7 +71,13 @@ app.post('/api/r/:res', async (c) => {
   const name = c.req.param('res');
   const res = RESOURCES[name];
   if (!res) return c.json({ error: 'unknown resource' }, 404);
-  const row = { id: randomUUID(), ...pickColumns(res, await c.req.json()), created_at: now(), updated_at: now() };
+  const body = await c.req.json();
+  // Clients may supply the id (phones generate it so offline-queued rows can reference each other).
+  // A replayed request with an id that already exists returns that row instead of failing — idempotent.
+  const id = typeof body.id === 'string' && /^[0-9a-f-]{36}$/i.test(body.id) ? body.id : randomUUID();
+  const existing = db.prepare(`SELECT * FROM ${name} WHERE id = ?`).get(id);
+  if (existing) return c.json(existing, 200);
+  const row = { id, ...pickColumns(res, body), created_at: now(), updated_at: now() };
   const keys = Object.keys(row);
   db.prepare(`INSERT INTO ${name} (${keys.join(',')}) VALUES (${keys.map(() => '?').join(',')})`).run(...Object.values(row));
   emit(name);
@@ -271,9 +277,24 @@ app.post('/api/push/unsubscribe', async (c) => {
 });
 app.post('/api/push/test', async (c) => c.json(await pushAll({ tag: 'test', title: '🏁 Push reminders are on', body: 'This device will get task reminders, even with the app closed.', url: '/tasks' })));
 app.post('/api/push/action', async (c) => {
-  const { taskId, action } = await c.req.json<{ taskId: string; action: 'done' | 'snooze' }>();
+  const { taskId, routineId, action } = await c.req.json<{ taskId?: string; routineId?: string; action: string }>();
+  if (action === 'water') {
+    const day = localStamp(new Date()).slice(0, 10);
+    const cur = (db.prepare("SELECT value FROM health WHERE date = ? AND kind = 'water'").get(day) as { value: number } | undefined)?.value ?? 0;
+    db.prepare("INSERT INTO health (id, date, kind, value, created_at, updated_at) VALUES (?, ?, 'water', ?, ?, ?) ON CONFLICT (date, kind) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at").run(randomUUID(), day, cur + 1, now(), now());
+    emit('health');
+    return c.json({ ok: true, water: cur + 1 });
+  }
+  if (routineId && action === 'done') {
+    const day = localStamp(new Date()).slice(0, 10);
+    db.prepare('INSERT OR IGNORE INTO routine_logs (routine_id, date) VALUES (?, ?)').run(routineId, day);
+    const habit = (db.prepare('SELECT habit_id FROM routines WHERE id = ?').get(routineId) as { habit_id: string | null } | undefined)?.habit_id;
+    if (habit) db.prepare('INSERT OR IGNORE INTO habit_logs (habit_id, date) VALUES (?, ?)').run(habit, day), emit('habit_logs');
+    emit('routine_logs');
+    return c.json({ ok: true });
+  }
   if (!taskId || !['done', 'snooze'].includes(action)) return c.json({ error: 'bad action' }, 400);
-  taskAction(taskId, action);
+  taskAction(taskId, action as 'done' | 'snooze');
   emit('tasks');
   return c.json({ ok: true });
 });
@@ -403,6 +424,7 @@ schedule({ name: 'task-reminders', every: 20_000, run: remindersTick });
 schedule({ name: 'backup', at: '03:00', run: runBackup });
 schedule({ name: 'routine-reminders', every: 20_000, run: routineReminders });
 schedule({ name: 'briefs', every: 20_000, run: briefsTick });
+schedule({ name: 'water-nudges', every: 20_000, run: waterNudge });
 schedule({ name: 'leetcode-sync', every: 30 * 60_000, run: async () => (await syncLeetCode())?.marked.length && emit('dsa') });
 // If the laptop was off at 03:00, back up on the first start of the day instead.
 schedule({ name: 'backup-catchup', at: '00:00', run: async () => (await listBackups())[0] !== new Date().toISOString().slice(0, 10) && runBackup() });
@@ -415,9 +437,31 @@ async function routineReminders() {
   for (const r of rows) {
     if (!JSON.parse(r.days).includes(now.getDay()) || r.time > hm || hm > addMinutes(r.time, 10)) continue;
     const claimed = db.prepare('INSERT OR IGNORE INTO push_sent (task_id, due, sent_at) VALUES (?, ?, ?)').run(`routine:${r.id}`, `${day}T${r.time}`, now.toISOString());
-    if (claimed.changes) await pushAll({ tag: `routine-${r.id}`, title: `${r.emoji ?? '⏱️'} ${r.name}`, body: `Starting now · ${r.duration_min} min`, url: '/routines' });
+    if (claimed.changes)
+      await pushAll({ tag: `routine-${r.id}`, title: `${r.emoji ?? '⏱️'} ${r.name}`, body: `Starting now · ${r.duration_min} min`, url: '/routines', routineId: r.id, actions: [{ action: 'done', title: '✓ Done' }] });
   }
 }
+/**
+ * Hydration nudge at a few checkpoints, only when behind pace: by HH:MM you should have had the goal
+ * × the fraction of the 08:00–22:00 day that has passed. One push per checkpoint per day.
+ */
+const WATER_CHECKS = ['11:00', '14:00', '17:00', '19:30'];
+async function waterNudge() {
+  const t = nowHM();
+  const slot = WATER_CHECKS.filter((x) => t >= x && t < addMinutes(x, 45)).at(-1);
+  if (!slot) return;
+  const setting = (k: string) => (db.prepare('SELECT value FROM settings WHERE key = ?').get(k) as { value: string } | undefined)?.value;
+  const briefs = JSON.parse(setting('briefs') ?? '{}');
+  if (briefs.water === false) return;
+  const goal = Number(JSON.parse(setting('waterGoal') ?? '8')) || 8;
+  const day = localStamp(new Date()).slice(0, 10);
+  const have = (db.prepare("SELECT value FROM health WHERE date = ? AND kind = 'water'").get(day) as { value: number } | undefined)?.value ?? 0;
+  const [h, m] = slot.split(':').map(Number);
+  const expected = Math.floor(goal * Math.min(1, Math.max(0, (h * 60 + m - 8 * 60) / (14 * 60))));
+  if (have >= expected || !claimToday(`water-${slot}`)) return;
+  await pushAll({ tag: 'water', title: `💧 ${have}/${goal} glasses`, body: `You'd usually be at ${expected} by now — have one now.`, url: '/life', actions: [{ action: 'water', title: '💧 +1 glass' }] });
+}
+
 const addMinutes = (hm: string, n: number) => {
   const [h, m] = hm.split(':').map(Number);
   const t = h * 60 + m + n;

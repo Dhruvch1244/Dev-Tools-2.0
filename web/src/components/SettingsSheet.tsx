@@ -95,6 +95,9 @@ function BriefsSection() {
       <p className="text-xs text-ink-3">Morning: gym day, DSA laps, calorie & protein target, routines, due tasks. Evening: how the day went and what's short.</p>
       {row('morning', 'Morning brief', <Sunrise className="size-4 text-yellow" />, '08:00')}
       {row('evening', 'Evening debrief', <Sunset className="size-4 text-accent-2" />, '21:30')}
+      <button onClick={() => set({ water: !(b.water ?? true) })} className={cx('flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm font-semibold', (b.water ?? true) ? 'bg-accent-soft text-ink' : 'bg-surface-2 text-ink-3')}>
+        💧 Water nudges when behind pace (11:00 · 14:00 · 17:00 · 19:30) <span className="ml-auto text-[10px] font-black uppercase">{(b.water ?? true) ? 'On' : 'Off'}</span>
+      </button>
     </section>
   );
 }
