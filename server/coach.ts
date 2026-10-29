@@ -17,20 +17,27 @@ const MODEL = process.env.COACH_MODEL ?? 'sonnet';
 let busy: Promise<unknown> = Promise.resolve();
 
 export type CoachEvents = { onDelta: (text: string) => void; signal: AbortSignal };
+/** A prompt is plain text, or content blocks when it carries an image (base64 JPEG/PNG). */
+export type Prompt = string | ({ type: 'text'; text: string } | { type: 'image'; source: { type: 'base64'; media_type: string; data: string } })[];
 
 /** Stream a reply. Resolves with the full text; rejects with a readable message. */
-export function ask(system: string, prompt: string, ev: CoachEvents): Promise<string> {
+export function ask(system: string, prompt: Prompt, ev: CoachEvents): Promise<string> {
   const job = busy.then(() => run(system, prompt, ev));
   busy = job.catch(() => {});
   return job;
 }
 
-function run(system: string, prompt: string, { onDelta, signal }: CoachEvents) {
+function run(system: string, prompt: Prompt, { onDelta, signal }: CoachEvents) {
   return new Promise<string>((resolve, reject) => {
     if (signal.aborted) return reject(new Error('cancelled'));
     const child = spawn(
       'claude',
-      ['-p', '--output-format', 'stream-json', '--verbose', '--include-partial-messages', '--tools', '', '--strict-mcp-config', '--no-session-persistence', '--model', MODEL, '--system-prompt', system],
+      [
+        '-p',
+        // Images can't go in as plain text: send one stream-json user message with content blocks instead.
+        ...(typeof prompt === 'string' ? [] : ['--input-format', 'stream-json']),
+        '--output-format', 'stream-json', '--verbose', '--include-partial-messages', '--tools', '', '--strict-mcp-config', '--no-session-persistence', '--model', MODEL, '--system-prompt', system,
+      ],
       { cwd: CWD, env: process.env, stdio: ['pipe', 'pipe', 'pipe'] },
     );
     let text = '';
@@ -66,7 +73,7 @@ function run(system: string, prompt: string, { onDelta, signal }: CoachEvents) {
       if (!text) return reject(new Error(err.trim().split('\n').pop() || 'No reply — is `claude` logged in? Run `claude` once in a terminal.'));
       resolve(text);
     });
-    child.stdin.end(prompt);
+    child.stdin.end(typeof prompt === 'string' ? prompt : JSON.stringify({ type: 'user', message: { role: 'user', content: prompt } }) + '\n');
   });
 }
 

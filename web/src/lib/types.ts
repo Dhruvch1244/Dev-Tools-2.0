@@ -27,7 +27,7 @@ export type Settings = {
 };
 export type Workout = Stamped & { date: string; day_type: string; notes: string | null; started_at: string | null; finished_at: string | null };
 export type GymSet = Stamped & { workout_id: string; date: string; exercise: string; set_no: number; weight: number; reps: number };
-export type FoodLog = Stamped & { date: string; meal: string; food_id: string | null; name: string; qty: number; unit: string | null; kcal: number; protein: number; carbs: number; fat: number };
+export type FoodLog = Stamped & { date: string; meal: string; food_id: string | null; name: string; qty: number; unit: string | null; kcal: number; protein: number; carbs: number; fat: number; micros?: string | null };
 export type CustomFood = Stamped & { name: string; serving: string; kcal: number; protein: number; carbs: number; fat: number };
 export type DsaProgress = { problem: string; status: 'todo' | 'attempted' | 'solved' | 'revisit'; confidence: number | null; minutes: number | null; notes: string | null; sol_cpp: string | null; sol_java: string | null; sol_py: string | null; solved_at: string | null; revisit_at: string | null; updated_at: string };
 export type DsaTest = Stamped & { kind: 'weekly' | 'mega' | 'mock'; ref: string; started_at: string; finished_at: string | null; duration_min: number; results: string | null; score: number | null };

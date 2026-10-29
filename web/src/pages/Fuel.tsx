@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { Bookmark, ChevronLeft, ChevronRight, Copy, Flame, Minus, Plus, Search, Settings2, Sparkles, Trash2, Zap } from 'lucide-react';
+import { Bookmark, Camera, ChevronLeft, ChevronRight, Copy, Flame, Minus, Plus, Search, Settings2, Sparkles, Trash2, Zap } from 'lucide-react';
 import { useList, useResource, useSettings } from '../lib/api';
 import { addDays, parseDate, relativeDay, today } from '../lib/format';
 import { listItem } from '../lib/motion';
@@ -9,6 +9,8 @@ import { ACTIVITY, DEFAULT_PROFILE, MEALS, mealForNow, sumMacros, targets, type 
 import { parseFoodText, proteinFixes } from '../core/foodParse';
 import { planDay, planHeadline, type MealId, type MealPlan } from '../core/mealPlan';
 import { streamCoach } from '../lib/coach';
+import { MICRO_META, microReport, microTargets, sumMicros } from '../core/micros';
+import { AiSnap } from '../components/AiSnap';
 import { md } from '../lib/dsa';
 import type { Activity, CustomFood, FoodLog, Health, SavedMeal } from '../lib/types';
 import { useToast } from '../components/toast';
@@ -84,7 +86,7 @@ export function FoodSearch({ date, meal, onMealChange }: { date: string; meal: s
   const list = q ? searchFoods(all, q) : cat === 'Recent' ? (recent.length ? recent : all.slice(0, 20)) : cat === 'Custom' ? all.filter((f) => f.cat === 'Custom') : all.filter((f) => f.cat === cat);
 
   const [added, setAdded] = useState<Record<string, number>>({});
-  const [mode, setMode] = useState<'search' | 'type' | 'saved'>('search');
+  const [mode, setMode] = useState<'search' | 'ai' | 'type' | 'saved'>('search');
   // "Your usual": foods logged for this meal on 3+ different days recently, with their usual quantity.
   const usual = useMemo(() => {
     const byFood = new Map<string, { days: Set<string>; qty: number[] }>();
@@ -127,10 +129,12 @@ export function FoodSearch({ date, meal, onMealChange }: { date: string; meal: s
         onChange={setMode}
         options={[
           { value: 'search', label: 'Search' },
-          { value: 'type', label: 'Type it' },
-          { value: 'saved', label: 'Saved meals' },
+          { value: 'ai', label: '✦ AI' },
+          { value: 'type', label: 'Type' },
+          { value: 'saved', label: 'Saved' },
         ]}
       />
+      {mode === 'ai' && <AiSnap date={date} meal={meal} />}
       {mode === 'type' && <TypeIt date={date} meal={meal} foods={all} recentIds={recent.map((f) => f.id)} />}
       {mode === 'saved' && <SavedMeals date={date} meal={meal} />}
       {mode === 'search' && (
@@ -567,6 +571,76 @@ function DayPlan({ day, remaining, usualIds, diet }: { day: FoodLog[]; remaining
   );
 }
 
+/** Micronutrient telemetry: today or a 7-day average (micros swing day to day; the week tells the truth). */
+function MicrosCard({ logs, date, profile, kcalTarget }: { logs: FoodLog[]; date: string; profile: Profile; kcalTarget: number }) {
+  const [view, setView] = useState<'day' | 'week'>('day');
+  const [open, setOpen] = useState(false);
+  const from = addDays(date, -6);
+  const window = view === 'day' ? logs.filter((l) => l.date === date) : logs.filter((l) => l.date >= from && l.date <= date);
+  const days = view === 'day' ? 1 : Math.max(1, new Set(window.map((l) => l.date)).size);
+  const { total, unknownKcal } = sumMicros(window);
+  const kcal = window.reduce((a, l) => a + l.kcal, 0);
+  const report = microReport(total, microTargets(profile.sex, kcalTarget), days);
+  const gaps = report.filter((r) => r.status !== 'ok').sort((a, b) => (a.status === 'over' ? 1 : a.pct) - (b.status === 'over' ? 1 : b.pct));
+  const shown = open ? report : report.slice(0, 6);
+  const fmt = (v: number, unit: string) => (unit === 'µg' || v < 10 ? r1(v) : Math.round(v)).toLocaleString();
+  return (
+    <Card className="mb-4">
+      <SectionTitle action={<Segmented value={view} onChange={setView} options={[{ value: 'day', label: 'Day' }, { value: 'week', label: '7-day avg' }]} />}>Micros</SectionTitle>
+      {!window.length ? (
+        <p className="py-4 text-center text-sm text-ink-3">Log some food to see fibre, iron, B12 and more.</p>
+      ) : (
+        <>
+          <div className="grid gap-x-6 gap-y-3 sm:grid-cols-2">
+            {shown.map((r) => {
+              const meta = MICRO_META[r.key];
+              const color = r.status === 'over' ? 'var(--accent)' : r.status === 'low' ? 'var(--yellow)' : 'var(--green)';
+              return (
+                <div key={r.key} title={meta.why}>
+                  <div className="mb-1 flex items-baseline justify-between gap-2 text-mini font-bold uppercase tracking-wider">
+                    <span className="text-ink-2">
+                      {meta.label}
+                      {meta.kind === 'limit' && <span className="ml-1 text-ink-3 normal-case">(limit)</span>}
+                    </span>
+                    <span className="font-mono tabular-nums">
+                      {fmt(r.value, meta.unit)}
+                      {/* normal-case: uppercase would turn µg into "ΜG", which reads as mg */}
+                      <span className="normal-case text-ink-3">
+                        {' '}
+                        / {r.target.toLocaleString()} {meta.unit}
+                      </span>
+                    </span>
+                  </div>
+                  <div className="relative h-2 overflow-hidden rounded-sm bg-surface-2">
+                    <motion.div className="h-full -skew-x-12" style={{ background: color }} initial={{ width: 0 }} animate={{ width: `${Math.min(1, r.pct) * 100}%` }} transition={{ type: 'spring', stiffness: 70, damping: 16 }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <button onClick={() => setOpen(!open)} className="mt-3 text-mini font-bold uppercase tracking-wider text-ink-3 hover:text-ink">
+            {open ? 'Show less' : `All ${report.length} nutrients`}
+          </button>
+          {gaps.length > 0 && (
+            <div className="mt-3 space-y-2 border-t border-line pt-3">
+              {gaps.slice(0, 3).map((g) => (
+                <p key={g.key} className="text-sm">
+                  <span className={cx('slant mr-2 inline-block px-2 text-micro font-black uppercase', g.status === 'over' ? 'bg-accent text-white' : 'bg-yellow text-black')}>
+                    {MICRO_META[g.key].label} {g.status === 'over' ? 'high' : `${Math.round(g.pct * 100)}%`}
+                  </span>
+                  <span className="text-ink-2">{g.tip}</span>
+                </p>
+              ))}
+            </div>
+          )}
+          {kcal > 0 && unknownKcal / kcal > 0.1 && <p className="mt-3 text-tiny text-ink-3">Partial: {Math.round((unknownKcal / kcal) * 100)}% of calories are custom foods without micro data.</p>}
+          <p className="mt-2 text-tiny text-ink-3">Estimates from IFCT/USDA averages · targets: ICMR-NIN 2020{view === 'week' ? ` · averaged over ${days} logged day${days === 1 ? '' : 's'}` : ''}</p>
+        </>
+      )}
+    </Card>
+  );
+}
+
 export function FuelPage() {
   const { settings } = useSettings();
   const { data: health = [] } = useList<Health>('health', { from: addDays(today(), -60) });
@@ -591,7 +665,7 @@ export function FuelPage() {
   const diet: Diet = settings.diet ?? 'veg';
   const fixes = gap >= 15 ? proteinFixes(gap, FOODS.filter((f) => allowedFor(diet, f.id)), recentIds) : [];
   const saveMeal = async (meal: string, label: string) => {
-    const items = day.filter((l) => l.meal === meal).map(({ food_id, name, qty, unit, kcal, protein, carbs, fat }) => ({ food_id, name, qty, unit, kcal, protein, carbs, fat }));
+    const items = day.filter((l) => l.meal === meal).map(({ food_id, name, qty, unit, kcal, protein, carbs, fat, micros }) => ({ food_id, name, qty, unit, kcal, protein, carbs, fat, micros }));
     if (!items.length) return toast({ message: `${label} is empty — log it first, then save it` });
     const name = prompt(`Name this meal`, `My ${label.toLowerCase()}`)?.trim();
     if (!name) return;
@@ -599,6 +673,7 @@ export function FuelPage() {
     toast({ message: `Saved “${name}” — find it under Add → Saved meals` });
   };
   const [coachOpen, setCoachOpen] = useState(false);
+  const [snap, setSnap] = useState<string | null>(null);
   const usualNames = useMemo(() => {
     const n = new Map<string, number>();
     for (const l of logs) n.set(l.name, (n.get(l.name) ?? 0) + 1);
@@ -611,7 +686,7 @@ export function FuelPage() {
 
   const copyYesterday = async (meal: string) => {
     const y = logs.filter((l) => l.date === addDays(date, -1) && l.meal === meal);
-    for (const l of y) await create({ date, meal, food_id: l.food_id, name: l.name, qty: l.qty, unit: l.unit, kcal: l.kcal, protein: l.protein, carbs: l.carbs, fat: l.fat });
+    for (const l of y) await create({ date, meal, food_id: l.food_id, name: l.name, qty: l.qty, unit: l.unit, kcal: l.kcal, protein: l.protein, carbs: l.carbs, fat: l.fat, micros: l.micros ?? null });
     toast({ message: y.length ? `Copied ${y.length} items from yesterday` : 'Nothing logged there yesterday' });
   };
   const del = (l: FoodLog) => {
@@ -680,13 +755,19 @@ export function FuelPage() {
       </Card>
 
       {date === today() && <DayPlan day={day} remaining={{ kcal: left, protein: t.protein - total.protein }} usualIds={recentIds} diet={diet} />}
-      {date === today() && left > 150 && (
-        <Rise className="-mt-1 mb-4 flex justify-end">
+      <Rise className="-mt-1 mb-4 flex flex-wrap justify-end gap-2">
+        {date === today() && left > 150 && (
           <Button size="sm" variant="ghost" onClick={() => setCoachOpen(true)}>
             <Sparkles className="size-4 text-accent-2" /> Plan my next meal
           </Button>
-        </Rise>
-      )}
+        )}
+        <Button size="sm" onClick={() => setSnap(mealForNow())}>
+          <Camera className="size-4" /> Snap a meal
+        </Button>
+      </Rise>
+      <Sheet open={!!snap} onClose={() => setSnap(null)} title="AI meal log">
+        {snap && <AiSnap date={date} meal={snap} onMealChange={setSnap} onDone={() => setSnap(null)} />}
+      </Sheet>
       <MealCoach open={coachOpen} diet={diet} onClose={() => setCoachOpen(false)} remaining={{ kcal: left, protein: Math.max(0, t.protein - total.protein), carbs: Math.max(0, t.carbs - total.carbs), fat: Math.max(0, t.fat - total.fat) }} usual={usualNames} />
       <AnimatePresence>
         {fixes.length > 0 && date === today() && (
@@ -753,6 +834,9 @@ export function FuelPage() {
           );
         })}
       </div>
+      <Rise className="mt-4">
+        <MicrosCard logs={logs} date={date} profile={profile} kcalTarget={t.kcal} />
+      </Rise>
       <Rise className="mt-4">
         <WeekChart logs={logs} target={t.kcal} />
       </Rise>

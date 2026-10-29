@@ -31,10 +31,11 @@ export default defineConfig({
         icons: [
           { src: 'icon-192.png', sizes: '192x192', type: 'image/png' },
           { src: 'icon-512.png', sizes: '512x512', type: 'image/png' },
-          { src: 'icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+          { src: 'icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
         // Long-press the home-screen icon (Android & iOS 17+ installed PWAs).
         shortcuts: [
+          { name: 'Snap a meal (AI)', short_name: 'Snap meal', url: '/?quick=snap', icons: [{ src: 'icon-192.png', sizes: '192x192' }] },
           { name: 'Log food', short_name: 'Food', url: '/?quick=food', icons: [{ src: 'icon-192.png', sizes: '192x192' }] },
           { name: 'Water +1', short_name: 'Water', url: '/?quick=water', icons: [{ src: 'icon-192.png', sizes: '192x192' }] },
           { name: 'Start a run', short_name: 'Run', url: '/sport?start=run', icons: [{ src: 'icon-192.png', sizes: '192x192' }] },

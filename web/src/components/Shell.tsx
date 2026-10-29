@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router';
 import { AnimatePresence, motion } from 'motion/react';
-import { Activity, Trophy, Binary, CalendarClock, ChevronLeft, Droplets, Dumbbell, HeartPulse, House, LayoutGrid, ListTodo, Plus, Send, Settings as SettingsIcon, StickyNote, Utensils, Wallet } from 'lucide-react';
+import { Activity, Camera, Trophy, Binary, CalendarClock, ChevronLeft, Droplets, Dumbbell, HeartPulse, House, LayoutGrid, ListTodo, Plus, Send, Settings as SettingsIcon, StickyNote, Utensils, Wallet } from 'lucide-react';
 import { mealForNow } from '../core/fuel';
 import { FoodSearch } from '../pages/Fuel';
 import { useHealthToday } from '../pages/Life';
@@ -13,6 +13,8 @@ import { DAY_META, dayTypeOn } from '../core/gym';
 import { ExpenseForm, QuickNoteForm, TaskForm } from './forms';
 import { SettingsSheet } from './SettingsSheet';
 import { PullRefresh } from './PullRefresh';
+import { AiSnap } from './AiSnap';
+import { Logo } from './Logo';
 import { Sheet, Textarea, Button, cx } from './ui';
 import { sendDrop } from '../lib/drop';
 import { useToast } from './toast';
@@ -43,20 +45,6 @@ export const NAV_GROUPS = [
 ];
 const NAV = NAV_GROUPS.flatMap((g) => g.items);
 const MOBILE_TABS = ['/', '/gym', '/fuel', '/dsa'];
-
-function Logo() {
-  return (
-    <div className="flex items-center gap-3">
-      <motion.div whileHover={{ skewX: -10, scale: 1.05 }} transition={bouncy} className="slant grid h-9 w-14 place-items-center bg-accent text-[15px] font-black italic text-white">
-        2.0
-      </motion.div>
-      <div className="leading-none">
-        <p className="text-[17px] font-black italic uppercase tracking-tight">Dev Tools</p>
-        <p className="mt-1 text-micro font-bold uppercase tracking-[0.2em] text-ink-3">Season 26</p>
-      </div>
-    </div>
-  );
-}
 
 /** Writes made while the laptop was unreachable; they sync automatically — tap to retry now. */
 function Pending() {
@@ -116,9 +104,10 @@ function Hud() {
   );
 }
 
-type QuickKind = 'menu' | 'task' | 'expense' | 'note' | 'drop' | 'food';
+type QuickKind = 'menu' | 'task' | 'expense' | 'note' | 'drop' | 'food' | 'snap';
 
 const QUICK_TILES: { kind: QuickKind | 'water' | 'gym' | 'sport'; label: string; icon: typeof House; color: string }[] = [
+  { kind: 'snap', label: 'AI snap', icon: Camera, color: 'var(--accent)' },
   { kind: 'food', label: 'Food', icon: Utensils, color: 'var(--green)' },
   { kind: 'water', label: 'Water +1', icon: Droplets, color: 'var(--sky)' },
   { kind: 'gym', label: 'Gym set', icon: Dumbbell, color: 'var(--yellow)' },
@@ -128,7 +117,7 @@ const QUICK_TILES: { kind: QuickKind | 'water' | 'gym' | 'sport'; label: string;
   { kind: 'note', label: 'Note', icon: StickyNote, color: 'var(--accent-2)' },
   { kind: 'drop', label: 'Drop', icon: Send, color: 'var(--ink-2)' },
 ];
-const TITLES: Record<QuickKind, string> = { menu: 'Quick add', task: 'New task', expense: 'Money', note: 'Note', drop: 'Drop', food: 'Log food' };
+const TITLES: Record<QuickKind, string> = { menu: 'Quick add', task: 'New task', expense: 'Money', note: 'Note', drop: 'Drop', food: 'Log food', snap: 'AI meal log' };
 
 function QuickAdd({ open, onClose, kind, setKind }: { open: boolean; onClose: () => void; kind: QuickKind; setKind: (k: QuickKind) => void }) {
   const [text, setText] = useState('');
@@ -171,7 +160,7 @@ function QuickAdd({ open, onClose, kind, setKind }: { open: boolean; onClose: ()
       <AnimatePresence mode="wait" initial={false}>
         <motion.div key={kind} initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -16 }} transition={{ duration: 0.18, ease: easeOut }}>
           {kind === 'menu' && (
-            <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+            <div className="grid grid-cols-3 gap-2">
               {QUICK_TILES.map((t, i) => (
                 <motion.button
                   key={t.kind}
@@ -190,6 +179,7 @@ function QuickAdd({ open, onClose, kind, setKind }: { open: boolean; onClose: ()
             </div>
           )}
           {kind === 'food' && <FoodSearch date={today()} meal={meal} onMealChange={setMeal} />}
+          {kind === 'snap' && <AiSnap date={today()} meal={meal} onMealChange={setMeal} onDone={onClose} />}
           {kind === 'task' && <TaskForm autoFocus onDone={onClose} />}
           {kind === 'expense' && <ExpenseForm autoFocus onDone={onClose} />}
           {kind === 'note' && <QuickNoteForm autoFocus onDone={onClose} />}
@@ -255,7 +245,7 @@ export function Shell({ children }: { children: ReactNode }) {
       const before = water.get('water') ?? 0;
       water.set({ kind: 'water', value: before + 1 });
       toast({ message: `💧 ${before + 1} glasses today` });
-    } else if (['food', 'task', 'expense', 'note', 'drop'].includes(k)) {
+    } else if (['food', 'snap', 'task', 'expense', 'note', 'drop'].includes(k)) {
       setQuickKind(k as QuickKind);
       setQuick(true);
     }
@@ -330,6 +320,11 @@ export function Shell({ children }: { children: ReactNode }) {
 
       <Hud />
       <PullRefresh />
+
+      {/* Mobile top-left mark */}
+      <NavLink to="/" aria-label="Today" className="kb-hide glass-bar fixed left-3 top-[calc(env(safe-area-inset-top)+10px)] z-30 flex h-9 items-center rounded-full pl-3 pr-3.5 lg:hidden">
+        <Logo compact />
+      </NavLink>
 
       {/* Mobile top-right status */}
       <div className="kb-hide fixed right-3 top-[calc(env(safe-area-inset-top)+10px)] z-30 flex items-center gap-2 lg:hidden">

@@ -18,7 +18,8 @@ import { listBackups, runBackup } from './backup.ts';
 import * as google from './google.ts';
 import { briefsTick, eveningRecap, morningBrief } from './briefs.ts';
 import { syncLeetCode } from './lcsync.ts';
-import { DSA_SYSTEM, FUEL_SYSTEM, ask, dsaPrompt, type DsaAsk } from './coach.ts';
+import { DSA_SYSTEM, FUEL_SYSTEM, ask, dsaPrompt, type DsaAsk, type Prompt } from './coach.ts';
+import { AI_FOOD_SYSTEM, aiUserText, extractJson, normaliseAi } from '../web/src/core/aiFood.ts';
 
 const PORT = Number(process.env.PORT ?? 4300);
 // Loopback by default: `tailscale serve` proxies to it, so only devices on your tailnet can reach it.
@@ -390,6 +391,23 @@ app.post('/api/coach/fuel', async (c) => {
   const dietLine = { veg: 'I am strictly vegetarian: no meat, no fish, no eggs (dairy like paneer, curd, milk and whey is fine). Never suggest any of those.', egg: 'I am eggetarian: no meat or fish, eggs and dairy are fine.', nonveg: 'I eat everything.' }[diet];
   const prompt = `Plan my ${meal} so I finish the day on target.\nRemaining today: ${Math.round(remaining.kcal)} kcal, ${Math.round(remaining.protein)} g protein, ${Math.round(remaining.carbs)} g carbs, ${Math.round(remaining.fat)} g fat.\nFoods I eat often: ${usual.slice(0, 20).join(', ') || 'typical North Indian home food'}.\n${dietLine}`;
   return coachStream(c, FUEL_SYSTEM, prompt);
+});
+
+// ---- AI meal logging: photo and/or description → items to review, then log ----
+app.post('/api/fuel/vision', async (c) => {
+  const { image, text, diet = 'veg' } = await c.req.json<{ image?: string; text?: string; diet?: 'veg' | 'egg' | 'nonveg' }>();
+  const m = image?.match(/^data:(image\/(?:jpeg|png|webp|gif));base64,(.+)$/);
+  if (image && !m) return c.json({ error: 'Send the photo as a JPEG/PNG data URL' }, 400);
+  if (!m && !text?.trim()) return c.json({ error: 'Add a photo or describe the meal' }, 400);
+  if (m && m[2].length > 8_000_000) return c.json({ error: 'Photo too large' }, 413);
+  const userText = aiUserText({ text, diet, hasImage: !!m });
+  const prompt: Prompt = m ? [{ type: 'image', source: { type: 'base64', media_type: m[1], data: m[2] } }, { type: 'text', text: userText }] : userText;
+  try {
+    const reply = await ask(AI_FOOD_SYSTEM, prompt, { onDelta: () => {}, signal: c.req.raw.signal });
+    return c.json(normaliseAi(extractJson(reply), diet));
+  } catch (e) {
+    return c.json({ error: (e as Error).message }, 502);
+  }
 });
 
 app.get('/api/backups', async (c) => c.json(await listBackups()));

@@ -108,6 +108,14 @@ db.exec(`
   );
 `);
 
+/** Add a column to an existing table if an older database doesn't have it yet. */
+function addColumn(table: string, col: string, type: string) {
+  const cols = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
+  if (!cols.some((c) => c.name === col)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${col} ${type}`);
+}
+// Micronutrient snapshot (JSON) for rows whose food isn't in the catalogue — AI photo estimates, custom foods.
+addColumn('food_logs', 'micros', 'TEXT');
+
 type Resource = { cols: string[]; order: string; dateCol?: string };
 
 /** Tables exposed through the generic CRUD API, with the columns clients may write. */
@@ -122,7 +130,7 @@ export const RESOURCES: Record<string, Resource> = {
   journal: { cols: ['date', 'body', 'mood'], order: 'date DESC', dateCol: 'date' },
   workouts: { cols: ['date', 'day_type', 'notes', 'started_at', 'finished_at'], order: 'date DESC, created_at DESC', dateCol: 'date' },
   sets: { cols: ['workout_id', 'date', 'exercise', 'set_no', 'weight', 'reps'], order: 'date ASC, set_no ASC', dateCol: 'date' },
-  food_logs: { cols: ['date', 'meal', 'food_id', 'name', 'qty', 'unit', 'kcal', 'protein', 'carbs', 'fat'], order: 'date DESC, created_at ASC', dateCol: 'date' },
+  food_logs: { cols: ['date', 'meal', 'food_id', 'name', 'qty', 'unit', 'kcal', 'protein', 'carbs', 'fat', 'micros'], order: 'date DESC, created_at ASC', dateCol: 'date' },
   custom_foods: { cols: ['name', 'serving', 'kcal', 'protein', 'carbs', 'fat'], order: 'name ASC' },
   activities: { cols: ['date', 'type', 'started_at', 'duration_min', 'distance_km', 'kcal', 'rpe', 'notes', 'details', 'route'], order: 'date DESC, started_at DESC', dateCol: 'date' },
   routines: { cols: ['name', 'emoji', 'days', 'time', 'duration_min', 'steps', 'habit_id', 'remind', 'gcal_event_id', 'active'], order: 'time ASC' },

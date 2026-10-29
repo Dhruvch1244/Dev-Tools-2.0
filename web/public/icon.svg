@@ -1,11 +1,78 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Dev Tools 2.0 — "lights out" mark: carbon tub, livery speed band, italic block DT monogram,
+       five start lights and a kerb. Pure geometry (no fonts), so it renders identically everywhere.
+       Everything important sits inside the central 80% so Android's maskable crop keeps it. -->
   <defs>
-    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#8f7dff"/><stop offset=".55" stop-color="#ff7ac6"/><stop offset="1" stop-color="#4fe3c1"/>
+    <pattern id="weave" width="12" height="12" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <rect width="12" height="12" fill="#0b0c10"/>
+      <rect width="6" height="12" fill="#121419"/>
+    </pattern>
+    <radialGradient id="glow" cx=".18" cy=".95" r=".9">
+      <stop offset="0" stop-color="#e10600" stop-opacity=".55"/>
+      <stop offset="1" stop-color="#e10600" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="band" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0" stop-color="#8f0400"/>
+      <stop offset=".45" stop-color="#e10600"/>
+      <stop offset="1" stop-color="#ff5747"/>
     </linearGradient>
+    <linearGradient id="chrome" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset=".55" stop-color="#f1f2f4"/>
+      <stop offset="1" stop-color="#b9bec8"/>
+    </linearGradient>
+    <filter id="lit" x="-1" y="-1" width="3" height="3">
+      <feGaussianBlur stdDeviation="7" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="drop" x="-.2" y="-.2" width="1.4" height="1.4">
+      <feDropShadow dx="6" dy="10" stdDeviation="6" flood-color="#000" flood-opacity=".75"/>
+    </filter>
   </defs>
-  <rect width="512" height="512" rx="116" fill="#0c0b14"/>
-  <rect x="56" y="56" width="400" height="400" rx="92" fill="url(#g)"/>
-  <path d="M256 128c10 62 34 86 96 96-62 10-86 34-96 96-10-62-34-86-96-96 62-10 86-34 96-96z" fill="#fff"/>
-  <circle cx="352" cy="352" r="22" fill="#fff" opacity=".9"/>
+
+  <!-- carbon tub + red under-glow -->
+  <rect width="512" height="512" fill="url(#weave)"/>
+  <rect width="512" height="512" fill="url(#glow)"/>
+  <g stroke="#ffffff" stroke-opacity=".05" stroke-width="2">
+    <path d="M-20 140 L540 40M-20 470 L540 370"/>
+  </g>
+
+  <!-- livery: speed band with white pinstripe, sweeping up to the right -->
+  <path d="M-10 392 L522 238 L522 318 L-10 472 Z" fill="url(#band)"/>
+  <path d="M-10 376 L522 222 L522 230 L-10 384 Z" fill="#f3f3f3"/>
+  <path d="M-10 486 L522 332 L522 336 L-10 490 Z" fill="#f3f3f3" opacity=".5"/>
+
+  <!-- start lights gantry: five pods, all lit — the instant before lights out -->
+  <rect x="112" y="72" width="288" height="56" rx="14" fill="#050506" stroke="#2a2e38" stroke-width="3"/>
+  <g filter="url(#lit)" fill="#ff1a10">
+    <circle cx="150" cy="100" r="16"/>
+    <circle cx="203" cy="100" r="16"/>
+    <circle cx="256" cy="100" r="16"/>
+    <circle cx="309" cy="100" r="16"/>
+    <circle cx="362" cy="100" r="16"/>
+  </g>
+  <g fill="#ffd0cc" opacity=".8">
+    <circle cx="145" cy="95" r="4"/><circle cx="198" cy="95" r="4"/><circle cx="251" cy="95" r="4"/><circle cx="304" cy="95" r="4"/><circle cx="357" cy="95" r="4"/>
+  </g>
+
+  <!-- DT monogram: block italic, chamfered like a front wing endplate -->
+  <g transform="translate(62 0) skewX(-13)" filter="url(#drop)">
+    <path fill="url(#chrome)" fill-rule="evenodd" d="M92 168 H226 L284 226 V336 L226 394 H92 Z M146 220 H204 L230 246 V316 L204 342 H146 Z"/>
+    <path fill="url(#chrome)" d="M300 168 H448 V222 H402 V394 H346 V222 H300 Z"/>
+    <!-- red cut-lines through both letters: motion blur in a static mark -->
+    <path fill="#e10600" d="M92 274 H146 V288 H92 Z M230 274 H284 V288 H230 Z M346 274 H402 V288 H346 Z"/>
+  </g>
+
+  <!-- speed streaks trailing the monogram -->
+  <g fill="#ffffff">
+    <rect x="40" y="206" width="70" height="7" rx="3.5" opacity=".85"/>
+    <rect x="18" y="236" width="86" height="7" rx="3.5" opacity=".55"/>
+    <rect x="52" y="266" width="44" height="7" rx="3.5" opacity=".35"/>
+  </g>
+
+  <!-- kerb -->
+  <g transform="translate(0 430) skewX(-30)">
+    <path d="M60 0 h44 v22 h-44z M148 0 h44 v22 h-44z M236 0 h44 v22 h-44z M324 0 h44 v22 h-44z M412 0 h44 v22 h-44z M500 0 h44 v22 h-44z" fill="#e10600"/>
+    <path d="M104 0 h44 v22 h-44z M192 0 h44 v22 h-44z M280 0 h44 v22 h-44z M368 0 h44 v22 h-44z M456 0 h44 v22 h-44z" fill="#f3f3f3"/>
+  </g>
 </svg>
