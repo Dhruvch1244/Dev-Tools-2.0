@@ -155,12 +155,12 @@ function RaceWeekend() {
     { to: '/gym', k: 'Gym', v: day === 'rest' ? 'Rest day' : `${meta.label} day`, s: meta.focus, c: meta.color },
     { to: '/fuel', k: 'Fuel', v: `${Math.max(0, Math.round(target - kcal))} kcal left`, s: nextMeal ?? `${Math.round(kcal)} / ${target} eaten`, c: 'var(--green)' },
     { to: '/sport', k: 'Sport', v: actMin ? `${Math.round(actMin)} min today` : 'Not yet today', s: actMin ? `${Math.round(actKcal)} kcal burned` : 'Run, walk or badminton', c: 'var(--sky)' },
-    { to: '/dsa', k: 'DSA', v: wk === 0 ? 'Pre-season' : laps.length ? `${lapsDone}/${laps.length} laps` : 'Qualifying day', s: wk === 0 ? `Round 1 starts ${start}` : `R${Math.min(wk, 13)} · ${WEEKS[Math.min(wk, 13) - 1]?.gp} GP`, c: 'var(--purple)' },
+    { to: '/dsa', k: 'DSA', desktopOnly: true, v: wk === 0 ? 'Pre-season' : laps.length ? `${lapsDone}/${laps.length} laps` : 'Qualifying day', s: wk === 0 ? `Round 1 starts ${start}` : `R${Math.min(wk, 13)} · ${WEEKS[Math.min(wk, 13) - 1]?.gp} GP`, c: 'var(--purple)' },
   ];
   return (
     <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
       {tiles.map((x, i) => (
-        <motion.div key={x.k} initial={{ opacity: 0, x: -30, skewX: -10 }} animate={{ opacity: 1, x: 0, skewX: 0 }} transition={{ delay: 0.35 + i * 0.08, type: 'spring', stiffness: 260, damping: 24 }}>
+        <motion.div key={x.k} className={'desktopOnly' in x ? 'max-sm:hidden' : undefined} initial={{ opacity: 0, x: -30, skewX: -10 }} animate={{ opacity: 1, x: 0, skewX: 0 }} transition={{ delay: 0.35 + i * 0.08, type: 'spring', stiffness: 260, damping: 24 }}>
           <Link to={x.to} className="group relative block overflow-hidden rounded-xl border border-line bg-surface p-4 transition hover:border-accent">
             <span className="absolute inset-y-0 left-0 w-[3px]" style={{ background: x.c }} />
             <p className="text-micro font-black uppercase tracking-[0.25em] text-ink-3">{x.k}</p>

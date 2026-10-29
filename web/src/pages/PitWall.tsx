@@ -7,6 +7,7 @@ import { md } from '../lib/dsa';
 import { haptic } from '../lib/format';
 import { normaliseActions, splitActions } from '../core/aiActions';
 import { ActionCards } from '../components/AiActions';
+import { Mic } from '../components/Mic';
 import { Page, PageHeader, Rise, cx } from '../components/ui';
 
 type Msg = { role: 'user' | 'assistant'; text: string; error?: boolean };
@@ -30,12 +31,15 @@ const STARTERS = [
   { k: 'Remind', items: ['Remind me to pay rent on the 5th every month', 'Mom’s birthday is 14 March — remind me a day before', 'I’m on leave next Friday'] },
   { k: 'Fuel', items: ['What should I eat for dinner to hit protein?', 'Pack a high-protein office lunch for tomorrow', 'Am I getting enough B12 and iron?'] },
   { k: 'Debrief', items: ['How is my week going?', 'What am I neglecting lately?', 'Write my journal summary for today'] },
+  { k: 'Journal', items: ['When did I last feel low, and why?', 'What patterns show up in my journal this month?', 'What made my best days good?'] },
 ];
 
 export function PitWallPage() {
   const [msgs, setMsgs] = useState<Msg[]>(load);
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
+  // "journal" adds your journal entries to what the assistant reads.
+  const [scope, setScope] = useState<'day' | 'journal'>('day');
   const ctl = useRef<AbortController | null>(null);
   const end = useRef<HTMLDivElement>(null);
   const [params, setParams] = useSearchParams();
@@ -43,7 +47,7 @@ export function PitWallPage() {
   useEffect(() => store(msgs), [msgs]);
   useEffect(() => end.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }), [msgs.length, busy]);
 
-  const send = async (text: string) => {
+  const send = async (text: string, forceScope?: 'day' | 'journal') => {
     const message = text.trim();
     if (!message || busy) return;
     haptic(8);
@@ -54,7 +58,7 @@ export function PitWallPage() {
     ctl.current = new AbortController();
     const patchLast = (fn: (m: Msg) => Msg) => setMsgs((all) => [...all.slice(0, -1), fn(all[all.length - 1])]);
     try {
-      await streamCoach('chat', { message, history }, (d) => patchLast((m) => ({ ...m, text: m.text + d })), ctl.current.signal);
+      await streamCoach('chat', { message, history, scope: forceScope ?? scope }, (d) => patchLast((m) => ({ ...m, text: m.text + d })), ctl.current.signal);
     } catch (e) {
       if ((e as Error).name !== 'AbortError') patchLast((m) => ({ ...m, error: true, text: m.text || ((e as Error).message.includes('fetch') ? 'No radio — the AI runs on your laptop. Try again when it’s reachable.' : (e as Error).message) }));
     } finally {
@@ -97,7 +101,7 @@ export function PitWallPage() {
               <p className="mb-2 text-micro font-black uppercase tracking-[0.25em] text-ink-3">{g.k}</p>
               <div className="flex flex-col gap-1.5">
                 {g.items.map((s) => (
-                  <button key={s} onClick={() => void send(s)} className="rounded-lg bg-bg px-3 py-2.5 text-left text-sm text-ink-2 transition hover:text-ink active:scale-[.98]">
+                  <button key={s} onClick={() => (g.k === 'Journal' && setScope('journal'), void send(s, g.k === 'Journal' ? 'journal' : undefined))} className="rounded-lg bg-bg px-3 py-2.5 text-left text-sm text-ink-2 transition hover:text-ink active:scale-[.98]">
                     {s}
                   </button>
                 ))}
@@ -141,9 +145,21 @@ export function PitWallPage() {
         <div ref={end} />
       </div>
 
+      <div className="chat-scope sticky z-20 mt-6 flex gap-1.5">
+        {(
+          [
+            ['day', 'Today'],
+            ['journal', '📓 Journal'],
+          ] as const
+        ).map(([k, l]) => (
+          <button key={k} onClick={() => setScope(k)} className={cx('h-8 rounded-md px-3 text-mini font-bold uppercase backdrop-blur', scope === k ? 'bg-ink text-bg' : 'bg-surface/90 text-ink-2')}>
+            {l}
+          </button>
+        ))}
+      </div>
       <form
         onSubmit={(e) => (e.preventDefault(), void send(input))}
-        className="chat-dock sticky z-20 mt-6 flex items-end gap-2 rounded-2xl border border-line bg-surface/95 p-2 shadow-[0_10px_40px_-10px_rgba(0,0,0,.8)] backdrop-blur lg:bottom-6"
+        className="chat-dock sticky z-20 mt-2 flex items-end gap-2 rounded-2xl border border-line bg-surface/95 p-2 shadow-[0_10px_40px_-10px_rgba(0,0,0,.8)] backdrop-blur lg:bottom-6"
       >
         <textarea
           rows={1}
@@ -154,6 +170,7 @@ export function PitWallPage() {
           enterKeyHint="send"
           className="max-h-32 min-h-11 flex-1 resize-none bg-transparent px-2 py-2.5 text-base outline-none placeholder:text-ink-3"
         />
+        <Mic value={input} onChange={setInput} />
         <motion.button
           type={busy ? 'button' : 'submit'}
           whileTap={{ scale: 0.9 }}

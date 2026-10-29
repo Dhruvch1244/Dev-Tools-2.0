@@ -1,14 +1,15 @@
 import { useMemo, useState } from 'react';
 import { motion } from 'motion/react';
-import { useQuery } from '@tanstack/react-query';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { ChevronLeft, ChevronRight, Radio, Sparkles } from 'lucide-react';
 import { api, useList, useSettings } from '../lib/api';
 import { addDays, parseDate, today } from '../lib/format';
 import { e1rm, volume } from '../core/gym';
 import { DEFAULT_PROFILE, targets } from '../core/fuel';
 import { ALL_PRACTICE, POINTS } from '../core/dsa/plan';
 import type { Activity, DsaProgress, DsaTest, FoodLog, GymSet, Habit, HabitLog, Health, Routine, RoutineLog, Workout } from '../lib/types';
-import { Card, IconButton, Page, PageHeader, Rise, SectionTitle, cx } from '../components/ui';
+import { Button, Card, IconButton, Page, PageHeader, Rise, SectionTitle, cx } from '../components/ui';
+import { md } from '../lib/dsa';
 
 /** Monday of the week containing `d`. */
 const mondayOf = (d: string) => {
@@ -63,6 +64,41 @@ function Section({ title, rows, i }: { title: string; rows: Row[]; i: number }) 
         </tbody>
       </table>
     </Card>
+  );
+}
+
+/** The AI race-engineer debrief for a week: written automatically on Sunday evening, or on demand. */
+function Debrief({ week }: { week: string }) {
+  const qc = useQueryClient();
+  const { data: reviews = [] } = useQuery({ queryKey: ['reviews'], queryFn: () => api<{ week: string; body: string; created_at: string }[]>('/reviews') });
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const r = reviews.find((x) => x.week === week);
+  const run = async () => {
+    setBusy(true);
+    setErr('');
+    try {
+      await api('/reviews/generate', { method: 'POST', body: JSON.stringify({ week }) });
+      await qc.invalidateQueries({ queryKey: ['reviews'] });
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="rounded-3xl border border-line bg-surface p-5">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <p className="flex items-center gap-2 text-micro font-black uppercase tracking-[0.25em] text-ink-3">
+          <Radio className="size-3.5 text-accent" /> AI debrief {r && `· ${new Date(r.created_at).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' })}`}
+        </p>
+        <Button size="sm" variant={r ? 'ghost' : 'primary'} disabled={busy} onClick={() => void run()}>
+          <Sparkles className="size-4" /> {busy ? 'Writing… ~20 s' : r ? 'Rewrite' : 'Write debrief'}
+        </Button>
+      </div>
+      {r ? <div className="prose-f1 text-[15px]" dangerouslySetInnerHTML={{ __html: md(r.body) }} /> : <p className="text-sm text-ink-3">{busy ? 'Reading your week — food, gym, sport, DSA, sleep, money and journal…' : 'Written automatically every Sunday at 7:30 pm and pushed to your phone. Or write it now.'}</p>}
+      {err && <p className="mt-2 text-sm text-warn">{err}</p>}
+    </div>
   );
 }
 
@@ -194,6 +230,9 @@ export function ReportPage() {
         }
       />
       <Rise className="-mt-4 mb-5 font-mono text-sm text-ink-3">{label} · compared with the week before</Rise>
+      <Rise className="mb-4">
+        <Debrief week={start} />
+      </Rise>
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {sections.map((s, i) => (
           <Section key={s.title} title={s.title} rows={s.rows} i={i} />

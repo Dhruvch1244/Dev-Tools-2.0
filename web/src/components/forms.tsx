@@ -5,6 +5,7 @@ import { api, useResource, useSettings } from '../lib/api';
 import { LEADS, REPEATS, type Repeat } from '../core/tasks';
 import type { AiAction } from '../core/aiActions';
 import { ActionCards } from './AiActions';
+import { Mic } from './Mic';
 import { EXPENSE_CATEGORIES, INCOME_CATEGORIES } from '../lib/categories';
 import { addDays, today } from '../lib/format';
 import type { Expense, Task } from '../lib/types';
@@ -100,6 +101,7 @@ export function TaskForm({ onDone, autoFocus }: { onDone?: () => void; autoFocus
           onChange={(e) => (setTitle(e.target.value), setProposed(null))}
           className="h-12 text-base"
         />
+        <Mic value={title} onChange={(v) => (setTitle(v), setProposed(null))} className="size-12" />
         <motion.button
           type="button"
           whileTap={{ scale: 0.9 }}

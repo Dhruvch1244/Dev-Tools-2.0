@@ -547,11 +547,20 @@ input[type='time']::-webkit-date-and-time-value {
 .chat-dock {
   bottom: calc(env(safe-area-inset-bottom) + 84px);
 }
+.chat-scope {
+  bottom: calc(env(safe-area-inset-bottom) + 84px + 68px);
+}
+html[data-kb] .chat-scope {
+  bottom: calc(var(--kb, 0px) + 8px + 68px);
+}
 html[data-kb] .chat-dock {
   bottom: calc(var(--kb, 0px) + 8px);
 }
 @media (min-width: 1024px) {
   .chat-dock {
     bottom: 24px;
+  }
+  .chat-scope {
+    bottom: 92px;
   }
 }

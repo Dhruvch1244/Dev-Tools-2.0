@@ -8,6 +8,7 @@ import { bouncy, listItem, spring } from '../lib/motion';
 import { addDays, haptic, parseDate, relativeDay, today } from '../lib/format';
 import type { Habit, HabitLog, Health, Journal } from '../lib/types';
 import { AnimatedNumber, Button, Card, Empty, IconButton, Input, Page, PageHeader, SectionTitle, cx } from '../components/ui';
+import { Mic } from '../components/Mic';
 
 export const MOODS = ['😞', '😕', '😐', '🙂', '😄'];
 
@@ -312,6 +313,10 @@ function JournalCard() {
         placeholder="What happened today? What are you grateful for? What's on your mind?"
         className="w-full resize-none rounded-2xl bg-transparent text-[15px] leading-relaxed outline-none placeholder:text-ink-3"
       />
+      <div className="flex items-center justify-end gap-2">
+        <span className="text-tiny text-ink-3">Speak it instead</span>
+        <Mic value={body} onChange={onChange} />
+      </div>
       {past.length > 0 && (
         <div className="mt-4 space-y-2 border-t border-line pt-4">
           {past.slice(0, 7).map((e) => (

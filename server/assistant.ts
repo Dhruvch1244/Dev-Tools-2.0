@@ -84,10 +84,29 @@ ${ACTIONS_GUIDE}`;
 
 export type ChatTurn = { role: 'user' | 'assistant'; text: string };
 
-export async function chatPrompt(history: ChatTurn[], message: string) {
+/** Journal entries (newest first) for "talk to your journal", capped so the prompt stays small. */
+export function journalContext(days = 180, budget = 30_000) {
+  const rows = q<{ date: string; body: string; mood: number | null }>("SELECT date, body, mood FROM journal WHERE body IS NOT NULL AND trim(body) != '' AND date >= date('now', ?) ORDER BY date DESC", `-${days} days`);
+  const moods = q<{ date: string; value: number }>("SELECT date, value FROM health WHERE kind = 'mood' AND date >= date('now', ?) ORDER BY date DESC", `-${days} days`);
+  const moodOf = new Map(moods.map((m) => [m.date, m.value]));
+  let used = 0;
+  const out: string[] = [];
+  for (const r of rows) {
+    const line = `## ${r.date}${moodOf.has(r.date) || r.mood ? ` (mood ${moodOf.get(r.date) ?? r.mood}/5)` : ''}\n${r.body.trim().slice(0, 1500)}`;
+    if (used + line.length > budget) break;
+    out.push(line);
+    used += line.length;
+  }
+  return out.length ? out.join('\n\n') : '(no journal entries yet)';
+}
+
+export const JOURNAL_GUIDE = `The JOURNAL section holds the user's own private diary entries. When asked about them, answer from the entries: cite dates ("on 12 Oct you wrote…"), notice patterns (sleep, work, gym, people, mood), be warm and honest, never preachy. If the entries don't cover the question, say so.`;
+
+export async function chatPrompt(history: ChatTurn[], message: string, scope: 'day' | 'journal' = 'day') {
   return [
     '# Snapshot',
     await lifeContext(),
+    scope === 'journal' ? `# Journal (newest first)\n${journalContext()}` : '',
     history.length ? '# Conversation so far' : '',
     ...history.slice(-10).map((h) => `${h.role === 'user' ? 'Me' : 'Pit Wall'}: ${h.text.slice(0, 2000)}`),
     '# My message',

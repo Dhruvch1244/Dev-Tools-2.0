@@ -46,7 +46,8 @@ export const NAV_GROUPS = [
   { label: 'Mind', items: [{ to: '/dsa', label: 'DSA Season', icon: Binary }] },
 ];
 const NAV = NAV_GROUPS.flatMap((g) => g.items);
-const MOBILE_TABS = ['/', '/pitwall', '/gym', '/fuel', '/dsa'];
+// Phone: life first — DSA happens on the laptop, so it lives under More there.
+const MOBILE_TABS = ['/', '/pitwall', '/gym', '/fuel', '/life'];
 
 /** Writes made while the laptop was unreachable; they sync automatically — tap to retry now. */
 function Pending() {

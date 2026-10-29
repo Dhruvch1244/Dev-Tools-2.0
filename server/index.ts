@@ -19,8 +19,9 @@ import * as google from './google.ts';
 import { briefsTick, eveningRecap, morningBrief } from './briefs.ts';
 import { syncLeetCode } from './lcsync.ts';
 import { DSA_SYSTEM, FUEL_SYSTEM, ask, dsaPrompt, type DsaAsk, type Prompt } from './coach.ts';
-import { CAPTURE_SYSTEM, CHAT_SYSTEM, chatPrompt, lifeContext, workRemindersTick, cookTick, lifePingsTick, type ChatTurn } from './assistant.ts';
+import { CAPTURE_SYSTEM, CHAT_SYSTEM, JOURNAL_GUIDE, chatPrompt, lifeContext, workRemindersTick, cookTick, lifePingsTick, type ChatTurn } from './assistant.ts';
 import { normaliseActions, splitActions } from '../web/src/core/aiActions.ts';
+import { generateReview, listReviews, mondayOf, reviewTick } from './review.ts';
 import { RECEIPT_SYSTEM, normaliseReceipt } from '../web/src/core/money.ts';
 import { AI_FOOD_SYSTEM, aiUserText, extractJson, normaliseAi } from '../web/src/core/aiFood.ts';
 
@@ -423,9 +424,10 @@ app.post('/api/coach/fuel', async (c) => {
 
 // ---- Pit Wall: general assistant that sees today's snapshot, and one-shot quick capture ----
 app.post('/api/coach/chat', async (c) => {
-  const { message, history = [] } = await c.req.json<{ message: string; history?: ChatTurn[] }>();
+  const { message, history = [], scope } = await c.req.json<{ message: string; history?: ChatTurn[]; scope?: 'day' | 'journal' }>();
   if (!message?.trim()) return c.json({ error: 'Say something' }, 400);
-  return coachStream(c, CHAT_SYSTEM, await chatPrompt(Array.isArray(history) ? history : [], message));
+  const journal = scope === 'journal';
+  return coachStream(c, journal ? `${CHAT_SYSTEM}\n\n${JOURNAL_GUIDE}` : CHAT_SYSTEM, await chatPrompt(Array.isArray(history) ? history : [], message, journal ? 'journal' : 'day'));
 });
 app.post('/api/ai/capture', async (c) => {
   const { text } = await c.req.json<{ text: string }>();
@@ -472,6 +474,20 @@ app.post('/api/money/receipt', async (c) => {
   }
 });
 
+// ---- Weekly AI debrief ----
+app.get('/api/reviews', (c) => c.json(listReviews()));
+app.post('/api/reviews/generate', async (c) => {
+  const { week } = await c.req.json<{ week?: string }>().catch(() => ({ week: undefined }));
+  const w = week && /^\d{4}-\d{2}-\d{2}$/.test(week) ? mondayOf(week) : mondayOf(localStamp(new Date()).slice(0, 10));
+  try {
+    const r = await generateReview(w, c.req.raw.signal);
+    emit('reviews');
+    return c.json(r);
+  } catch (e) {
+    return c.json({ error: (e as Error).message }, 502);
+  }
+});
+
 app.get('/api/backups', async (c) => c.json(await listBackups()));
 app.post('/api/backups', async (c) => c.json(await runBackup()));
 
@@ -508,6 +524,7 @@ schedule({ name: 'water-nudges', every: 20_000, run: waterNudge });
 schedule({ name: 'work-reminders', every: 20_000, run: workRemindersTick });
 schedule({ name: 'cook-brief', every: 20_000, run: cookTick });
 schedule({ name: 'people-supps', every: 20_000, run: lifePingsTick });
+schedule({ name: 'ai-review', every: 60_000, run: reviewTick });
 schedule({ name: 'leetcode-sync', every: 30 * 60_000, run: async () => (await syncLeetCode())?.marked.length && emit('dsa') });
 // If the laptop was off at 03:00, back up on the first start of the day instead.
 schedule({ name: 'backup-catchup', at: '00:00', run: async () => (await listBackups())[0] !== new Date().toISOString().slice(0, 10) && runBackup() });
