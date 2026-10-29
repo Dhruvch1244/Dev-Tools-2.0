@@ -126,3 +126,20 @@ test('route marks for the 3D map', async () => {
   assert.ok(resample(pts, 300).length < pts.length);
   assert.ok(Math.abs(bearing([0, 0, 0], [0, 1, 0]) - 90) < 0.01, 'due east is 90°');
 });
+
+import { normaliseSorted } from '../web/src/core/notes.ts';
+
+test('jot sorting: lists validated, gifts keep a person, dated things become actions', () => {
+  const r = normaliseSorted({
+    items: [
+      { list: 'places', title: ' Bukhara ', body: 'with Riya', person: 'Riya' },
+      { list: 'gifts', title: 'Pashmina shawl', person: 'Mom' },
+      { list: 'weird', title: 'Call plumber' },
+      { list: 'buy', title: '' },
+    ],
+    actions: [{ type: 'plan', title: 'Dentist', date: '2026-11-03', time: '18:00', duration_min: 60 }],
+  });
+  assert.deepEqual(r.items.map((i) => [i.list, i.title, i.person]), [['places', 'Bukhara', null], ['gifts', 'Pashmina shawl', 'Mom'], ['note', 'Call plumber', null]]);
+  assert.equal(r.actions[0].type, 'plan');
+  assert.deepEqual(normaliseSorted('nonsense'), { items: [], actions: [] });
+});

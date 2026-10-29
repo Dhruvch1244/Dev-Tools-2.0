@@ -4,7 +4,8 @@ import { ArrowUp, Check, Loader2, MapPin, ReceiptIndianRupee, Trash2 } from 'luc
 import { api, useList, useResource } from '../lib/api';
 import { daysBetween, haptic, parseDate, today } from '../lib/format';
 import type { AiAction } from '../core/aiActions';
-import type { Task } from '../lib/types';
+import type { Note, Task } from '../lib/types';
+import { planPrompt } from '../core/notes';
 import { ActionCards } from './AiActions';
 import { Mic } from './Mic';
 import { Card, SectionTitle, cx } from './ui';
@@ -26,6 +27,7 @@ export function Upcoming() {
   const toast = useToast();
   const { data: tasks = [] } = useList<Task>('tasks');
   const { update, remove } = useResource<Task>('tasks');
+  const { data: notes = [] } = useList<Note>('notes');
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   const [proposed, setProposed] = useState<AiAction[] | null>(null);
@@ -34,12 +36,19 @@ export function Upcoming() {
   const bills = tasks.filter((x) => x.kind === 'bill' && !x.done && x.due && daysBetween(t, x.due.slice(0, 10)) <= 31);
   const billTotal = bills.reduce((a, b) => a + (b.amount ?? 0), 0);
 
-  const ask = async () => {
-    if (!text.trim() || busy) return;
+  // Thu–Sat with nothing planned for the weekend: nudge a place from your Notes list.
+  const dow = parseDate(t).getDay();
+  const weekendPlanned = plans.some((p) => daysBetween(t, p.due!.slice(0, 10)) <= 7 - dow && [0, 6].includes(parseDate(p.due!.slice(0, 10)).getDay()));
+  const places = dow >= 4 && dow <= 6 && !weekendPlanned ? notes.filter((n) => n.list === 'places' && !n.done).slice(0, 3) : [];
+
+  const ask = async (override?: string) => {
+    const q = override ?? text;
+    if (!q.trim() || busy) return;
+    if (override) setText(override);
     setBusy(true);
     setProposed(null);
     try {
-      const r = await api<{ actions: AiAction[] }>('/ai/capture', { method: 'POST', body: JSON.stringify({ text }) });
+      const r = await api<{ actions: AiAction[] }>('/ai/capture', { method: 'POST', body: JSON.stringify({ text: q }) });
       setProposed(r.actions);
       if (!r.actions.length) toast({ message: 'Couldn’t pin that down — add a day?' });
     } catch (e) {
@@ -72,6 +81,16 @@ export function Upcoming() {
           {busy ? <Loader2 className="size-5 animate-spin" /> : <ArrowUp className="size-5" />}
         </button>
       </form>
+      {!proposed && places.length > 0 && (
+        <div className="mt-2 flex flex-wrap items-center gap-1.5 text-tiny text-ink-3">
+          Weekend free? From your list:
+          {places.map((n) => (
+            <button key={n.id} onClick={() => void ask(planPrompt(n.title ?? '', n.body))} className="rounded-md bg-accent-soft px-2 py-1 font-bold text-accent">
+              📍 {n.title}
+            </button>
+          ))}
+        </div>
+      )}
       {!proposed && !plans.length && !bills.length && <p className="mt-2 text-tiny text-ink-3">e.g. “Lodhi Garden picnic Sunday 4 pm” · “rent 18000 on the 1st every month” · “Goa trip 20–23 Dec”</p>}
       {proposed && <ActionCards actions={proposed} onDone={() => (setProposed(null), setText(''))} />}
 

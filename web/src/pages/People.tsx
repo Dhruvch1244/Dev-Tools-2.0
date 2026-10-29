@@ -5,7 +5,7 @@ import { useList, useResource } from '../lib/api';
 import { haptic, relativeDay, today } from '../lib/format';
 import { listItem } from '../lib/motion';
 import { nextBirthday, nextContact, overdueDays, rhythmLabel } from '../core/people';
-import type { ContactRow, PersonRow } from '../lib/types';
+import type { ContactRow, PersonRow, Note } from '../lib/types';
 import { ImportContactsSheet } from '../components/Contacts';
 import { useToast } from '../components/toast';
 import { Button, Card, Empty, Input, Page, PageHeader, Rise, Sheet, Textarea, cx } from '../components/ui';
@@ -22,6 +22,7 @@ const BLANK: Partial<PersonRow> = { name: '', emoji: null, phone: null, birthday
 /** Pit crew: the people you keep in touch with, who's due a call and whose birthday is coming. */
 export function PeoplePage() {
   const { data: people = [] } = useList<PersonRow>('people');
+  const { data: gifts = [] } = useList<Note>('notes');
   const { update, remove, create } = useResource<PersonRow>('people');
   const toast = useToast();
   const [editing, setEditing] = useState<Partial<PersonRow> | null>(null);
@@ -37,6 +38,9 @@ export function PeoplePage() {
     update({ id: p.id, last_contact: t });
     toast({ message: `Logged a chat with ${p.name}`, action: { label: 'Undo', onClick: () => update({ id: p.id, last_contact: prev }) } });
   };
+
+  // Gift ideas jotted in Notes for this person (matched by name).
+  const giftsFor = (name: string) => gifts.filter((g) => !g.done && g.person?.toLowerCase() === name.toLowerCase()).map((g) => g.title ?? '');
 
   return (
     <Page>
@@ -92,6 +96,7 @@ export function PeoplePage() {
                         {next && ` · ${due ? (od > 0 ? `${od} d overdue` : 'due today') : `next ${relativeDay(next)}`}`}
                         {p.last_contact && ` · last ${relativeDay(p.last_contact)}`}
                       </p>
+                      {giftsFor(p.name).length > 0 && <p className="truncate text-tiny text-pink">🎁 {giftsFor(p.name).join(', ')}</p>}
                     </button>
                     {p.phone && (
                       <a href={`tel:${p.phone}`} aria-label={`Call ${p.name}`} className="grid size-10 shrink-0 place-items-center rounded-md bg-surface-2 text-green">

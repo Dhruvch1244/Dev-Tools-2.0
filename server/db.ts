@@ -150,6 +150,10 @@ addColumn('drops', 'pinned', 'INTEGER NOT NULL DEFAULT 0');
 addColumn('tasks', 'kind', 'TEXT');
 // Which shopping trip an item belongs to: the big weekly shop or the mid-week top-up.
 addColumn('shopping', 'trip', 'TEXT');
+// Notes double as smart lists (places, watch, gifts, ideas, buy); gifts carry who they're for; items tick off.
+addColumn('notes', 'list', 'TEXT');
+addColumn('notes', 'person', 'TEXT');
+addColumn('notes', 'done', 'INTEGER NOT NULL DEFAULT 0');
 addColumn('tasks', 'place', 'TEXT');
 addColumn('tasks', 'amount', 'REAL');
 addColumn('tasks', 'duration_min', 'INTEGER');
@@ -166,7 +170,7 @@ type Resource = { cols: string[]; order: string; dateCol?: string };
 /** Tables exposed through the generic CRUD API, with the columns clients may write. */
 export const RESOURCES: Record<string, Resource> = {
   tasks: { cols: ['title', 'notes', 'due', 'priority', 'done', 'done_at', 'repeat', 'remind_before', 'kind', 'place', 'amount', 'duration_min', 'gcal_event_id'], order: 'done ASC, due IS NULL, due ASC, created_at DESC' },
-  notes: { cols: ['title', 'body', 'pinned', 'color'], order: 'pinned DESC, updated_at DESC' },
+  notes: { cols: ['title', 'body', 'pinned', 'color', 'list', 'person', 'done'], order: 'pinned DESC, updated_at DESC' },
   expenses: { cols: ['amount', 'kind', 'category', 'note', 'date'], order: 'date DESC, created_at DESC', dateCol: 'date' },
   budgets: { cols: ['category', 'amount'], order: 'category ASC' },
   subscriptions: { cols: ['name', 'amount', 'cycle', 'next_date', 'category'], order: 'next_date ASC' },

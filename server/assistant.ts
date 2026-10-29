@@ -59,6 +59,7 @@ export async function lifeContext() {
   const spent = one<{ t: number }>("SELECT coalesce(sum(amount),0) t FROM expenses WHERE kind = 'expense' AND substr(date,1,7) = ?", day.slice(0, 7))?.t ?? 0;
   const events = await google.events(day, day).catch(() => []);
   const people = q<Person>('SELECT * FROM people');
+  const lists = q<{ list: string; title: string; person: string | null }>("SELECT list, title, person FROM notes WHERE list IS NOT NULL AND list != 'note' AND done = 0 ORDER BY updated_at DESC LIMIT 60");
   const owed = q<{ name: string; net: number }>('SELECT p.name, sum(s.amount) net FROM splits s JOIN people p ON p.id = s.person_id WHERE s.settled_at IS NULL GROUP BY s.person_id HAVING round(net) != 0');
   const supps = (s as { supplements?: Supplement[] }).supplements ?? [];
   const shifts = wc.shifts.map((x) => `${x.id} ${x.login}-${x.logout}`).join(', ');
@@ -77,6 +78,7 @@ export async function lifeContext() {
     `TASKS open: ${tasks.map((t) => `${t.title}${t.due ? ` [${t.due.replace('T', ' ')}${t.repeat ? `, ${t.repeat}` : ''}]` : ''}${t.priority ? ` !${t.priority}` : ''}`).join('; ') || 'none'}`,
     `PLANS (outings, next 30 days): ${plans.map((p) => `${DOW[new Date(`${p.due.slice(0, 10)}T12:00:00`).getDay()]} ${p.due.replace('T', ' ')} ${p.title}${p.place ? ` @ ${p.place}` : ''}`).join('; ') || 'none'}`,
     `BILLS due: ${bills.map((b) => `${b.title}${b.amount ? ` ₹${b.amount}` : ''} on ${b.due.slice(0, 10)}${b.repeat ? ` (${b.repeat})` : ''}`).join('; ') || 'none'}`,
+    lists.length ? `LISTS (from their notes): ${['places', 'watch', 'gifts', 'ideas', 'buy'].map((l) => { const xs = lists.filter((n) => n.list === l); return xs.length ? `${l}: ${xs.slice(0, 8).map((n) => `${n.title}${n.person ? ` (for ${n.person})` : ''}`).join(', ')}` : null; }).filter(Boolean).join(' | ')}` : null,
     `MONEY: ₹${Math.round(spent)} spent this month${owed.length ? ` · shared bills: ${owed.map((o) => `${o.name} ${o.net > 0 ? 'owes me' : 'I owe'} ₹${Math.abs(Math.round(o.net))}`).join(', ')}` : ''}`,
     people.length ? `PEOPLE: ${people.map((p) => `${p.name}${nextContact(p, day) ? ` (next call ${nextContact(p, day)})` : ''}${p.birthday ? ` (birthday ${nextBirthday(p, day)!.date})` : ''}`).join('; ')}` : null,
     (s as { weekPlan?: { days?: Record<string, DayPlan> } }).weekPlan?.days?.[day] ? `LOCKED PLAN today: ${(s as { weekPlan: { days: Record<string, DayPlan> } }).weekPlan.days[day].blocks.map((b) => `${b.start} ${b.title}`).join('; ')}` : null,
@@ -196,7 +198,9 @@ export async function lifePingsTick() {
   for (const p of peoplePings(people, day)) {
     if (!due(p.at) || !claim(p.id)) continue;
     const person = people.find((x) => x.id === p.person);
-    await pushAll({ tag: p.id, title: p.title, body: p.body, url: '/people', personId: p.call ? p.person : undefined, tel: person?.phone ?? undefined, actions: p.call ? [...(person?.phone ? [{ action: 'call', title: '📞 Call' }] : []), { action: 'talked', title: '✓ Talked' }] : [] });
+    // Birthday heads-up: mention the gift ideas you've jotted for them.
+    const gifts = p.id.startsWith('bday') && person ? q<{ title: string }>("SELECT title FROM notes WHERE list = 'gifts' AND done = 0 AND lower(person) = lower(?)", person.name).map((g) => g.title) : [];
+    await pushAll({ tag: p.id, title: p.title, body: gifts.length ? `${p.body} · Your ideas: ${gifts.slice(0, 3).join(', ')}` : p.body, url: '/people', personId: p.call ? p.person : undefined, tel: person?.phone ?? undefined, actions: p.call ? [...(person?.phone ? [{ action: 'call', title: '📞 Call' }] : []), { action: 'talked', title: '✓ Talked' }] : [] });
   }
 
   const supps = ((settings() as { supplements?: Supplement[] }).supplements ?? []);

@@ -27,6 +27,7 @@ import { STORY_SYSTEM, storyPrompt, type Answer } from '../web/src/core/journal.
 import { RECEIPT_SYSTEM, normaliseReceipt } from '../web/src/core/money.ts';
 import { AI_FOOD_SYSTEM, aiUserText, extractJson, normaliseAi } from '../web/src/core/aiFood.ts';
 import { gym } from './gym.ts';
+import { SORT_SYSTEM, normaliseSorted } from '../web/src/core/notes.ts';
 
 const PORT = Number(process.env.PORT ?? 4300);
 // Loopback by default: `tailscale serve` proxies to it, so only devices on your tailnet can reach it.
@@ -544,6 +545,18 @@ app.post('/api/coach/chat', async (c) => {
   const journal = scope === 'journal';
   return coachStream(c, journal ? `${CHAT_SYSTEM}\n\n${JOURNAL_GUIDE}` : CHAT_SYSTEM, await chatPrompt(Array.isArray(history) ? history : [], message, journal ? 'journal' : 'day'));
 });
+// ---- Jot: one quick note → list items (filed straight away) + dated things as confirm cards ----
+app.post('/api/notes/sort', async (c) => {
+  const { text } = await c.req.json<{ text: string }>();
+  if (!text?.trim()) return c.json({ error: 'Write something to file' }, 400);
+  try {
+    const reply = await ask(SORT_SYSTEM, `Now: ${localStamp(new Date()).replace('T', ' ')} (${new Date().toLocaleDateString('en-IN', { weekday: 'long' })})\n\nJot:\n${text.slice(0, 1500)}`, { onDelta: () => {}, signal: c.req.raw.signal });
+    return c.json(normaliseSorted(extractJson(reply)));
+  } catch (e) {
+    return c.json({ error: (e as Error).message }, 502);
+  }
+});
+
 app.post('/api/ai/capture', async (c) => {
   const { text } = await c.req.json<{ text: string }>();
   if (!text?.trim()) return c.json({ error: 'Type something to capture' }, 400);
