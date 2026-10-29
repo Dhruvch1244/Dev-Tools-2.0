@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'motion/react';
-import { Bell, Briefcase, CalendarClock, Check, Plus, Repeat, Users, X } from 'lucide-react';
+import { Bell, Briefcase, CalendarClock, Check, MapPin, Plus, ReceiptIndianRupee, Repeat, Users, X } from 'lucide-react';
 import { useResource, useSettings } from '../lib/api';
 import { describeDue, type AiAction } from '../core/aiActions';
 import { workConfig } from '../core/work';
@@ -21,6 +21,9 @@ export function useApplyAction() {
   return async (a: AiAction) => {
     if (a.type === 'task') await tasks.create({ title: a.title, due: a.due, repeat: a.repeat, remind_before: a.remind_before || null, priority: a.priority, notes: a.notes, done: 0 });
     else if (a.type === 'person') await people.create({ name: a.name, birthday: a.birthday, every_days: a.every_days, weekday: a.weekday, call_at: '19:00' });
+    else if (a.type === 'plan')
+      await tasks.create({ title: a.title, kind: 'plan', due: a.time ? `${a.date}T${a.time}` : a.date, duration_min: a.duration_min, place: a.place, notes: a.notes, remind_before: a.time ? 120 : null, priority: 1, done: 0 });
+    else if (a.type === 'bill') await tasks.create({ title: a.title, kind: 'bill', amount: a.amount, due: `${a.date}T10:00`, repeat: a.repeat, remind_before: 1440, priority: 2, done: 0 });
     else if (a.type === 'routine') await routines.create({ name: a.name, emoji: a.emoji, days: JSON.stringify(a.days), time: a.time, duration_min: a.duration_min, remind: 1, active: 1 });
     else save({ workOverrides: { ...settings.workOverrides, [a.date]: { ...(a.mode && { mode: a.mode }), ...(a.shift && { shift: a.shift }) } } });
   };
@@ -30,6 +33,11 @@ function summary(a: AiAction, shiftLabel: (id: string) => string) {
   if (a.type === 'task') return { icon: a.repeat ? Repeat : a.due?.includes('T') ? Bell : CalendarClock, title: a.title, sub: describeDue(a) + (a.notes ? ` · ${a.notes}` : '') };
   if (a.type === 'person')
     return { icon: Users, title: a.name, sub: ['Pit crew', a.every_days ? (a.weekday != null && a.every_days % 7 === 0 ? `every ${DAY[a.weekday]}` : `every ${a.every_days} days`) : null, a.birthday ? `🎂 ${new Date(`${a.birthday}T12:00:00`).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}` : null].filter(Boolean).join(' · ') };
+  if (a.type === 'plan' || a.type === 'bill') {
+    const day = new Date(`${a.date}T12:00:00`).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
+    if (a.type === 'plan') return { icon: MapPin, title: a.title, sub: ['Plan', a.time ? `${day}, ${a.time}` : a.duration_min >= 2880 ? `${day} · ${Math.round(a.duration_min / 1440)} days` : `${day} · all day`, a.place, 'on your calendar · pings the evening before'].filter(Boolean).join(' · ') };
+    return { icon: ReceiptIndianRupee, title: a.title, sub: ['Bill', a.amount ? `₹${a.amount.toLocaleString('en-IN')}` : null, day, a.repeat, 'reminds a day before'].filter(Boolean).join(' · ') };
+  }
   if (a.type === 'routine') return { icon: CalendarClock, title: `${a.emoji ?? ''} ${a.name}`.trim(), sub: `Routine · ${a.days.map((d) => DAY[d]).join(' ')} · ${a.time} · ${a.duration_min} min` };
   const d = new Date(`${a.date}T12:00:00`).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
   return { icon: Briefcase, title: `${d} → ${a.mode ? MODE[a.mode] : ''}${a.shift ? ` ${shiftLabel(a.shift)} shift` : ''}`.trim(), sub: 'Office schedule override' };

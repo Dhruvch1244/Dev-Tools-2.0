@@ -48,7 +48,9 @@ export async function lifeContext() {
   const meals = q<{ meal: string; names: string }>("SELECT meal, group_concat(name, ', ') names FROM food_logs WHERE date = ? GROUP BY meal", day);
   const water = one<{ value: number }>("SELECT value FROM health WHERE date = ? AND kind = 'water'", day)?.value ?? 0;
   const recent = q<{ kind: string; value: number; date: string }>("SELECT kind, value, date FROM health WHERE kind IN ('sleep','weight','mood') AND date >= date(?, '-7 days') ORDER BY date DESC", day);
-  const tasks = q<{ title: string; due: string | null; repeat: string | null; priority: number }>("SELECT title, due, repeat, priority FROM tasks WHERE done = 0 AND (due IS NULL OR substr(due,1,10) <= date(?, '+14 days')) ORDER BY due IS NULL, due LIMIT 25", day);
+  const tasks = q<{ title: string; due: string | null; repeat: string | null; priority: number }>("SELECT title, due, repeat, priority FROM tasks WHERE done = 0 AND coalesce(kind, 'task') = 'task' AND (due IS NULL OR substr(due,1,10) <= date(?, '+14 days')) ORDER BY due IS NULL, due LIMIT 25", day);
+  const plans = q<{ title: string; due: string; place: string | null }>("SELECT title, due, place FROM tasks WHERE done = 0 AND kind = 'plan' AND substr(due,1,10) BETWEEN ? AND date(?, '+30 days') ORDER BY due", day, day);
+  const bills = q<{ title: string; due: string; amount: number | null; repeat: string | null }>("SELECT title, due, amount, repeat FROM tasks WHERE done = 0 AND kind = 'bill' ORDER BY due LIMIT 15");
   const dow = now.getDay();
   const routines = q<{ name: string; time: string; days: string; duration_min: number }>('SELECT name, time, days, duration_min FROM routines WHERE active = 1 ORDER BY time');
   const laps = problemsForDay(s.dsaStart ?? DEFAULT_START, day);
@@ -73,6 +75,8 @@ export async function lifeContext() {
     `ROUTINES: ${routines.map((r) => `${r.time} ${r.name} (${(JSON.parse(r.days) as number[]).includes(dow) ? 'today' : (JSON.parse(r.days) as number[]).map((d) => DOW[d]).join('/')})`).join('; ') || 'none'}`,
     `CALENDAR today: ${events.map((e) => (e.allDay ? `all day ${e.title}` : `${localStamp(new Date(e.start)).slice(11)} ${e.title}`)).join('; ') || 'nothing (or not connected)'}`,
     `TASKS open: ${tasks.map((t) => `${t.title}${t.due ? ` [${t.due.replace('T', ' ')}${t.repeat ? `, ${t.repeat}` : ''}]` : ''}${t.priority ? ` !${t.priority}` : ''}`).join('; ') || 'none'}`,
+    `PLANS (outings, next 30 days): ${plans.map((p) => `${DOW[new Date(`${p.due.slice(0, 10)}T12:00:00`).getDay()]} ${p.due.replace('T', ' ')} ${p.title}${p.place ? ` @ ${p.place}` : ''}`).join('; ') || 'none'}`,
+    `BILLS due: ${bills.map((b) => `${b.title}${b.amount ? ` ₹${b.amount}` : ''} on ${b.due.slice(0, 10)}${b.repeat ? ` (${b.repeat})` : ''}`).join('; ') || 'none'}`,
     `MONEY: ₹${Math.round(spent)} spent this month${owed.length ? ` · shared bills: ${owed.map((o) => `${o.name} ${o.net > 0 ? 'owes me' : 'I owe'} ₹${Math.abs(Math.round(o.net))}`).join(', ')}` : ''}`,
     people.length ? `PEOPLE: ${people.map((p) => `${p.name}${nextContact(p, day) ? ` (next call ${nextContact(p, day)})` : ''}${p.birthday ? ` (birthday ${nextBirthday(p, day)!.date})` : ''}`).join('; ')}` : null,
     (s as { weekPlan?: { days?: Record<string, DayPlan> } }).weekPlan?.days?.[day] ? `LOCKED PLAN today: ${(s as { weekPlan: { days: Record<string, DayPlan> } }).weekPlan.days[day].blocks.map((b) => `${b.start} ${b.title}`).join('; ')}` : null,

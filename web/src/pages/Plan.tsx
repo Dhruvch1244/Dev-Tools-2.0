@@ -10,7 +10,7 @@ import { workConfig } from '../core/work';
 import { cookConfig } from '../core/cook';
 import { nextContact } from '../core/people';
 import { DEFAULT_PREFS, REMIND_KINDS, planText, planWeek, type Block, type BlockKind, type DayPlan, type PlanPrefs } from '../core/weekPlan';
-import type { PersonRow, Routine } from '../lib/types';
+import type { PersonRow, Routine, Task } from '../lib/types';
 import { useGoogleEvents } from './Routines';
 import { useToast } from '../components/toast';
 import { Button, Page, PageHeader, Rise, Sheet, cx } from '../components/ui';
@@ -43,6 +43,7 @@ export function PlanPage() {
   const end = addDays(t, 6);
   const { data: routines = [] } = useList<Routine>('routines');
   const { data: people = [] } = useList<PersonRow>('people');
+  const { data: tasks = [] } = useList<Task>('tasks');
   const { events } = useGoogleEvents(t, end);
   const { start } = useSeason();
   const prefs: PlanPrefs = { ...DEFAULT_PREFS, ...(settings.planPrefs ?? {}) };
@@ -59,12 +60,22 @@ export function PlanPage() {
         prefs,
         dsaCount: (d) => problemsForDay(start, d).length,
         routines: routines.filter((r) => r.active).map((r) => ({ name: `${r.emoji ?? ''} ${r.name}`.trim(), time: r.time, duration_min: r.duration_min, days: JSON.parse(r.days) })),
-        events: events.filter((e) => !e.allDay && !e.fromRoutine).map((e) => ({ date: e.start.slice(0, 10), title: e.title, start: new Date(e.start).toTimeString().slice(0, 5), end: new Date(e.end).toTimeString().slice(0, 5) })),
+        events: [
+          ...events.filter((e) => !e.allDay && !e.fromRoutine).map((e) => ({ date: e.start.slice(0, 10), title: e.title, start: new Date(e.start).toTimeString().slice(0, 5), end: new Date(e.end).toTimeString().slice(0, 5) })),
+          // Plans not on Google Calendar (not connected) still block their time.
+          ...tasks
+            .filter((x) => x.kind === 'plan' && !x.done && !x.gcal_event_id && x.due && x.due.length > 10)
+            .map((x) => {
+              const s = new Date(`${x.due}:00`);
+              const e = new Date(s.getTime() + (x.duration_min || 120) * 60_000);
+              return { date: x.due!.slice(0, 10), title: `📍 ${x.title}`, start: x.due!.slice(11, 16), end: e.getDate() === s.getDate() ? e.toTimeString().slice(0, 5) : '23:59' };
+            }),
+        ],
         calls: (d) => people.filter((p) => nextContact(p, d) === d).map((p) => p.name),
         cookAt: cookConfig(settings.cook).at,
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [t, settings.work, settings.workOverrides, settings.gymShift, settings.planPrefs, settings.cook, start, routines, people, events],
+    [t, settings.work, settings.workOverrides, settings.gymShift, settings.planPrefs, settings.cook, start, routines, people, events, tasks],
   );
   // A locked day keeps your edits; unlocked days follow the live plan.
   const locked = settings.weekPlan?.days ?? {};

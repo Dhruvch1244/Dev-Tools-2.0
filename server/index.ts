@@ -89,6 +89,7 @@ app.post('/api/r/:res', async (c) => {
   db.prepare(`INSERT INTO ${name} (${keys.join(',')}) VALUES (${keys.map(() => '?').join(',')})`).run(...Object.values(row));
   emit(name);
   if (name === 'routines') void google.syncRoutine(row.id).then(() => emit('routines'));
+  if (name === 'tasks' && (row as Record<string, unknown>).kind === 'plan') void google.syncTask(row.id).then(() => emit('tasks'));
   return c.json(db.prepare(`SELECT * FROM ${name} WHERE id = ?`).get(row.id), 201);
 });
 
@@ -100,8 +101,9 @@ app.patch('/api/r/:res/:id', async (c) => {
   const keys = Object.keys(patch);
   db.prepare(`UPDATE ${name} SET ${keys.map((k) => `${k} = ?`).join(', ')} WHERE id = ?`).run(...Object.values(patch), c.req.param('id'));
   // Ticking off a repeating task rolls it to the next due date instead of closing it.
-  if (name === 'tasks' && (patch as Record<string, unknown>).done === 1) completeTask(c.req.param('id'));
+  if (name === 'tasks' && (patch as Record<string, unknown>).done === 1) (completeTask(c.req.param('id')), emit('expenses'));
   emit(name);
+  if (name === 'tasks' && !('gcal_event_id' in patch) && ['due', 'title', 'place', 'duration_min', 'kind', 'notes'].some((k) => k in patch)) void google.syncTask(c.req.param('id')).then(() => emit('tasks'));
   if (name === 'routines' && !('gcal_event_id' in patch)) void google.syncRoutine(c.req.param('id')).then(() => emit('routines'));
   return c.json(db.prepare(`SELECT * FROM ${name} WHERE id = ?`).get(c.req.param('id')) ?? null);
 });
@@ -113,6 +115,10 @@ app.delete('/api/r/:res/:id', (c) => {
     const ev = (db.prepare('SELECT gcal_event_id FROM routines WHERE id = ?').get(c.req.param('id')) as { gcal_event_id: string | null } | undefined)?.gcal_event_id;
     db.prepare('DELETE FROM routine_logs WHERE routine_id = ?').run(c.req.param('id'));
     void google.syncRoutine(c.req.param('id'), ev ?? null);
+  }
+  if (name === 'tasks') {
+    const ev = (db.prepare('SELECT gcal_event_id FROM tasks WHERE id = ?').get(c.req.param('id')) as { gcal_event_id: string | null } | undefined)?.gcal_event_id;
+    if (ev) void google.syncTask(c.req.param('id'), ev);
   }
   db.prepare(`DELETE FROM ${name} WHERE id = ?`).run(c.req.param('id'));
   emit(name);
@@ -365,6 +371,7 @@ app.post('/api/push/action', async (c) => {
   if (!taskId || !['done', 'snooze'].includes(action)) return c.json({ error: 'bad action' }, 400);
   taskAction(taskId, action as 'done' | 'snooze');
   emit('tasks');
+  emit('expenses');
   return c.json({ ok: true });
 });
 

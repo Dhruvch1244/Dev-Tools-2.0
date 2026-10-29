@@ -17,6 +17,7 @@ import { useDsa, useSeason } from '../lib/dsa';
 import type { Activity, FoodLog } from '../lib/types';
 import { useHabits, useHealthToday } from './Life';
 import { TodaySchedule } from './Routines';
+import { Upcoming } from '../components/Upcoming';
 import { WorkCard } from '../components/WorkCard';
 import { SupplementsCard } from '../components/Supplements';
 
@@ -231,7 +232,7 @@ export function TodayPage() {
 
       <RaceWeekend />
 
-      <div className="mt-3 grid gap-3 lg:grid-cols-5">
+      <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-5">
         <div className="lg:col-span-3">
           <WorkCard />
         </div>
@@ -240,7 +241,11 @@ export function TodayPage() {
         </div>
       </div>
 
-      <div className="mt-4 grid gap-4 lg:grid-cols-5">
+      <div className="mt-3">
+        <Upcoming />
+      </div>
+
+      <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-5">
         <Card className="lg:col-span-3">
           <SectionTitle action={<Link to="/tasks" className="text-xs font-medium text-accent hover:underline">All tasks</Link>}>On your plate</SectionTitle>
           <ul className="space-y-2">

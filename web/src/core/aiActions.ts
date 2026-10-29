@@ -9,18 +9,24 @@ export type AiAction =
   | { type: 'task'; title: string; due: string | null; repeat: Repeat | null; remind_before: number; priority: number; notes: string | null }
   | { type: 'routine'; name: string; emoji: string | null; days: number[]; time: string; duration_min: number }
   | { type: 'workday'; date: string; mode: WorkMode | null; shift: string | null }
-  | { type: 'person'; name: string; birthday: string | null; every_days: number; weekday: number | null };
+  | { type: 'person'; name: string; birthday: string | null; every_days: number; weekday: number | null }
+  | { type: 'plan'; title: string; date: string; time: string | null; duration_min: number; place: string | null; notes: string | null }
+  | { type: 'bill'; title: string; amount: number | null; date: string; repeat: Repeat | null };
 
 export const ACTIONS_GUIDE = `When the user asks you to remember, remind, schedule or plan something — or a reminder would clearly help — end your reply with ONE fenced block in exactly this format (it is turned into confirm buttons; never mention the block itself):
 \`\`\`actions
 [{"type":"task","title":"Pay rent","due":"2026-11-05T10:00","repeat":"monthly","remind_before":1440,"priority":2,"notes":"₹ via UPI"},
  {"type":"routine","name":"Evening walk","emoji":"🚶","days":[1,2,3,4,5],"time":"19:30","duration_min":30},
  {"type":"workday","date":"2026-11-07","mode":"leave"},
- {"type":"person","name":"Mom","birthday":"1970-03-14","every_days":7,"weekday":0}]
+ {"type":"person","name":"Mom","birthday":"1970-03-14","every_days":7,"weekday":0},
+ {"type":"plan","title":"Hauz Khas with Riya","date":"2026-11-06","time":"19:00","duration_min":180,"place":"Hauz Khas Village","notes":null},
+ {"type":"bill","title":"Electricity bill","amount":1200,"date":"2026-11-10","repeat":"monthly"}]
 \`\`\`
 - task: one-off or repeating reminder. "due" is "YYYY-MM-DD" (all day) or "YYYY-MM-DDTHH:MM" (local, 24 h) — give a time whenever one is implied so a push notification fires. "repeat": null | "daily" | "weekdays" | "weekly" | "monthly" | "yearly". "remind_before": minutes of early warning (0, 15, 60 or 1440). "priority": 0–3.
 - routine: a recurring time block on weekdays (0 = Sunday … 6 = Saturday), "time" "HH:MM".
 - person: someone to keep in touch with (Pit crew) — "call Mom every Sunday" is every_days 7 + weekday 0; birthdays go here as "YYYY-MM-DD" (use 2000 if the year is unknown). Prefer this over a task for calls and birthdays; the app pushes call reminders and birthday wishes itself.
+- plan: going out / an outing / visiting somewhere / meeting people / a trip or event — anything with a place or an occasion. It goes on Google Calendar and pings the evening before and the morning of. "time" "HH:MM" or null if they didn't say (all-day). "duration_min" your best guess (dinner 120, movie 180, day trip 600); a multi-day trip with no time is all-day with "duration_min" = days × 1440 (20–23 Dec = 4 days = 5760). "place" if named. Prefer this over a task for anything you go *to*.
+- bill: money to pay on a date — rent, electricity, phone, credit card, EMI, SIP, subscriptions. "amount" in rupees if said (else null); "repeat" usually "monthly". It pings a day before and, when ticked, is logged in Money under Bills. Prefer this over a task for payments.
 - workday: override one office day — "mode": "office" | "wfh" | "leave" | "off", and/or "shift" (a shift id from the context).
 Resolve relative dates ("next Friday", "on the 5th", "tonight") against the current date and time given in the context. Use a timed due for events with a start time; for a birthday or anniversary use 09:00 on the day with "repeat":"yearly" and "remind_before":1440 so it pings the day before too. Never invent tasks the user didn't ask for unless you're proposing them as suggestions in the text too.`;
 
@@ -80,6 +86,18 @@ export function normaliseActions(raw: unknown): AiAction[] {
       const bday = str(a.birthday, 10);
       const wd = Number(a.weekday);
       out.push({ type: 'person', name, birthday: bday && validDate(bday) ? bday : null, every_days: Math.max(0, Math.min(365, Math.round(Number(a.every_days) || 0))), weekday: a.weekday != null && Number.isInteger(wd) && wd >= 0 && wd <= 6 ? wd : null });
+    } else if (a.type === 'plan') {
+      const title = str(a.title, 120);
+      const date = str(a.date, 10);
+      const time = str(a.time, 5);
+      if (!title || !date || !validDate(date)) continue;
+      out.push({ type: 'plan', title, date, time: time && validTime(time) ? time : null, duration_min: Math.max(15, Math.min(30 * 1440, Math.round(Number(a.duration_min) || 120))), place: str(a.place, 120), notes: str(a.notes, 300) });
+    } else if (a.type === 'bill') {
+      const title = str(a.title, 120);
+      const date = str(a.date, 10);
+      if (!title || !date || !validDate(date)) continue;
+      const amount = Number(a.amount);
+      out.push({ type: 'bill', title, amount: amount > 0 && amount < 1e8 ? Math.round(amount * 100) / 100 : null, date, repeat: isRepeat(a.repeat) ? a.repeat : null });
     } else if (a.type === 'workday') {
       const date = str(a.date, 10);
       const mode = ['office', 'wfh', 'leave', 'off'].includes(a.mode as string) ? (a.mode as WorkMode) : null;

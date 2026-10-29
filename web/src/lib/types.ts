@@ -6,7 +6,7 @@ import type { DayPlan, PlanPrefs } from '../core/weekPlan';
 
 type Stamped = { id: string; created_at: string; updated_at: string };
 
-export type Task = Stamped & { title: string; notes: string | null; due: string | null; priority: number; done: number; done_at: string | null; repeat?: Repeat | null; remind_before?: number | null };
+export type Task = Stamped & { title: string; notes: string | null; due: string | null; priority: number; done: number; done_at: string | null; repeat?: Repeat | null; remind_before?: number | null; kind?: 'plan' | 'bill' | null; place?: string | null; amount?: number | null; duration_min?: number | null; gcal_event_id?: string | null };
 export type Note = Stamped & { title: string | null; body: string | null; pinned: number; color: string | null };
 export type Expense = Stamped & { amount: number; kind: 'expense' | 'income'; category: string; note: string | null; date: string };
 export type Budget = Stamped & { category: string; amount: number };

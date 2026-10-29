@@ -67,6 +67,7 @@ export async function disconnect() {
   if (s.refreshToken) await fetch(`https://oauth2.googleapis.com/revoke?token=${s.refreshToken}`, { method: 'POST' }).catch(() => {});
   store({ clientId: s.clientId, clientSecret: s.clientSecret });
   db.prepare('UPDATE routines SET gcal_event_id = NULL').run();
+  db.prepare('UPDATE tasks SET gcal_event_id = NULL').run();
 }
 
 async function accessToken() {
@@ -89,7 +90,7 @@ async function gfetch(url: string, init: RequestInit = {}) {
 // ---------------------------------------------------------------------------------------------
 // Reading events
 // ---------------------------------------------------------------------------------------------
-export type GEvent = { id: string; title: string; start: string; end: string; allDay: boolean; link: string; fromRoutine: string | null; location?: string };
+export type GEvent = { id: string; title: string; start: string; end: string; allDay: boolean; link: string; fromRoutine: string | null; fromTask?: string | null; location?: string };
 const cache = new Map<string, { at: number; v: GEvent[] }>();
 
 export async function events(from: string, to: string): Promise<GEvent[]> {
@@ -110,6 +111,7 @@ export async function events(from: string, to: string): Promise<GEvent[]> {
       link: e.htmlLink,
       location: e.location,
       fromRoutine: e.extendedProperties?.private?.devtoolsRoutine ?? null,
+      fromTask: e.extendedProperties?.private?.devtoolsTask ?? null,
     }));
   cache.set(key, { at: Date.now(), v });
   return v;
@@ -169,9 +171,60 @@ export async function syncRoutine(id: string, deletedEventId?: string | null) {
   }
 }
 
+// ---------------------------------------------------------------------------------------------
+// Plans → one-off events
+// ---------------------------------------------------------------------------------------------
+type PlanRow = { id: string; title: string; notes: string | null; due: string | null; place: string | null; duration_min: number | null; kind: string | null; done: number; gcal_event_id: string | null };
+
+function planBody(p: PlanRow) {
+  const day = p.due!.slice(0, 10);
+  const base = { summary: `📍 ${p.title}`, location: p.place ?? undefined, description: [p.notes, 'Plan from Dev Tools 2.0'].filter(Boolean).join('\n'), extendedProperties: { private: { devtoolsTask: p.id } }, reminders: { useDefault: false, overrides: [] } };
+  if (p.due!.length <= 10) {
+    const next = new Date(`${day}T12:00:00`);
+    // All-day plans span whole days: duration_min in multiples of 1440 (a 4-day trip = 5760).
+    next.setDate(next.getDate() + Math.max(1, Math.round((p.duration_min ?? 0) / 1440)));
+    return { ...base, start: { date: day }, end: { date: `${next.getFullYear()}-${pad(next.getMonth() + 1)}-${pad(next.getDate())}` } };
+  }
+  const start = new Date(`${p.due}:00`);
+  const end = new Date(start.getTime() + (p.duration_min || 120) * 60_000);
+  const local = (x: Date) => `${x.getFullYear()}-${pad(x.getMonth() + 1)}-${pad(x.getDate())}T${pad(x.getHours())}:${pad(x.getMinutes())}:00`;
+  return { ...base, start: { dateTime: local(start), timeZone: TIMEZONE }, end: { dateTime: local(end), timeZone: TIMEZONE } };
+}
+
+/** Keep a plan's calendar event in step with it: create, move, or remove when done/deleted. */
+export async function syncTask(id: string, deletedEventId?: string | null) {
+  if (!load().refreshToken) return;
+  try {
+    const gone = (e: { status?: number }) => (e.status === 404 || e.status === 410 ? null : Promise.reject(e));
+    if (deletedEventId !== undefined) {
+      if (deletedEventId) await gfetch(`${API}/${deletedEventId}`, { method: 'DELETE' }).catch(gone);
+      cache.clear();
+      return;
+    }
+    const p = db.prepare('SELECT * FROM tasks WHERE id = ?').get(id) as PlanRow | undefined;
+    if (!p) return;
+    // A plan you ticked off stays on the calendar as a record; only a non-plan/undated one is removed.
+    if (p.kind !== 'plan' || !p.due) {
+      if (p.gcal_event_id) await gfetch(`${API}/${p.gcal_event_id}`, { method: 'DELETE' }).catch(gone);
+      if (p.gcal_event_id) db.prepare('UPDATE tasks SET gcal_event_id = NULL WHERE id = ?').run(id);
+      return;
+    }
+    const body = JSON.stringify(planBody(p));
+    let ev = null;
+    if (p.gcal_event_id) ev = await gfetch(`${API}/${p.gcal_event_id}`, { method: 'PUT', body }).catch(gone);
+    ev ??= await gfetch(API, { method: 'POST', body });
+    db.prepare('UPDATE tasks SET gcal_event_id = ? WHERE id = ?').run(ev.id, id);
+    cache.clear();
+  } catch (e) {
+    console.error('google sync failed for plan', id, (e as Error).message);
+  }
+}
+
 /** Push every routine to the calendar (after first connecting). */
 export async function syncAll() {
   const ids = (db.prepare('SELECT id FROM routines').all() as { id: string }[]).map((r) => r.id);
   for (const id of ids) await syncRoutine(id);
-  return ids.length;
+  const plans = (db.prepare("SELECT id FROM tasks WHERE kind = 'plan' AND done = 0 AND due IS NOT NULL").all() as { id: string }[]).map((r) => r.id);
+  for (const id of plans) await syncTask(id);
+  return ids.length + plans.length;
 }

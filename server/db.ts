@@ -145,12 +145,19 @@ addColumn('splits', 'items', 'TEXT');
 addColumn('journal', 'answers', 'TEXT');
 // Pinned drops stay at the top and survive "clear old".
 addColumn('drops', 'pinned', 'INTEGER NOT NULL DEFAULT 0');
+// Plans (going out: place, length, a Google Calendar event) and bills (an amount that lands in
+// Money when ticked) are tasks with a kind, so they share reminders, repeats and push actions.
+addColumn('tasks', 'kind', 'TEXT');
+addColumn('tasks', 'place', 'TEXT');
+addColumn('tasks', 'amount', 'REAL');
+addColumn('tasks', 'duration_min', 'INTEGER');
+addColumn('tasks', 'gcal_event_id', 'TEXT');
 
 type Resource = { cols: string[]; order: string; dateCol?: string };
 
 /** Tables exposed through the generic CRUD API, with the columns clients may write. */
 export const RESOURCES: Record<string, Resource> = {
-  tasks: { cols: ['title', 'notes', 'due', 'priority', 'done', 'done_at', 'repeat', 'remind_before'], order: 'done ASC, due IS NULL, due ASC, created_at DESC' },
+  tasks: { cols: ['title', 'notes', 'due', 'priority', 'done', 'done_at', 'repeat', 'remind_before', 'kind', 'place', 'amount', 'duration_min', 'gcal_event_id'], order: 'done ASC, due IS NULL, due ASC, created_at DESC' },
   notes: { cols: ['title', 'body', 'pinned', 'color'], order: 'pinned DESC, updated_at DESC' },
   expenses: { cols: ['amount', 'kind', 'category', 'note', 'date'], order: 'date DESC, created_at DESC', dateCol: 'date' },
   budgets: { cols: ['category', 'amount'], order: 'category ASC' },

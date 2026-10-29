@@ -71,7 +71,7 @@ const STALE_MS = 6 * 3600_000;
 
 async function tick() {
   const now = Date.now();
-  const tasks = db.prepare("SELECT id, title, notes, due, remind_before, updated_at FROM tasks WHERE done = 0 AND due LIKE '%T%'").all() as { id: string; title: string; notes: string | null; due: string; remind_before: number | null; updated_at: string }[];
+  const tasks = db.prepare("SELECT id, title, notes, due, remind_before, updated_at, kind, amount, place FROM tasks WHERE done = 0 AND due LIKE '%T%'").all() as { id: string; title: string; notes: string | null; due: string; remind_before: number | null; updated_at: string; kind: string | null; amount: number | null; place: string | null }[];
   for (const t of tasks) {
     // An early warning (remind_before) and the at-time ping are separate sends, keyed apart. The
     // early one is skipped if the task was edited/snoozed after its time — you've just seen it.
@@ -84,7 +84,10 @@ async function tick() {
       if (at == null || at > now || now - at > STALE_MS) continue;
       const claimed = db.prepare('INSERT OR IGNORE INTO push_sent (task_id, due, sent_at) VALUES (?, ?, ?)').run(t.id, key, new Date().toISOString());
       if (claimed.changes === 0) continue;
-      const r = await pushAll({ tag: t.id, title: `⏰ ${t.title}`, body, url: t.notes?.startsWith('http') ? t.notes : '/tasks', taskId: t.id });
+      // Bills say what they cost; plans say where. Same buttons (Done / Snooze) either way.
+      const icon = t.kind === 'bill' ? '🧾' : t.kind === 'plan' ? '📍' : '⏰';
+      const extra = t.kind === 'bill' && t.amount ? `₹${Math.round(t.amount).toLocaleString('en-IN')} · ` : t.kind === 'plan' && t.place ? `${t.place} · ` : '';
+      const r = await pushAll({ tag: t.id, title: `${icon} ${t.title}`, body: extra + body, url: t.notes?.startsWith('http') ? t.notes : t.kind ? '/' : '/tasks', taskId: t.id });
       // Every device failed (laptop offline, push service hiccup): release the claim so the next
       // tick retries, until the reminder goes stale.
       if (r.devices > 0 && r.sent === 0) db.prepare('DELETE FROM push_sent WHERE task_id = ? AND due = ?').run(t.id, key);
@@ -92,13 +95,41 @@ async function tick() {
   }
 }
 
+/**
+ * Plans get two extra heads-ups on top of the task pings: the evening before (20:00) and the
+ * morning of (08:30) — "Tomorrow: Hauz Khas with Riya · 19:00". All-day plans get just those.
+ */
+async function planTick() {
+  const now = Date.now();
+  const plans = db.prepare("SELECT id, title, due, place FROM tasks WHERE done = 0 AND kind = 'plan' AND due IS NOT NULL AND substr(due,1,10) >= date('now','localtime','-1 day')").all() as { id: string; title: string; due: string; place: string | null }[];
+  for (const p of plans) {
+    const day = p.due.slice(0, 10);
+    const at = p.due.length > 10 ? p.due.slice(11, 16) : null;
+    const eve = new Date(`${day}T20:00`);
+    eve.setDate(eve.getDate() - 1);
+    const pings: [number, string, string][] = [[eve.getTime(), 'eve', `Tomorrow${at ? ` · ${at}` : ''}${p.place ? ` · ${p.place}` : ''}`]];
+    // A morning reminder only helps when the plan is later in the day (or has no time).
+    if (!at || at >= '11:00') pings.push([Date.parse(`${day}T08:30`), 'morn', `Today${at ? ` · ${at}` : ''}${p.place ? ` · ${p.place}` : ''}`]);
+    for (const [when, k, body] of pings) {
+      if (when > now || now - when > STALE_MS) continue;
+      const key = `${p.due}@${k}`;
+      if (db.prepare('INSERT OR IGNORE INTO push_sent (task_id, due, sent_at) VALUES (?, ?, ?)').run(p.id, key, new Date().toISOString()).changes === 0) continue;
+      const r = await pushAll({ tag: `plan-${p.id}`, title: `📍 ${p.title}`, body, url: '/' });
+      if (r.devices > 0 && r.sent === 0) db.prepare('DELETE FROM push_sent WHERE task_id = ? AND due = ?').run(p.id, key);
+    }
+  }
+}
+
 /** Called by the app scheduler (scheduler.ts) every tick. */
-export const remindersTick = tick;
+export const remindersTick = async () => (await tick(), await planTick());
 
 /** Tick off a task; a repeating one rolls to its next due date instead of closing. True if it rolled. */
 export function completeTask(taskId: string) {
-  const t = db.prepare('SELECT due, repeat FROM tasks WHERE id = ?').get(taskId) as { due: string | null; repeat: string | null } | undefined;
+  const t = db.prepare('SELECT title, due, repeat, kind, amount FROM tasks WHERE id = ?').get(taskId) as { title: string; due: string | null; repeat: string | null; kind: string | null; amount: number | null } | undefined;
   const stamp = new Date().toISOString();
+  // Paying a bill is spending: it lands in Money under Bills, so the month's total stays honest.
+  if (t?.kind === 'bill' && t.amount && t.amount > 0)
+    db.prepare("INSERT INTO expenses (id, amount, kind, category, note, date, created_at, updated_at) VALUES (?, ?, 'expense', 'Bills', ?, ?, ?, ?)").run(crypto.randomUUID(), t.amount, t.title, localStamp(new Date()).slice(0, 10), stamp, stamp);
   if (t?.due && isRepeat(t.repeat)) {
     db.prepare('UPDATE tasks SET due = ?, done = 0, done_at = NULL, updated_at = ? WHERE id = ?').run(nextDue(t.due, t.repeat, localStamp(new Date()).slice(0, 10)), stamp, taskId);
     return true;
