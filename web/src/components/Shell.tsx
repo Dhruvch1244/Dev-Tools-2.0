@@ -342,7 +342,10 @@ export function Shell({ children }: { children: ReactNode }) {
       <AnimatePresence initial={false}>
         <Wipe k={section} />
       </AnimatePresence>
-      <AnimatePresence mode="wait" initial={false}>
+      {/* Every page opens at its top — not wherever the last page was scrolled to. The jump happens
+          while the old page has faded out and before the new one fades in, so it's never seen.
+          Pages that start elsewhere (Pit Wall at the latest message) move themselves on mount. */}
+      <AnimatePresence mode="wait" initial={false} onExitComplete={() => window.scrollTo({ top: 0, behavior: 'instant' })}>
         <motion.main
           key={location.pathname}
           initial={{ opacity: 0, scale: 0.992 }}

@@ -10,6 +10,9 @@ import { App } from './App';
 import { installKeyboard } from './lib/keyboard';
 import './styles.css';
 
+// The app decides where a page starts (see Shell); the browser restoring old offsets fights that.
+if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
+
 registerSW({ immediate: true });
 // iOS only checks for a new build on a cold start; also check whenever the app comes back to the foreground.
 document.addEventListener('visibilitychange', () => {

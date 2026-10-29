@@ -5,6 +5,7 @@
 // the visual viewport instead and publish it as CSS variables:
 //   --kb   height the keyboard covers at the bottom of the layout viewport (0 when closed)
 //   --vvh  height of what's actually visible
+//   --vvt  how far iOS has scrolled the visible area down (full-screen overlays sit there)
 //   html[data-kb]  set while typing with the keyboard up
 // Sheets lift themselves by --kb; the tab bar and + button step aside (see styles.css).
 
@@ -26,6 +27,7 @@ export function installKeyboard() {
         const kb = isTyping(document.activeElement) ? Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop)) : 0;
         root.style.setProperty('--kb', `${kb}px`);
         root.style.setProperty('--vvh', `${Math.round(vv.height)}px`);
+        root.style.setProperty('--vvt', `${Math.round(vv.offsetTop)}px`);
         root.toggleAttribute('data-kb', kb > 120);
       });
     };

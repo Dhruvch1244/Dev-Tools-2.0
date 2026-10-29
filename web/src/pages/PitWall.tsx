@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router';
 import { AnimatePresence, motion } from 'motion/react';
 import { ArrowUp, Radio, RotateCcw, Square } from 'lucide-react';
@@ -34,6 +34,8 @@ const STARTERS = [
   { k: 'Journal', items: ['When did I last feel low, and why?', 'What patterns show up in my journal this month?', 'What made my best days good?'] },
 ];
 
+const SHOWN = 12;
+
 export function PitWallPage() {
   const [msgs, setMsgs] = useState<Msg[]>(load);
   const [input, setInput] = useState('');
@@ -45,7 +47,30 @@ export function PitWallPage() {
   const [params, setParams] = useSearchParams();
 
   useEffect(() => store(msgs), [msgs]);
-  useEffect(() => end.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }), [msgs.length, busy]);
+  // Long chats show only the latest exchanges until you ask for more.
+  const [showAll, setShowAll] = useState(false);
+  const shown = showAll ? msgs : msgs.slice(-SHOWN);
+  const toEnd = (behavior: ScrollBehavior) => window.scrollTo({ top: document.documentElement.scrollHeight, behavior });
+  // Open at the latest message, like any chat — instantly, and again over the next frames while the
+  // page fades in and markdown lays out, so it never stops halfway.
+  useLayoutEffect(() => {
+    if (!msgs.length) return;
+    toEnd('instant');
+    const ids = [requestAnimationFrame(() => toEnd('instant')), window.setTimeout(() => toEnd('instant'), 250), window.setTimeout(() => toEnd('instant'), 600)];
+    return () => (cancelAnimationFrame(ids[0]), clearTimeout(ids[1]), clearTimeout(ids[2]));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  // A new message glides into view.
+  const count = useRef(msgs.length);
+  useEffect(() => {
+    if (msgs.length !== count.current) toEnd('smooth');
+    count.current = msgs.length;
+  }, [msgs.length]);
+  // While a reply streams in, keep it in view — unless you've scrolled up to read something.
+  const tail = msgs.at(-1)?.text.length ?? 0;
+  useEffect(() => {
+    if (busy && document.documentElement.scrollHeight - window.innerHeight - window.scrollY < 260) toEnd('instant');
+  }, [tail, busy]);
 
   const send = async (text: string, forceScope?: 'day' | 'journal') => {
     const message = text.trim();
@@ -87,7 +112,7 @@ export function PitWallPage() {
         }
         action={
           msgs.length > 0 && (
-            <button onClick={() => (ctl.current?.abort(), setMsgs([]))} className="flex h-9 items-center gap-1.5 rounded-md border border-line px-3 text-mini font-bold uppercase text-ink-2">
+            <button onClick={() => (ctl.current?.abort(), setMsgs([]), setShowAll(false), window.scrollTo({ top: 0, behavior: 'instant' }))} className="flex h-9 items-center gap-1.5 rounded-md border border-line px-3 text-mini font-bold uppercase text-ink-2">
               <RotateCcw className="size-3.5" /> New chat
             </button>
           )
@@ -115,8 +140,14 @@ export function PitWallPage() {
       )}
 
       <div className="space-y-4">
+        {shown.length < msgs.length && (
+          <button onClick={() => setShowAll(true)} className="mx-auto block rounded-md border border-line px-3 py-1.5 text-mini font-bold uppercase text-ink-3">
+            Show {msgs.length - shown.length} earlier
+          </button>
+        )}
         <AnimatePresence initial={false}>
-          {msgs.map((m, i) => {
+          {shown.map((m, j) => {
+            const i = j + msgs.length - shown.length;
             const { text, raw } = m.role === 'assistant' ? splitActions(m.text) : { text: m.text, raw: null };
             const last = i === msgs.length - 1;
             return (

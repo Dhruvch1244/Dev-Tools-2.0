@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, ArrowRight, BookOpen, Dices, Feather, Pencil, Plus, Sparkles } from 'lucide-react';
+import { ArrowRight, BookOpen, Feather, Pencil, PenLine, Sparkles } from 'lucide-react';
 import { api, useList } from '../lib/api';
 import { addDays, haptic, parseDate, relativeDay, today } from '../lib/format';
 import { md } from '../lib/dsa';
-import { anotherQuestion, questionsFor, type Answer, type DayFacts } from '../core/journal';
+import { anotherQuestion, FREE_WRITE, questionsFor, type Answer, type DayFacts } from '../core/journal';
 import type { Journal } from '../lib/types';
-import { Mic } from './Mic';
+import { JournalWriter } from './JournalWriter';
 import { Button, Card, cx } from './ui';
 import { useToast } from './toast';
 
@@ -32,7 +32,8 @@ export function GuidedJournal({ autoStart }: { autoStart?: boolean }) {
   const { data: facts } = useQuery({ queryKey: ['journal-facts', t], queryFn: () => api<DayFacts>(`/journal/${t}/facts`), staleTime: 5 * 60_000 });
   const [answers, setAnswers] = useState<Answer[]>([]);
   const [i, setI] = useState(0);
-  const [mode, setMode] = useState<'ask' | 'story' | 'idle'>(autoStart ? 'ask' : 'idle');
+  // Writing happens full screen (ask = one question a page, free = a blank page); the card shows the rest.
+  const [mode, setMode] = useState<'ask' | 'free' | 'story' | 'idle'>(autoStart ? 'ask' : 'idle');
   const [writing, setWriting] = useState(false);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
@@ -62,12 +63,31 @@ export function GuidedJournal({ autoStart }: { autoStart?: boolean }) {
   const shuffle = () => (haptic(8), persist(answers.map((x, j) => (j === i ? { q: anotherQuestion(answers.map((y) => y.q), i, Date.now() % 997), a: '' } : x))));
   const addOne = () => (persist([...answers, { q: anotherQuestion(answers.map((y) => y.q), answers.length, Date.now() % 991), a: '' }]), setI(answers.length));
   const answered = answers.filter((x) => x.a.trim()).length;
+  const free = answers.find((x) => x.q === FREE_WRITE);
+  const asked = answers.filter((x) => x.q !== FREE_WRITE);
+  const openQuestions = () => {
+    const firstOpen = asked.find((x) => !x.a.trim()) ?? asked[0];
+    setI(Math.max(0, answers.indexOf(firstOpen)));
+    setMode('ask');
+  };
+  const openFree = () => {
+    if (free) setI(answers.indexOf(free));
+    else (persist([...answers, { q: FREE_WRITE, a: '' }]), setI(answers.length));
+    setMode('free');
+  };
+  const closeWriter = () => {
+    clearTimeout(saveTimer.current);
+    void api(`/journal/${t}`, { method: 'PUT', body: JSON.stringify({ answers }) });
+    setMode(todays?.body?.trim() ? 'story' : 'idle');
+    setTimeout(() => document.getElementById('journal')?.scrollIntoView({ behavior: 'instant', block: 'start' }), 50);
+  };
 
   const writeStory = async () => {
     clearTimeout(saveTimer.current);
     await api(`/journal/${t}`, { method: 'PUT', body: JSON.stringify({ answers }) });
     setWriting(true);
     setMode('story');
+    setTimeout(() => document.getElementById('journal')?.scrollIntoView({ behavior: 'instant', block: 'start' }), 50);
     try {
       await api<{ body: string }>(`/journal/${t}/story`, { method: 'POST' });
       await qc.invalidateQueries({ queryKey: ['journal'] });
@@ -87,76 +107,67 @@ export function GuidedJournal({ autoStart }: { autoStart?: boolean }) {
 
   const cur = answers[i];
   const past = entries.filter((e) => e.date !== t && (e.body?.trim() || parse(e.answers).some((x) => x.a.trim())));
+  const shortDate = parseDate(t).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
   const dateLabel = parseDate(t).toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' });
 
   return (
     <Card id="journal" className="min-w-0 scroll-mt-16 lg:col-span-5">
       <div className="mb-3 flex items-center justify-between gap-2">
         <p className="flex items-center gap-2 font-display text-[17px]">
-          <BookOpen className="size-4 text-pink" /> Journal · {dateLabel}
+          <BookOpen className="size-4 shrink-0 text-pink" /> Journal · {shortDate}
         </p>
-        {mode !== 'ask' && answers.length > 0 && (
-          <button onClick={() => setMode('ask')} className="text-mini font-bold uppercase text-accent">
-            {answered ? 'Edit answers' : 'Start'}
+        {mode === 'story' && answers.length > 0 && (
+          <button onClick={openQuestions} className="shrink-0 text-mini font-bold uppercase text-accent">
+            Edit
           </button>
         )}
       </div>
 
-      {mode === 'idle' && (
-        <button onClick={() => setMode('ask')} className="flex w-full items-center gap-4 rounded-2xl border border-line bg-bg p-4 text-left">
-          <span className="grid size-12 shrink-0 place-items-center rounded-xl bg-pink/15 text-pink">
-            <Feather className="size-5" />
-          </span>
-          <span className="min-w-0 flex-1">
-            <span className="block font-bold">{answers.length} questions about your day</span>
-            <span className="block truncate text-sm text-ink-3">{answers[0]?.q ?? 'Loading…'}</span>
-          </span>
-          <ArrowRight className="size-5 text-ink-3" />
-        </button>
-      )}
-
-      {mode === 'ask' && cur && (
-        <div>
-          <div className="mb-3 flex gap-1">
-            {answers.map((x, j) => (
-              <button key={j} onClick={() => setI(j)} aria-label={`Question ${j + 1}`} className={cx('h-1.5 flex-1 -skew-x-12 transition', j === i ? 'bg-pink' : x.a.trim() ? 'bg-pink/50' : 'bg-surface-2')} />
-            ))}
-          </div>
-          <AnimatePresence mode="wait">
-            <motion.div key={`${i}:${cur.q}`} initial={{ opacity: 0, x: 24 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -24 }} transition={{ duration: 0.2 }}>
-              <p className="text-micro font-black uppercase tracking-[0.2em] text-ink-3">
-                Question {i + 1} of {answers.length}
-              </p>
-              <p className="mt-1 text-xl font-bold leading-snug">{cur.q}</p>
-            </motion.div>
-          </AnimatePresence>
-          <div className="mt-3 flex items-end gap-2">
-            <textarea value={cur.a} onChange={(e) => setA(e.target.value)} rows={4} placeholder="Say it however it comes out — the story gets written for you." className="field min-h-28 flex-1 resize-none text-base leading-relaxed" />
-            <Mic value={cur.a} onChange={setA} />
-          </div>
-          <div className="mt-3 flex items-center gap-2">
-            <Button variant="ghost" size="sm" disabled={i === 0} onClick={() => setI(i - 1)} aria-label="Previous question">
-              <ArrowLeft className="size-4" />
+      {(mode === 'idle' || mode === 'ask' || mode === 'free') && (
+        <div className="space-y-2">
+          <button onClick={openQuestions} className="flex w-full items-center gap-4 rounded-2xl border border-line bg-bg p-4 text-left active:scale-[.99]">
+            <span className="grid size-12 shrink-0 place-items-center rounded-xl bg-pink/15 text-pink">
+              <Feather className="size-5" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block font-bold">{asked.some((x) => x.a.trim()) ? `Continue · ${asked.filter((x) => x.a.trim()).length} of ${asked.length} answered` : `${asked.length} questions about your day`}</span>
+              <span className="block truncate text-sm text-ink-3">{asked[0]?.q ?? 'Loading…'}</span>
+            </span>
+            <ArrowRight className="size-5 shrink-0 text-ink-3" />
+          </button>
+          <button onClick={openFree} className="flex w-full items-center gap-4 rounded-2xl border border-line bg-bg p-4 text-left active:scale-[.99]">
+            <span className="grid size-12 shrink-0 place-items-center rounded-xl bg-surface-2 text-ink-2">
+              <PenLine className="size-5" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block font-bold">{free?.a.trim() ? 'Keep writing' : 'Free write'}</span>
+              <span className="block truncate text-sm text-ink-3">{free?.a.trim() ? free.a.trim() : 'A blank page — dump it, it gets tidied up'}</span>
+            </span>
+            <ArrowRight className="size-5 shrink-0 text-ink-3" />
+          </button>
+          {answered > 0 && (
+            <Button className="w-full" disabled={writing} onClick={() => void writeStory()}>
+              <Sparkles className="size-4" /> Write my story
             </Button>
-            <Button variant="ghost" size="sm" onClick={shuffle}>
-              <Dices className="size-4" /> Different question
-            </Button>
-            <span className="flex-1" />
-            {i < answers.length - 1 ? (
-              <Button size="sm" onClick={() => setI(i + 1)}>
-                {cur.a.trim() ? 'Next' : 'Skip'} <ArrowRight className="size-4" />
-              </Button>
-            ) : (
-              <Button size="sm" variant="soft" onClick={addOne}>
-                <Plus className="size-4" /> One more
-              </Button>
-            )}
-          </div>
-          <Button className="mt-3 w-full" disabled={!answered || writing} onClick={() => void writeStory()}>
-            <Sparkles className="size-4" /> {answered ? `Write my story (${answered} answer${answered > 1 ? 's' : ''})` : 'Answer one to write your story'}
-          </Button>
+          )}
         </div>
       )}
+      <AnimatePresence>
+        {(mode === 'ask' || mode === 'free') && answers[i] && (
+          <JournalWriter
+            kind={mode === 'free' ? 'free' : 'questions'}
+            answers={answers}
+            i={i}
+            setI={setI}
+            dateLabel={dateLabel}
+            onChange={setA}
+            onShuffle={shuffle}
+            onAddOne={addOne}
+            onClose={closeWriter}
+            onStory={() => void writeStory()}
+          />
+        )}
+      </AnimatePresence>
 
       {mode === 'story' && (
         <div>
@@ -190,6 +201,9 @@ export function GuidedJournal({ autoStart }: { autoStart?: boolean }) {
                 </Button>
                 <Button size="sm" variant="ghost" onClick={() => void writeStory()}>
                   <Sparkles className="size-4" /> Rewrite
+                </Button>
+                <Button size="sm" variant="ghost" onClick={openFree}>
+                  <PenLine className="size-4" /> Write more
                 </Button>
               </div>
             </>

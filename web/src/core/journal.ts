@@ -4,6 +4,8 @@
 // AI turns into a story. Pure: no React, no I/O.
 
 export type Answer = { q: string; a: string };
+/** The "question" a free-write page is saved under — one blank page instead of prompts. */
+export const FREE_WRITE = 'Free write';
 export type DayFacts = {
   gym?: string | null; // "Push" if a session was logged
   gymPlanned?: string | null; // planned day type when nothing was logged
@@ -114,6 +116,7 @@ export function anotherQuestion(current: string[], i: number, salt: number) {
 }
 
 export const STORY_SYSTEM = `You turn someone's answers to a few evening journal questions into their diary entry for the day.
+- Their answers are raw: typed fast or dictated, often with typos, no punctuation, Hinglish, half sentences, thoughts out of order. Understand what they meant, fix it silently and put it in a sensible order — never comment on how it was written.
 - Write in FIRST PERSON, in their voice — casual, honest, a bit of personality (they're a young software engineer in India who likes F1). Keep their words and details; don't invent events, people or feelings they didn't mention.
 - Make it read like a short story of the day: a natural flow (morning → evening, or around the main moment), not a Q&A. Blend in the day's facts only where they fit.
 - Start with a short title line in the form "# <title>" (3–6 words), then 120–260 words in 2–4 paragraphs. End with one line about tomorrow if they gave one.
@@ -124,7 +127,7 @@ export function storyPrompt(date: string, answers: Answer[], facts: string) {
     `Date: ${date}`,
     facts ? `What the app logged today: ${facts}` : '',
     '# Answers',
-    ...answers.filter((x) => x.a.trim()).map((x) => `Q: ${x.q}\nA: ${x.a.trim()}`),
+    ...answers.filter((x) => x.a.trim()).map((x) => (x.q === FREE_WRITE ? `Free writing (unprompted):\n${x.a.trim()}` : `Q: ${x.q}\nA: ${x.a.trim()}`)),
   ]
     .filter(Boolean)
     .join('\n\n');
