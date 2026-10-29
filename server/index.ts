@@ -10,6 +10,8 @@ import { Readable } from 'node:stream';
 import { db, FILES_DIR, RESOURCES, pickColumns } from './db.ts';
 import { profiles, upcomingContests } from './contests.ts';
 import { run, type Lang } from './runner.ts';
+import { getQuestion } from './leetcode.ts';
+import { judge, support } from './judge.ts';
 import { publicKey, pushAll, startReminderLoop, subscribe, subscriptions, taskAction, unsubscribe } from './push.ts';
 
 const PORT = Number(process.env.PORT ?? 4300);
@@ -219,6 +221,25 @@ app.post('/api/run', async (c) => {
   const { lang, code, stdin = '' } = await c.req.json<{ lang: Lang; code: string; stdin?: string }>();
   if (!['cpp', 'java', 'py'].includes(lang) || typeof code !== 'string') return c.json({ error: 'lang must be cpp | java | py' }, 400);
   return c.json(await run(lang, code, stdin));
+});
+
+// ---- LeetCode statements + local judge ----
+app.get('/api/lc/:slug', async (c) => {
+  try {
+    const q = await getQuestion(c.req.param('slug'));
+    return c.json({ ...q, support: support(q) });
+  } catch (e) {
+    return c.json({ error: (e as Error).message }, 502);
+  }
+});
+app.post('/api/judge', async (c) => {
+  if (process.env.RUNNER === 'off') return c.json({ error: 'runner disabled (RUNNER=off)' }, 403);
+  const { slug, lang, code, input, ignoreOrder } = await c.req.json<{ slug: string; lang: Lang; code: string; input?: string; ignoreOrder?: boolean }>();
+  if (!['cpp', 'java', 'py'].includes(lang) || typeof code !== 'string') return c.json({ error: 'lang must be cpp | java | py' }, 400);
+  const q = await getQuestion(slug);
+  const sup = support(q);
+  if (!sup.ok) return c.json({ error: sup.reason }, 422);
+  return c.json(await judge(q, lang, code, { input, ignoreOrder }));
 });
 
 // ---- Push reminders ----

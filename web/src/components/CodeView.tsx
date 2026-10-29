@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { EditorView, Decoration, keymap, lineNumbers, highlightActiveLine, highlightActiveLineGutter, drawSelection, type DecorationSet } from '@codemirror/view';
-import { EditorState, StateEffect, StateField, Compartment } from '@codemirror/state';
+import { Annotation, EditorState, StateEffect, StateField, Compartment } from '@codemirror/state';
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
 import { HighlightStyle, syntaxHighlighting, bracketMatching, indentOnInput } from '@codemirror/language';
 import { closeBrackets } from '@codemirror/autocomplete';
@@ -24,6 +24,10 @@ const f1Highlight = HighlightStyle.define([
 ]);
 
 const langExt = (l: Lang) => (l === 'cpp' ? cpp() : l === 'java' ? java() : python());
+
+// Marks changes made by props (loading a template/solution) so they aren't reported as user edits —
+// otherwise merely opening a problem would save its template as the user's solution.
+const external = Annotation.define<boolean>();
 
 const setHighlight = StateEffect.define<number | null>();
 const highlightField = StateField.define<DecorationSet>({
@@ -77,7 +81,9 @@ export function CodeView({ value, lang, onChange, readOnly = false, highlightLin
           highlightField,
           EditorState.tabSize.of(4),
           EditorView.theme({ '&': { minHeight: `${minHeight}px`, maxHeight: `${maxHeight}px` }, '.cm-scroller': { overflow: 'auto' }, '.cm-content': { caretColor: '#e10600' } }, { dark: true }),
-          EditorView.updateListener.of((u) => u.docChanged && change.current?.(u.state.doc.toString())),
+          EditorView.updateListener.of((u) => {
+            if (u.docChanged && !u.transactions.some((t) => t.annotation(external))) change.current?.(u.state.doc.toString());
+          }),
         ],
       }),
     });
@@ -89,7 +95,7 @@ export function CodeView({ value, lang, onChange, readOnly = false, highlightLin
 
   useEffect(() => {
     const v = view.current;
-    if (v && v.state.doc.toString() !== value) v.dispatch({ changes: { from: 0, to: v.state.doc.length, insert: value } });
+    if (v && v.state.doc.toString() !== value) v.dispatch({ changes: { from: 0, to: v.state.doc.length, insert: value }, annotations: external.of(true) });
   }, [value]);
   useEffect(() => view.current?.dispatch({ effects: langComp.current.reconfigure(langExt(lang)) }), [lang]);
   useEffect(() => view.current?.dispatch({ effects: roComp.current.reconfigure([EditorState.readOnly.of(readOnly), EditorView.editable.of(!readOnly)]) }), [readOnly]);

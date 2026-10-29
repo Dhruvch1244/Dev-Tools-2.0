@@ -1,6 +1,7 @@
 # systemd *user* service — starts Dev Tools 2.0 on login and restarts it if it crashes.
-# Install:  cp deploy/dev-tools-2.service ~/.config/systemd/user/ && systemctl --user enable --now dev-tools-2
-# Keep it running after logout:  sudo loginctl enable-linger $USER
+# Install:  cp deploy/dev-tools-2.service ~/.config/systemd/user/ && systemctl --user daemon-reload && systemctl --user enable --now dev-tools-2
+# Start at boot even before you log in:  sudo loginctl enable-linger $USER
+# Logs:     journalctl --user -u dev-tools-2 -f
 [Unit]
 Description=Dev Tools 2.0 (personal)
 After=network-online.target
@@ -9,8 +10,11 @@ After=network-online.target
 WorkingDirectory=%h/workspace/Dev-Tools-2.0
 Environment=NODE_ENV=production
 Environment=PORT=4300
-ExecStart=/usr/bin/env node --import tsx server/index.ts
-Restart=on-failure
+# The code runner needs g++ / javac / java / python3 / prlimit from here.
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+ExecStart=/usr/bin/node --import tsx server/index.ts
+Restart=always
+RestartSec=3
 
 [Install]
 WantedBy=default.target

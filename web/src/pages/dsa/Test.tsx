@@ -82,7 +82,7 @@ export function DsaTestPage() {
       {!live ? (
         <Card className="flex flex-col items-center gap-6 py-10 text-center">
           <p className="max-w-lg text-ink-2">
-            {problems.length} unseen problems · {duration} minutes. Open each on LeetCode, solve, then mark it here. Solving in the first half of the clock earns a 25% bonus.
+            {problems.length} unseen problems · {duration} minutes. Open each one here — statement, editor and judge included — and a green run counts it on this grid. Solving in the first half of the clock earns a 25% bonus.
           </p>
           <StartLights running={lights} onGo={async () => (await create({ kind: kind as 'weekly' | 'mega', ref, started_at: new Date().toISOString(), duration_min: duration, results: '{}' }), setLights(false))} />
           <Button className="h-12 px-10 text-base" disabled={lights} onClick={() => setLights(true)}>
@@ -116,8 +116,11 @@ export function DsaTestPage() {
                   <motion.li key={p.id} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.06 }} className="flex flex-wrap items-center gap-3 rounded-md bg-bg px-3 py-3">
                     <span className="w-8 font-mono font-bold text-ink-3">P{i + 1}</span>
                     <DiffChip d={p.diff} />
-                    <a href={p.url} target="_blank" rel="noreferrer" className="flex min-w-0 flex-1 items-center gap-1.5 truncate font-semibold hover:text-accent-2">
-                      {p.title} <ExternalLink className="size-3.5 shrink-0 text-ink-3" />
+                    <Link to={`/dsa/p/${p.id}`} className="min-w-0 flex-1 truncate font-semibold hover:text-accent-2">
+                      {p.title}
+                    </Link>
+                    <a href={p.url} target="_blank" rel="noreferrer" aria-label={`${p.title} on LeetCode`} className="text-ink-3 hover:text-ink">
+                      <ExternalLink className="size-4" />
                     </a>
                     <div className="flex gap-1">
                       {(['solved', 'partial', 'unsolved'] as Outcome[]).map((o) => (

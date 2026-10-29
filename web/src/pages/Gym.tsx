@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { Check as CheckIcon, ChevronDown, Flag, Pencil, Plus, Redo2, Timer, Trash2, Trophy, X } from 'lucide-react';
+import { ArrowLeftRight, Check as CheckIcon, ChevronDown, Flag, Minus, Pencil, Plus, Redo2, Timer, Trash2, Trophy, X } from 'lucide-react';
+import { DAY_MUSCLES, muscleOf } from '../core/exercises';
+import { ExercisePicker } from '../components/ExercisePicker';
 import { useList, useResource, useSettings } from '../lib/api';
 import { addDays, parseDate, relativeDay, today } from '../lib/format';
 import { listItem, spring } from '../lib/motion';
@@ -59,7 +61,34 @@ function Calendar({ shift, workouts }: { shift: number; workouts: Workout[] }) {
 }
 
 // ---------- Live session ----------
-function ExerciseCard({ ex, workout, sets, lastSets, priorBest, onLogged }: { ex: Exercise; workout: Workout; sets: GymSet[]; lastSets: GymSet[]; priorBest: number; onLogged: () => void }) {
+function Stepper({ value, onChange, step, unit, label, decimal }: { value: string; onChange: (v: string) => void; step: number; unit: string; label: string; decimal?: boolean }) {
+  const bump = (d: number) => onChange(String(Math.max(0, +((Number(value) || 0) + d).toFixed(2))));
+  return (
+    <div className="min-w-0 flex-1 sm:max-w-[13rem]">
+    <p className="mb-1 text-[10px] font-black uppercase tracking-[0.18em] text-ink-3">{unit}</p>
+    <div className="flex h-12 items-stretch overflow-hidden rounded-lg border border-line bg-bg">
+      <button type="button" aria-label={`Decrease ${label}`} onClick={() => bump(-step)} className="grid w-11 shrink-0 place-items-center text-ink-2 active:bg-surface-2">
+        <Minus className="size-4" />
+      </button>
+      <label className="relative min-w-0 flex-1">
+        <input
+          inputMode={decimal ? 'decimal' : 'numeric'}
+          aria-label={label}
+          value={value}
+          onChange={(e) => onChange(e.target.value.replace(decimal ? /[^\d.]/g : /\D/g, ''))}
+          className="h-full w-full bg-transparent text-center font-mono text-[17px] font-bold outline-none placeholder:text-ink-3"
+          placeholder="0"
+        />
+      </label>
+      <button type="button" aria-label={`Increase ${label}`} onClick={() => bump(step)} className="grid w-11 shrink-0 place-items-center text-ink-2 active:bg-surface-2">
+        <Plus className="size-4" />
+      </button>
+    </div>
+    </div>
+  );
+}
+
+function ExerciseCard({ ex, workout, sets, lastSets, priorBest, onLogged, onSwap }: { ex: Exercise; workout: Workout; sets: GymSet[]; lastSets: GymSet[]; priorBest: number; onLogged: () => void; onSwap?: () => void }) {
   const { create, remove } = useResource<GymSet>('sets');
   const next = lastSets[sets.length] ?? lastSets.at(-1) ?? sets.at(-1);
   const [weight, setWeight] = useState<string>(next ? String(next.weight) : '');
@@ -81,14 +110,22 @@ function ExerciseCard({ ex, workout, sets, lastSets, priorBest, onLogged }: { ex
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="truncate text-[16px] font-bold">{ex.name}</p>
+          {muscleOf(ex.name) && <p className="text-[10px] font-black uppercase tracking-[0.18em] text-accent-2">{muscleOf(ex.name)}</p>}
           <p className="text-xs text-ink-3">
             Target {ex.sets} × {ex.reps}
             {lastSets.length > 0 && <> · last: {lastSets.map((s) => `${kg(s.weight)}×${s.reps}`).join(', ')}</>}
           </p>
         </div>
-        <span className={cx('font-mono text-sm font-bold', done ? 'text-green' : 'text-ink-3')}>
-          {sets.length}/{ex.sets}
-        </span>
+        <div className="flex items-center gap-1">
+          {onSwap && sets.length === 0 && (
+            <IconButton label={`Swap ${ex.name}`} onClick={onSwap} className="size-8">
+              <ArrowLeftRight className="size-4" />
+            </IconButton>
+          )}
+          <span className={cx('font-mono text-sm font-bold', done ? 'text-green' : 'text-ink-3')}>
+            {sets.length}/{ex.sets}
+          </span>
+        </div>
       </div>
       {sets.length > 0 && (
         <ul className="mt-3 flex flex-wrap gap-2">
@@ -98,7 +135,7 @@ function ExerciseCard({ ex, workout, sets, lastSets, priorBest, onLogged }: { ex
                 <SectorChip sector={sectorColor(s, sessionBest, priorBest, lastBest)}>
                   {kg(s.weight)}×{s.reps}
                 </SectorChip>
-                <button aria-label="Remove set" onClick={() => remove(s.id)} className="text-ink-3 opacity-0 transition group-hover:opacity-100 hover:text-danger">
+                <button aria-label="Remove set" onClick={() => remove(s.id)} className="text-ink-3 opacity-0 transition group-hover:opacity-100 hover:text-danger max-sm:opacity-60">
                   <X className="size-3.5" />
                 </button>
               </motion.li>
@@ -107,23 +144,18 @@ function ExerciseCard({ ex, workout, sets, lastSets, priorBest, onLogged }: { ex
         </ul>
       )}
       <form
-        className="mt-3 flex items-center gap-2"
+        className="mt-3 flex flex-wrap items-end gap-2"
         onSubmit={(e) => {
           e.preventDefault();
           void log();
         }}
       >
-        <label className="relative flex-1">
-          <input inputMode="decimal" aria-label="Weight (kg)" value={weight} onChange={(e) => setWeight(e.target.value.replace(/[^\d.]/g, ''))} className="field h-10 w-full pr-9 font-mono" placeholder="kg" />
-          <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-ink-3">kg</span>
-        </label>
-        <span className="text-ink-3">×</span>
-        <label className="relative flex-1">
-          <input inputMode="numeric" aria-label="Reps" value={reps} onChange={(e) => setReps(e.target.value.replace(/\D/g, ''))} className="field h-10 w-full pr-11 font-mono" placeholder="reps" />
-          <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-ink-3">reps</span>
-        </label>
-        <Button size="sm" type="submit" className="h-10" disabled={!reps}>
-          <CheckIcon className="size-4" /> Log
+        {/* Steppers so a set can be logged one-handed without the keyboard. */}
+        <Stepper value={weight} onChange={setWeight} step={2.5} unit="kg" label="Weight" decimal />
+        <span className="pb-3 text-ink-3 max-sm:hidden">×</span>
+        <Stepper value={reps} onChange={setReps} step={1} unit="reps" label="Reps" />
+        <Button type="submit" className="h-12 basis-full sm:basis-auto" disabled={!reps}>
+          <CheckIcon className="size-4" /> Log set
         </Button>
       </form>
     </motion.div>
@@ -133,12 +165,16 @@ function ExerciseCard({ ex, workout, sets, lastSets, priorBest, onLogged }: { ex
 function Session({ workout, template, sets, allSets, workouts }: { workout: Workout; template: Exercise[]; sets: GymSet[]; allSets: GymSet[]; workouts: Workout[] }) {
   const { update } = useResource<Workout>('workouts');
   const [rest, setRest] = useState(0);
-  const [extra, setExtra] = useState('');
+  const [picking, setPicking] = useState<null | { swap?: string }>(null);
   const [finished, setFinished] = useState(false);
+  // Swaps (machine taken, niggle) apply to this session only — the template stays as it is.
+  const [swaps, setSwaps] = useState<Record<string, string>>({});
+  const planned = template.map((t) => (swaps[t.name] ? { ...t, name: swaps[t.name] } : t));
   const loggedNames = [...new Set(sets.map((s) => s.exercise))];
-  const exercises: Exercise[] = [...template, ...loggedNames.filter((n) => !template.some((t) => t.name === n)).map((name) => ({ name, sets: 3, reps: '8-12' }))];
+  const exercises: Exercise[] = [...planned, ...loggedNames.filter((n) => !planned.some((t) => t.name === n)).map((name) => ({ name, sets: 3, reps: '8-12' }))];
   const [added, setAdded] = useState<Exercise[]>([]);
   const all = [...exercises, ...added.filter((a) => !exercises.some((e) => e.name === a.name))];
+  const original = (name: string) => Object.entries(swaps).find(([, v]) => v === name)?.[0] ?? name;
 
   // Previous session of the same day type, for "last time" ghosts and the green threshold.
   const prev = workouts.find((w) => w.id !== workout.id && w.day_type === workout.day_type && w.finished_at && w.date <= workout.date);
@@ -184,22 +220,24 @@ function Session({ workout, template, sets, allSets, workouts }: { workout: Work
             lastSets={prevSets.filter((s) => s.exercise === ex.name)}
             priorBest={prior.get(ex.name) ?? 0}
             onLogged={() => setRest((r) => r + 1)}
+            onSwap={template.some((t) => t.name === original(ex.name)) ? () => setPicking({ swap: original(ex.name) }) : undefined}
           />
         ))}
       </motion.div>
-      <form
-        className="flex gap-2"
-        onSubmit={(e) => {
-          e.preventDefault();
-          if (extra.trim()) setAdded((a) => [...a, { name: extra.trim(), sets: 3, reps: '8-12' }]);
-          setExtra('');
+      <Button variant="soft" className="h-12 w-full" onClick={() => setPicking({})}>
+        <Plus className="size-4" /> Add exercise from library
+      </Button>
+      <ExercisePicker
+        open={!!picking}
+        onClose={() => setPicking(null)}
+        title={picking?.swap ? `Swap ${picking.swap}` : 'Add exercise'}
+        muscles={picking?.swap && muscleOf(picking.swap) ? [muscleOf(picking.swap)!] : DAY_MUSCLES[workout.day_type as DayType] ?? []}
+        exclude={all.map((e) => e.name)}
+        onPick={(name) => {
+          if (picking?.swap) setSwaps((s) => ({ ...s, [picking.swap!]: name }));
+          else setAdded((a) => [...a, { name, sets: 3, reps: '8-12' }]);
         }}
-      >
-        <Input placeholder="Add another exercise" value={extra} onChange={(e) => setExtra(e.target.value)} />
-        <Button type="submit" variant="soft">
-          <Plus className="size-4" /> Add
-        </Button>
-      </form>
+      />
       <Button
         className="h-14 w-full text-base"
         onClick={() => {
@@ -483,9 +521,10 @@ function TemplateEditor({ open, onClose }: { open: boolean; onClose: () => void 
   const { get, set } = useTemplates();
   const [day, setDay] = useState<Exclude<DayType, 'rest'>>('push');
   const list = get(day);
-  const [name, setName] = useState('');
+  const [picking, setPicking] = useState(false);
   return (
-    <Sheet open={open} onClose={onClose} title="Session templates">
+    <>
+    <Sheet open={open && !picking} onClose={onClose} title="Session templates">
       <div className="no-scrollbar mb-4 flex gap-1.5 overflow-x-auto">
         {(['push', 'pull', 'legs', 'upper', 'lower'] as const).map((d) => (
           <button key={d} onClick={() => setDay(d)} className={cx('slant px-4 py-1.5 text-[12px] font-black italic uppercase', day === d ? 'text-black' : 'bg-surface-2 text-ink-2')} style={day === d ? { background: DAY_META[d].color } : undefined}>
@@ -506,19 +545,12 @@ function TemplateEditor({ open, onClose }: { open: boolean; onClose: () => void 
           </li>
         ))}
       </ul>
-      <form
-        className="mt-3 flex gap-2"
-        onSubmit={(e) => {
-          e.preventDefault();
-          if (!name.trim()) return;
-          set(day, [...list, { name: name.trim(), sets: 3, reps: '8-12' }]);
-          setName('');
-        }}
-      >
-        <Input placeholder={`Add exercise to ${DAY_META[day].label}`} value={name} onChange={(e) => setName(e.target.value)} />
-        <Button type="submit">Add</Button>
-      </form>
+      <Button variant="soft" className="mt-3 h-11 w-full" onClick={() => setPicking(true)}>
+        <Plus className="size-4" /> Add exercise to {DAY_META[day].label}
+      </Button>
     </Sheet>
+    <ExercisePicker open={open && picking} onClose={() => setPicking(false)} muscles={DAY_MUSCLES[day]} exclude={list.map((e) => e.name)} onPick={(name) => set(day, [...list, { name, sets: 3, reps: '8-12' }])} />
+    </>
   );
 }
 

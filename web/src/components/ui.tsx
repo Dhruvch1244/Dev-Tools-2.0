@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState, type ComponentProps, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { AnimatePresence, motion, useMotionValue, useSpring, useTransform, type HTMLMotionProps } from 'motion/react';
+import { AnimatePresence, motion, useDragControls, useMotionValue, useSpring, useTransform, type HTMLMotionProps } from 'motion/react';
 import { Trash2, X } from 'lucide-react';
 import { bouncy, rise, spring, stagger } from '../lib/motion';
 import { haptic } from '../lib/format';
@@ -285,6 +285,9 @@ export function useIsMobile() {
 
 export function Sheet({ open, onClose, title, children }: { open: boolean; onClose: () => void; title?: ReactNode; children: ReactNode }) {
   const mobile = useIsMobile();
+  // Drag-to-dismiss starts only from the grip/header. Letting the whole sheet be draggable made
+  // scrolling a long list inside it (food search, exercise picker) pull the sheet down instead.
+  const drag = useDragControls();
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
@@ -306,6 +309,8 @@ export function Sheet({ open, onClose, title, children }: { open: boolean; onClo
               exit={mobile ? { y: '100%' } : { opacity: 0, y: 12, scale: 0.97, filter: 'blur(4px)' }}
               transition={{ type: 'spring', stiffness: 380, damping: 36 }}
               drag={mobile ? 'y' : false}
+              dragControls={drag}
+              dragListener={false}
               dragConstraints={{ top: 0, bottom: 0 }}
               dragElastic={{ top: 0, bottom: 0.7 }}
               onDragEnd={(_, i) => (i.offset.y > 110 || i.velocity.y > 600) && onClose()}
@@ -314,9 +319,13 @@ export function Sheet({ open, onClose, title, children }: { open: boolean; onClo
                 mobile ? 'rounded-t-[28px] px-5 pb-[calc(env(safe-area-inset-bottom)+20px)] pt-3' : 'max-w-lg rounded-[28px] p-6',
               )}
             >
-              {mobile && <div className="mx-auto mb-3 h-1.5 w-10 rounded-full bg-line-strong" />}
+              {mobile && (
+                <div onPointerDown={(e) => drag.start(e)} className="-mx-5 -mt-3 mb-1 flex touch-none justify-center pb-2 pt-3">
+                  <div className="h-1.5 w-10 rounded-full bg-line-strong" />
+                </div>
+              )}
               {title && (
-                <div className="mb-4 flex items-center justify-between">
+                <div onPointerDown={(e) => mobile && drag.start(e)} className="mb-4 flex touch-none items-center justify-between">
                   <h3 className="font-display text-xl font-semibold tracking-tight">{title}</h3>
                   <IconButton label="Close" onClick={onClose}>
                     <X className="size-4" />

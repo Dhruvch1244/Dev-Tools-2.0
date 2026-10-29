@@ -34,6 +34,11 @@ export type Macros = { kcal: number; protein: number; carbs: number; fat: number
 export const sumMacros = (rows: Macros[]): Macros =>
   rows.reduce((a, r) => ({ kcal: a.kcal + r.kcal, protein: a.protein + r.protein, carbs: a.carbs + r.carbs, fat: a.fat + r.fat }), { kcal: 0, protein: 0, carbs: 0, fat: 0 });
 
+/** The meal you're most likely logging right now. */
+export function mealForNow(h = new Date().getHours()) {
+  return h < 11 ? 'breakfast' : h < 16 ? 'lunch' : h < 19 ? 'snacks' : 'dinner';
+}
+
 export const MEALS = [
   { id: 'breakfast', label: 'Breakfast', hint: 'Out-lap' },
   { id: 'lunch', label: 'Lunch', hint: 'Stint 1' },

@@ -31,7 +31,7 @@ const OUTPUT_CAP = 1 << 20;
 const EVENT_CAP = 20_000;
 const VIZ_PREFIX = '@@viz ';
 
-function exec(cmd: string, args: string[], opts: { cwd: string; stdin?: string; timeoutMs: number; env?: Record<string, string> }) {
+export function exec(cmd: string, args: string[], opts: { cwd: string; stdin?: string; timeoutMs: number; env?: Record<string, string> }) {
   return new Promise<{ code: number | null; out: string; err: string; timedOut: boolean; ms: number }>((resolve) => {
     const t0 = performance.now();
     const child = spawn(cmd, args, { cwd: opts.cwd, env: { PATH: process.env.PATH ?? '', HOME: opts.cwd, ...opts.env }, stdio: ['pipe', 'pipe', 'pipe'] });
@@ -52,7 +52,7 @@ function exec(cmd: string, args: string[], opts: { cwd: string; stdin?: string; 
 }
 
 /** Separate viz protocol lines from the program's real stderr. */
-function splitViz(stderr: string) {
+export function splitViz(stderr: string) {
   const events: unknown[] = [];
   const rest: string[] = [];
   for (const line of stderr.split('\n')) {
@@ -70,7 +70,7 @@ function splitViz(stderr: string) {
 }
 
 // Memory cap via prlimit for native/python; the JVM reserves huge virtual space, so it gets -Xmx instead.
-const limited = (cmd: string, args: string[]) => ['prlimit', ['--as=1073741824', '--', cmd, ...args]] as const;
+export const limited = (cmd: string, args: string[]) => ['prlimit', ['--as=1073741824', '--', cmd, ...args]] as const;
 
 async function runOnce(lang: Lang, code: string, stdin: string): Promise<RunResult> {
   const dir = await mkdtemp(join(tmpdir(), 'dt2-run-'));
@@ -105,20 +105,21 @@ function finish(r: { code: number | null; out: string; err: string; timedOut: bo
   return { phase: 'run', ok: r.code === 0 && !r.timedOut, exitCode: r.code, timedOut: r.timedOut, stdout: r.out, stderr, events, ms: r.ms };
 }
 
-// One queue for all runs (dsgn pillar #2): compiles are CPU-heavy, so two at a time at most.
+// One queue for all runs and judge jobs (dsgn pillar #2): compiles are CPU-heavy, so two at a time at most.
 const MAX_PARALLEL = 2;
 let active = 0;
 const waiting: (() => void)[] = [];
-export async function run(lang: Lang, code: string, stdin = ''): Promise<RunResult> {
+export async function withSlot<T>(fn: () => Promise<T>): Promise<T> {
   if (active >= MAX_PARALLEL) await new Promise<void>((r) => waiting.push(r));
   active++;
   try {
-    return await runOnce(lang, code, stdin);
+    return await fn();
   } finally {
     active--;
     waiting.shift()?.();
   }
 }
+export const run = (lang: Lang, code: string, stdin = '') => withSlot(() => runOnce(lang, code, stdin));
 
 // ---------------------------------------------------------------------------------------------
 // viz helpers. Every call prints one JSON line to stderr; the client folds them into frames.
@@ -126,7 +127,7 @@ export async function run(lang: Lang, code: string, stdin = ''): Promise<RunResu
 //   cell(tableName, r, c)      var(name, value)                step(message)
 // ---------------------------------------------------------------------------------------------
 
-const VIZ_PY = String.raw`import builtins, json, sys
+export const VIZ_PY = String.raw`import builtins, json, sys
 
 class _Viz:
     def _emit(self, **o):
@@ -141,7 +142,7 @@ class _Viz:
 builtins.viz = _Viz()
 `;
 
-const VIZ_CPP = String.raw`#pragma once
+export const VIZ_CPP = String.raw`#pragma once
 #include <bits/stdc++.h>
 namespace viz {
 inline std::string esc(const std::string& s) {
@@ -175,7 +176,7 @@ inline void step(const std::string& msg = "") { emit("\"op\":\"step\",\"msg\":" 
 }  // namespace viz
 `;
 
-const VIZ_JAVA = String.raw`import java.util.*;
+export const VIZ_JAVA = String.raw`import java.util.*;
 
 final class Viz {
   private static String esc(String s) { return "\"" + s.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n") + "\""; }

@@ -387,3 +387,23 @@ button {
     animation: none !important;
   }
 }
+
+/* LeetCode statements: diagrams are drawn for white pages; examples must wrap on phones. */
+.lc-statement img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+  background: #fff;
+  padding: 6px;
+}
+.lc-statement pre {
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 13px;
+}
+.lc-statement pre strong {
+  color: var(--ink);
+}
+.lc-statement sup {
+  font-size: 0.7em;
+}

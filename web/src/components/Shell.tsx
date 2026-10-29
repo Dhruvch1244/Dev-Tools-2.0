@@ -1,7 +1,10 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { NavLink, useLocation } from 'react-router';
+import { NavLink, useLocation, useNavigate } from 'react-router';
 import { AnimatePresence, motion } from 'motion/react';
-import { Binary, Dumbbell, HeartPulse, House, LayoutGrid, ListTodo, Plus, Send, Settings as SettingsIcon, StickyNote, Utensils, Wallet } from 'lucide-react';
+import { Binary, ChevronLeft, Droplets, Dumbbell, HeartPulse, House, LayoutGrid, ListTodo, Plus, Send, Settings as SettingsIcon, StickyNote, Utensils, Wallet } from 'lucide-react';
+import { mealForNow } from '../core/fuel';
+import { FoodSearch } from '../pages/Fuel';
+import { useHealthToday } from '../pages/Life';
 import { useLiveSync, useSettings } from '../lib/api';
 import { bouncy, easeOut, spring } from '../lib/motion';
 import { haptic, today } from '../lib/format';
@@ -9,7 +12,7 @@ import { useReminders } from '../lib/reminders';
 import { DAY_META, dayTypeOn } from '../core/gym';
 import { ExpenseForm, QuickNoteForm, TaskForm } from './forms';
 import { SettingsSheet } from './SettingsSheet';
-import { Segmented, Sheet, Textarea, Button, cx } from './ui';
+import { Sheet, Textarea, Button, cx } from './ui';
 import { sendDrop } from '../lib/drop';
 import { useToast } from './toast';
 
@@ -98,26 +101,79 @@ function Hud() {
   );
 }
 
-type QuickKind = 'task' | 'expense' | 'note' | 'drop';
+type QuickKind = 'menu' | 'task' | 'expense' | 'note' | 'drop' | 'food';
+
+const QUICK_TILES: { kind: QuickKind | 'water' | 'gym'; label: string; icon: typeof House; color: string }[] = [
+  { kind: 'food', label: 'Food', icon: Utensils, color: 'var(--green)' },
+  { kind: 'water', label: 'Water +1', icon: Droplets, color: 'var(--sky)' },
+  { kind: 'gym', label: 'Gym set', icon: Dumbbell, color: 'var(--yellow)' },
+  { kind: 'task', label: 'Task', icon: ListTodo, color: 'var(--accent)' },
+  { kind: 'expense', label: 'Expense', icon: Wallet, color: 'var(--purple)' },
+  { kind: 'note', label: 'Note', icon: StickyNote, color: 'var(--accent-2)' },
+  { kind: 'drop', label: 'Drop', icon: Send, color: 'var(--ink-2)' },
+];
+const TITLES: Record<QuickKind, string> = { menu: 'Quick add', task: 'New task', expense: 'Money', note: 'Note', drop: 'Drop', food: 'Log food' };
 
 function QuickAdd({ open, onClose, kind, setKind }: { open: boolean; onClose: () => void; kind: QuickKind; setKind: (k: QuickKind) => void }) {
   const [text, setText] = useState('');
+  const [meal, setMeal] = useState<string>(mealForNow());
   const toast = useToast();
+  const navigate = useNavigate();
+  const health = useHealthToday();
+  useEffect(() => {
+    if (open) setMeal(mealForNow());
+  }, [open]);
+
+  const tap = (k: (typeof QUICK_TILES)[number]['kind']) => {
+    haptic(10);
+    if (k === 'water') {
+      const before = health.get('water') ?? 0;
+      health.set({ kind: 'water', value: before + 1 });
+      toast({ message: `💧 ${before + 1} glasses today`, action: { label: 'Undo', onClick: () => health.set({ kind: 'water', value: before }) } });
+      onClose();
+    } else if (k === 'gym') {
+      navigate('/gym');
+      onClose();
+    } else setKind(k);
+  };
+
   return (
-    <Sheet open={open} onClose={onClose} title="Quick add">
-      <Segmented
-        className="mb-5 w-full"
-        value={kind}
-        onChange={setKind}
-        options={[
-          { value: 'task', label: 'Task' },
-          { value: 'expense', label: 'Money' },
-          { value: 'note', label: 'Note' },
-          { value: 'drop', label: 'Drop' },
-        ]}
-      />
+    <Sheet
+      open={open}
+      onClose={onClose}
+      title={
+        <span className="flex items-center gap-2">
+          {kind !== 'menu' && (
+            <button onClick={() => setKind('menu')} className="grid size-8 place-items-center rounded-md bg-surface-2 text-ink-2" aria-label="Back to quick add">
+              <ChevronLeft className="size-4" />
+            </button>
+          )}
+          {TITLES[kind]}
+        </span>
+      }
+    >
       <AnimatePresence mode="wait" initial={false}>
-        <motion.div key={kind} initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -16 }} transition={{ duration: 0.2, ease: easeOut }}>
+        <motion.div key={kind} initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -16 }} transition={{ duration: 0.18, ease: easeOut }}>
+          {kind === 'menu' && (
+            <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+              {QUICK_TILES.map((t, i) => (
+                <motion.button
+                  key={t.kind}
+                  initial={{ opacity: 0, y: 14, scale: 0.92 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  transition={{ ...spring, delay: i * 0.03 }}
+                  whileTap={{ scale: 0.92 }}
+                  onClick={() => tap(t.kind)}
+                  className="relative flex aspect-square flex-col items-center justify-center gap-2 overflow-hidden rounded-xl border border-line bg-bg"
+                >
+                  <span className="absolute inset-x-0 top-0 h-[3px]" style={{ background: t.color }} />
+                  <t.icon className="size-7" style={{ color: t.color }} />
+                  <span className="text-[12px] font-black uppercase italic tracking-wide">{t.label}</span>
+                </motion.button>
+              ))}
+            </div>
+          )}
+          {kind === 'food' && <FoodSearch date={today()} meal={meal} onMealChange={setMeal} />}
           {kind === 'task' && <TaskForm autoFocus onDone={onClose} />}
           {kind === 'expense' && <ExpenseForm autoFocus onDone={onClose} />}
           {kind === 'note' && <QuickNoteForm autoFocus onDone={onClose} />}
@@ -177,6 +233,7 @@ export function Shell({ children }: { children: ReactNode }) {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
+        setQuickKind('menu');
         setQuick((q) => !q);
       }
     };
@@ -184,10 +241,11 @@ export function Shell({ children }: { children: ReactNode }) {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  const defaultKind: Record<string, QuickKind> = { '/money': 'expense', '/notes': 'note', '/drop': 'drop' };
+  // Most pages open the tile menu; a few jump straight to the one thing you add there.
+  const defaultKind: Record<string, QuickKind> = { '/fuel': 'food', '/money': 'expense', '/notes': 'note', '/drop': 'drop', '/tasks': 'task' };
   const openQuick = () => {
     haptic(12);
-    setQuickKind(defaultKind[section] ?? 'task');
+    setQuickKind(defaultKind[section] ?? 'menu');
     setQuick(true);
   };
 

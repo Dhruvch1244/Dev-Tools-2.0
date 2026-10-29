@@ -56,7 +56,8 @@ function MacroBar({ label, value, target, color }: { label: string; value: numbe
 
 type AnyFood = Food | (CustomFood & { cat: 'Custom' });
 
-function AddFoodSheet({ meal, date, onClose }: { meal: string | null; date: string; onClose: () => void }) {
+/** Food search + logging; used by the Fuel page and the quick-add menu. */
+export function FoodSearch({ date, meal, onMealChange }: { date: string; meal: string; onMealChange?: (m: string) => void }) {
   const { create } = useResource<FoodLog>('food_logs');
   const { data: custom = [] } = useList<CustomFood>('custom_foods');
   const customApi = useResource<CustomFood>('custom_foods');
@@ -75,14 +76,26 @@ function AddFoodSheet({ meal, date, onClose }: { meal: string | null; date: stri
   }, [recentLogs, all]);
   const list = q ? searchFoods(all, q) : cat === 'Recent' ? (recent.length ? recent : FOODS.slice(0, 20)) : cat === 'Custom' ? all.filter((f) => f.cat === 'Custom') : all.filter((f) => f.cat === cat);
 
+  const [added, setAdded] = useState<Record<string, number>>({});
   const add = async (f: AnyFood) => {
     const n = qty[f.id] ?? 1;
-    await create({ date, meal: meal!, food_id: f.id, name: f.name, qty: n, unit: f.serving, kcal: f.kcal * n, protein: f.protein * n, carbs: f.carbs * n, fat: f.fat * n });
+    await create({ date, meal, food_id: f.id, name: f.name, qty: n, unit: f.serving, kcal: f.kcal * n, protein: f.protein * n, carbs: f.carbs * n, fat: f.fat * n });
+    navigator.vibrate?.(12);
+    setAdded((a) => ({ ...a, [f.id]: (a[f.id] ?? 0) + n }));
     toast({ message: `${n} × ${f.name} → ${MEALS.find((m) => m.id === meal)?.label}` });
   };
 
   return (
-    <Sheet open={!!meal} onClose={onClose} title={`Add to ${MEALS.find((m) => m.id === meal)?.label ?? ''}`}>
+    <>
+      {onMealChange && (
+        <div className="mb-3 grid grid-cols-4 gap-1">
+          {MEALS.map((m) => (
+            <button key={m.id} onClick={() => onMealChange(m.id)} className={cx('h-9 rounded-md text-[12px] font-bold uppercase', meal === m.id ? 'bg-accent text-white' : 'bg-surface-2 text-ink-2')}>
+              {m.label}
+            </button>
+          ))}
+        </div>
+      )}
       <div className="relative mb-3">
         <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink-3" />
         <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search roti, dal, paneer…" className="field h-11 w-full !pl-9" />
@@ -116,8 +129,8 @@ function AddFoodSheet({ meal, date, onClose }: { meal: string | null; date: stri
                   <Plus className="size-3.5" />
                 </button>
               </div>
-              <Button size="sm" onClick={() => void add(f)}>
-                Add
+              <Button size="sm" variant={added[f.id] ? 'soft' : 'primary'} className="h-9 min-w-16" onClick={() => void add(f)}>
+                {added[f.id] ? `✓ ${added[f.id]}` : 'Add'}
               </Button>
             </li>
           );
@@ -152,6 +165,14 @@ function AddFoodSheet({ meal, date, onClose }: { meal: string | null; date: stri
           </form>
         )}
       </div>
+    </>
+  );
+}
+
+function AddFoodSheet({ meal, date, onClose }: { meal: string | null; date: string; onClose: () => void }) {
+  return (
+    <Sheet open={!!meal} onClose={onClose} title={`Add to ${MEALS.find((m) => m.id === meal)?.label ?? ''}`}>
+      {meal && <FoodSearch date={date} meal={meal} />}
     </Sheet>
   );
 }

@@ -6,9 +6,9 @@ No accounts, no cloud, no restrictions: your data is one SQLite file in `data/`.
 | | |
 |---|---|
 | **Today** | Greeting, live clock, rings for tasks / budget / habits / water, plus today's Gym · Fuel · DSA status |
-| **Gym** | Your 7-day split (Push › Pull › Legs › Rest › Upper › Lower › Rest), start-lights session start, set logging with last-session ghosts, F1 sector colours (purple = all-time best, green = beat last time, yellow = below), rest timer, weekly volume, PR board, editable templates, "skipped a day" shift with undo |
-| **Fuel** | 146 common Indian dishes per household serving (roti, dal, sabzi, poha, idli…) + custom foods, meals, shift-light calorie gauge, macros, BMR/TDEE/target calculator (Mifflin–St Jeor), copy yesterday, 7-day chart |
-| **DSA Season** | 13-week advanced roadmap (156 practice problems, 2/day), concept briefings with tables, weekly timed tests, 3 monthly Grand Prix mega tests + finale, spaced revision queue, points & streaks, live Codeforces / LeetCode / CodeChef contests with reminders, CF/LC rating sync |
+| **Gym** | 232-exercise library (search / muscle filters, swap a machine mid-session), +/− steppers for one-handed logging, your 7-day split (Push › Pull › Legs › Rest › Upper › Lower › Rest), start-lights session start, set logging with last-session ghosts, F1 sector colours (purple = all-time best, green = beat last time, yellow = below), rest timer, weekly volume, PR board, editable templates, "skipped a day" shift with undo |
+| **Fuel** | 422 foods — home Indian dishes per household serving, South Indian & regional (Bengali, Gujarati, Maharashtrian, Rajasthani, Kerala…), restaurant & fast food, packaged staples, drinks, and raw ingredients per 100 g — plus custom foods, meals, shift-light calorie gauge, macros, BMR/TDEE/target calculator (Mifflin–St Jeor), copy yesterday, 7-day chart |
+| **DSA Season** | 13-week advanced roadmap (156 practice problems, 2/day), **full LeetCode statements in-app** (cached for offline), a **local judge** that runs your C++/Java/Python `Solution` against the official examples (215/219 problems; custom-`Node` ones defer to LeetCode), concept briefings with tables, weekly timed tests, 3 monthly Grand Prix mega tests + finale, spaced revision queue, points & streaks, live Codeforces / LeetCode / CodeChef contests with reminders, CF/LC rating sync |
 | **Visualizer** | 15 animated algorithms (prefix sums, two pointers, sliding window, binary search, monotonic stack, backtracking tree, tree BFS, heap, grid BFS, topo sort, Dijkstra, union-find, coin-change DP, LCS table, KMP) with the executing line highlighted in C++ / Java / Python |
 | **Code lab** | Write C++ / Java / Python, run it on this laptop (real g++ / javac / python3), and call `viz` helpers to replay your own run as an animation |
 | **Tasks / Notes / Money / Drop / Life** | Tasks with reminders, notes, expenses & budgets & subscriptions, phone⇄laptop drop, habits/health/journal |
@@ -36,8 +36,12 @@ Keep it always on with the bundled systemd user service:
 
 ```bash
 cp deploy/dev-tools-2.service ~/.config/systemd/user/
-systemctl --user enable --now dev-tools-2
-sudo loginctl enable-linger $USER   # keep running when logged out
+systemctl --user daemon-reload && systemctl --user enable --now dev-tools-2
+sudo loginctl enable-linger $USER   # start at boot, even before you log in
+
+# after pulling changes / rebuilding:
+npm run build && systemctl --user restart dev-tools-2
+journalctl --user -u dev-tools-2 -f # logs
 ```
 
 ## Use it from your phone (Tailscale)

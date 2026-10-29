@@ -3,7 +3,9 @@
 // A katori here means ~150 g of cooked dish. Pure data: no React imports.
 
 export type Food = { id: string; name: string; serving: string; kcal: number; protein: number; carbs: number; fat: number; cat: FoodCat };
-export type FoodCat = 'Breads' | 'Rice' | 'Dal & Curry' | 'Sabzi' | 'Non-veg' | 'Breakfast' | 'Dairy & Drinks' | 'Snacks' | 'Fruits & Nuts' | 'Sweets' | 'Extras';
+import { MORE } from './foodsMore';
+
+export type FoodCat = 'Breads' | 'Rice' | 'Dal & Curry' | 'Sabzi' | 'Non-veg' | 'Breakfast' | 'Dairy & Drinks' | 'Snacks' | 'Fruits & Nuts' | 'Sweets' | 'Extras' | 'South Indian' | 'Regional' | 'Restaurant & Fast food' | 'Packaged' | 'Drinks' | 'Raw (per 100 g)' | 'More home food';
 
 type Row = [id: string, name: string, serving: string, kcal: number, protein: number, carbs: number, fat: number];
 const group = (cat: FoodCat, rows: Row[]): Food[] => rows.map(([id, name, serving, kcal, protein, carbs, fat]) => ({ id, name, serving, kcal, protein, carbs, fat, cat }));
@@ -177,6 +179,7 @@ export const FOODS: Food[] = [
     ['sugar', 'Sugar', '1 tsp', 20, 0, 5, 0],
     ['soya-chunks', 'Soya chunks (dry)', '50 g', 175, 26, 16, 0.3],
   ]),
+  ...Object.entries(MORE).flatMap(([cat, rows]) => group(cat as FoodCat, rows)),
 ];
 
 export const FOOD_CATS = [...new Set(FOODS.map((f) => f.cat))];
