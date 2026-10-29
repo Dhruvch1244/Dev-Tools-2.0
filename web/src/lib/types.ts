@@ -35,6 +35,8 @@ export type Settings = {
   workOverrides?: Record<string, WorkOverride>;
   cook?: Partial<CookConfig>;
   /** Daily supplements/medicines with a reminder time. */
+  /** UPI id shown in 'please pay' messages. */
+  upi?: string;
   supplements?: { id: string; name: string; at: string; dose?: string }[];
   /** Swapped cook-plan dishes by date. */
   cookPicks?: Record<string, { breakfast?: string; dinner?: string }>;
@@ -49,6 +51,7 @@ export type Activity = Stamped & { date: string; type: string; started_at: strin
 export type Routine = Stamped & { name: string; emoji: string | null; days: string; time: string; duration_min: number; steps: string | null; habit_id: string | null; remind: number; gcal_event_id: string | null; active: number };
 export type RoutineLog = { routine_id: string; date: string; steps: string | null };
 export type PersonRow = Stamped & Person;
+export type SplitRow = Stamped & { expense_id: string | null; person_id: string; amount: number; note: string | null; date: string; settled_at: string | null };
 export type ShopRow = Stamped & { name: string; qty: string | null; done: number; source: string | null };
 export type SavedMeal = Stamped & { name: string; meal: string | null; items: string };
 export type Briefs = { morning?: boolean; evening?: boolean; morningAt?: string; eveningAt?: string; water?: boolean };

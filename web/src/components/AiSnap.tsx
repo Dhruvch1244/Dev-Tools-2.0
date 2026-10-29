@@ -11,7 +11,7 @@ import { Button, Textarea, cx } from './ui';
 import { useToast } from './toast';
 
 /** Downscale on the phone before upload: a 12 MP photo becomes ~150 KB, plenty for the model. */
-async function shrink(file: File, max = 1280): Promise<string> {
+export async function shrink(file: File, max = 1280): Promise<string> {
   const url = URL.createObjectURL(file);
   try {
     const img = await new Promise<HTMLImageElement>((ok, fail) => {

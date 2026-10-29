@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { AlertTriangle, ArrowDownLeft, ArrowUpRight, ChevronLeft, ChevronRight, Plus, Repeat, Target, Trash2, Wallet } from 'lucide-react';
+import { AlertTriangle, ArrowDownLeft, ArrowUpRight, ChevronLeft, ChevronRight, Plus, ReceiptText, Repeat, Target, Trash2, Wallet } from 'lucide-react';
 import { useList, useResource, useSettings } from '../lib/api';
 import { EXPENSE_CATEGORIES, emojiFor } from '../lib/categories';
 import { listItem, spring } from '../lib/motion';
@@ -8,6 +8,7 @@ import { addDays, addMonths, daysBetween, monthKey, monthRange, money, parseDate
 import type { Budget, Expense, Subscription } from '../lib/types';
 import { ExpenseForm } from '../components/forms';
 import { useToast } from '../components/toast';
+import { BillSheet, OwedCard } from '../components/BillSplit';
 import { AnimatedNumber, Button, Card, Chip, Empty, IconButton, Input, Page, PageHeader, Rise, SectionTitle, Segmented, Sheet, SwipeRow, cx } from '../components/ui';
 
 const monthlyCost = (s: Subscription) => (s.cycle === 'yearly' ? s.amount / 12 : s.cycle === 'weekly' ? (s.amount * 52) / 12 : s.amount);
@@ -257,6 +258,7 @@ export function MoneyPage() {
   const toast = useToast();
   const [adding, setAdding] = useState(false);
   const [budgetsOpen, setBudgetsOpen] = useState(false);
+  const [bill, setBill] = useState(false);
 
   const { spent, income, byCategory, byDay } = useMemo(() => {
     const spent = expenses.filter((e) => e.kind === 'expense').reduce((a, e) => a + e.amount, 0);
@@ -314,9 +316,14 @@ export function MoneyPage() {
           </span>
         }
         action={
-          <Button onClick={() => setAdding(true)} className="max-lg:hidden">
-            <Plus className="size-4" /> Add entry
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="soft" onClick={() => setBill(true)}>
+              <ReceiptText className="size-4" /> Scan bill
+            </Button>
+            <Button onClick={() => setAdding(true)} className="max-lg:hidden">
+              <Plus className="size-4" /> Add entry
+            </Button>
+          </div>
         }
       />
 
@@ -411,7 +418,8 @@ export function MoneyPage() {
             ))}
           </div>
         </Card>
-        <Rise className="lg:col-span-2">
+        <Rise className="space-y-4 lg:col-span-2">
+          <OwedCard onScan={() => setBill(true)} />
           <Subscriptions currency={currency} />
         </Rise>
       </div>
@@ -419,6 +427,7 @@ export function MoneyPage() {
       <Sheet open={adding} onClose={() => setAdding(false)} title="New entry">
         <ExpenseForm autoFocus onDone={() => setAdding(false)} />
       </Sheet>
+      <BillSheet open={bill} onClose={() => setBill(false)} />
       <BudgetSheet open={budgetsOpen} onClose={() => setBudgetsOpen(false)} budgets={budgetRows} />
     </Page>
   );

@@ -21,6 +21,7 @@ import { syncLeetCode } from './lcsync.ts';
 import { DSA_SYSTEM, FUEL_SYSTEM, ask, dsaPrompt, type DsaAsk, type Prompt } from './coach.ts';
 import { CAPTURE_SYSTEM, CHAT_SYSTEM, chatPrompt, lifeContext, workRemindersTick, cookTick, lifePingsTick, type ChatTurn } from './assistant.ts';
 import { normaliseActions, splitActions } from '../web/src/core/aiActions.ts';
+import { RECEIPT_SYSTEM, normaliseReceipt } from '../web/src/core/money.ts';
 import { AI_FOOD_SYSTEM, aiUserText, extractJson, normaliseAi } from '../web/src/core/aiFood.ts';
 
 const PORT = Number(process.env.PORT ?? 4300);
@@ -114,6 +115,7 @@ app.delete('/api/r/:res/:id', (c) => {
   emit(name);
   if (name === 'habits') emit('habit_logs');
   if (name === 'workouts') emit('sets');
+  if (name === 'expenses' && db.prepare('DELETE FROM splits WHERE expense_id = ?').run(c.req.param('id')).changes) emit('splits');
   return c.body(null, 204);
 });
 
@@ -449,6 +451,22 @@ app.post('/api/fuel/vision', async (c) => {
   try {
     const reply = await ask(AI_FOOD_SYSTEM, prompt, { onDelta: () => {}, signal: c.req.raw.signal });
     return c.json(normaliseAi(extractJson(reply), diet));
+  } catch (e) {
+    return c.json({ error: (e as Error).message }, 502);
+  }
+});
+
+// ---- AI receipt reading: photo → merchant, items, extras, total, category ----
+app.post('/api/money/receipt', async (c) => {
+  const { image, text } = await c.req.json<{ image?: string; text?: string }>();
+  const m = image?.match(/^data:(image\/(?:jpeg|png|webp|gif));base64,(.+)$/);
+  if (!m && !text?.trim()) return c.json({ error: 'Add a photo of the bill' }, 400);
+  if (m && m[2].length > 8_000_000) return c.json({ error: 'Photo too large' }, 413);
+  const ask_ = `Read this bill.${text?.trim() ? ` The user adds: "${text.trim().slice(0, 300)}"` : ''} Today is ${localStamp(new Date()).slice(0, 10)}.`;
+  const prompt: Prompt = m ? [{ type: 'image', source: { type: 'base64', media_type: m[1], data: m[2] } }, { type: 'text', text: ask_ }] : ask_;
+  try {
+    const reply = await ask(RECEIPT_SYSTEM, prompt, { onDelta: () => {}, signal: c.req.raw.signal });
+    return c.json(normaliseReceipt(extractJson(reply)));
   } catch (e) {
     return c.json({ error: (e as Error).message }, 502);
   }

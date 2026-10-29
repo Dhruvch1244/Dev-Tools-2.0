@@ -54,6 +54,7 @@ export async function lifeContext() {
   const spent = one<{ t: number }>("SELECT coalesce(sum(amount),0) t FROM expenses WHERE kind = 'expense' AND substr(date,1,7) = ?", day.slice(0, 7))?.t ?? 0;
   const events = await google.events(day, day).catch(() => []);
   const people = q<Person>('SELECT * FROM people');
+  const owed = q<{ name: string; net: number }>('SELECT p.name, sum(s.amount) net FROM splits s JOIN people p ON p.id = s.person_id WHERE s.settled_at IS NULL GROUP BY s.person_id HAVING round(net) != 0');
   const supps = (s as { supplements?: Supplement[] }).supplements ?? [];
   const shifts = wc.shifts.map((x) => `${x.id} ${x.login}-${x.logout}`).join(', ');
 
@@ -69,7 +70,7 @@ export async function lifeContext() {
     `ROUTINES: ${routines.map((r) => `${r.time} ${r.name} (${(JSON.parse(r.days) as number[]).includes(dow) ? 'today' : (JSON.parse(r.days) as number[]).map((d) => DOW[d]).join('/')})`).join('; ') || 'none'}`,
     `CALENDAR today: ${events.map((e) => (e.allDay ? `all day ${e.title}` : `${localStamp(new Date(e.start)).slice(11)} ${e.title}`)).join('; ') || 'nothing (or not connected)'}`,
     `TASKS open: ${tasks.map((t) => `${t.title}${t.due ? ` [${t.due.replace('T', ' ')}${t.repeat ? `, ${t.repeat}` : ''}]` : ''}${t.priority ? ` !${t.priority}` : ''}`).join('; ') || 'none'}`,
-    `MONEY: ₹${Math.round(spent)} spent this month`,
+    `MONEY: ₹${Math.round(spent)} spent this month${owed.length ? ` · shared bills: ${owed.map((o) => `${o.name} ${o.net > 0 ? 'owes me' : 'I owe'} ₹${Math.abs(Math.round(o.net))}`).join(', ')}` : ''}`,
     people.length ? `PEOPLE: ${people.map((p) => `${p.name}${nextContact(p, day) ? ` (next call ${nextContact(p, day)})` : ''}${p.birthday ? ` (birthday ${nextBirthday(p, day)!.date})` : ''}`).join('; ')}` : null,
     supps.length ? `SUPPLEMENTS: ${supps.map((x) => `${x.name} at ${x.at}${one('SELECT 1 FROM checks WHERE kind = ? AND ref = ? AND date = ?', 'supp', x.id, day) ? ' (taken)' : ''}`).join('; ')}` : null,
   ]

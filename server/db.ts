@@ -113,6 +113,11 @@ db.exec(`
   );
   -- Daily check-offs keyed by kind (e.g. 'supp') and ref (the supplement id).
   CREATE TABLE IF NOT EXISTS checks (kind TEXT NOT NULL, ref TEXT NOT NULL, date TEXT NOT NULL, PRIMARY KEY (kind, ref, date));
+  -- Shared bills: amount > 0 means the person owes me, < 0 means I owe them.
+  CREATE TABLE IF NOT EXISTS splits (
+    id TEXT PRIMARY KEY, expense_id TEXT, person_id TEXT NOT NULL, amount REAL NOT NULL, note TEXT, date TEXT NOT NULL, settled_at TEXT,
+    created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+  );
   CREATE TABLE IF NOT EXISTS dsa_tests (
     id TEXT PRIMARY KEY, kind TEXT NOT NULL, ref TEXT NOT NULL, started_at TEXT NOT NULL, finished_at TEXT,
     duration_min INTEGER NOT NULL, results TEXT, score REAL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
@@ -150,6 +155,7 @@ export const RESOURCES: Record<string, Resource> = {
   routines: { cols: ['name', 'emoji', 'days', 'time', 'duration_min', 'steps', 'habit_id', 'remind', 'gcal_event_id', 'active'], order: 'time ASC' },
   saved_meals: { cols: ['name', 'meal', 'items'], order: 'name ASC' },
   people: { cols: ['name', 'emoji', 'phone', 'birthday', 'every_days', 'weekday', 'call_at', 'last_contact', 'notes'], order: 'name ASC' },
+  splits: { cols: ['expense_id', 'person_id', 'amount', 'note', 'date', 'settled_at'], order: 'date DESC, created_at DESC', dateCol: 'date' },
   shopping: { cols: ['name', 'qty', 'done', 'source'], order: 'done ASC, name ASC' },
   dsa_tests: { cols: ['kind', 'ref', 'started_at', 'finished_at', 'duration_min', 'results', 'score'], order: 'started_at DESC' },
 };
