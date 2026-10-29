@@ -789,7 +789,7 @@ export function FuelPage() {
         )}
       </AnimatePresence>
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {MEALS.map((m) => {
           const items = day.filter((l) => l.meal === m.id);
           const mt = sumMacros(items);

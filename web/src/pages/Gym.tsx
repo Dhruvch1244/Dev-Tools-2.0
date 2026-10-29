@@ -226,7 +226,7 @@ function Session({ workout, template, sets, allSets, workouts }: { workout: Work
           </motion.div>
         )}
       </AnimatePresence>
-      <motion.div layout className="grid gap-3 xl:grid-cols-2">
+      <motion.div layout className="grid grid-cols-1 gap-3 xl:grid-cols-2">
         {all.map((ex) => (
           <ExerciseCard
             key={ex.name}
@@ -650,7 +650,7 @@ export function GymPage() {
       <Rise className="mb-6">
         <TodayPanel shift={shift} workouts={workouts} sets={sets} />
       </Rise>
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Rise>
           <WeeklyVolume sets={sets} />
         </Rise>

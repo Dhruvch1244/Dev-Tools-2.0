@@ -208,7 +208,7 @@ function Ratings() {
       </form>
       {h.leetcode && <LeetCodePull />}
       {isFetching && <p className="text-xs text-ink-3">Syncing…</p>}
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {data?.codeforces && (
           <div className="rounded-md border-l-[3px] border-[#4fb3ff] bg-bg p-3">
             <p className="text-micro font-black uppercase tracking-[0.2em] text-ink-3">Codeforces</p>
@@ -420,7 +420,7 @@ export function DsaHq() {
             <Flag className="size-4 text-accent" /> Season calendar
           </span>
         </SectionTitle>
-        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
           {WEEKS.map((w, i) => {
             const done = w.problems.filter((p) => ['solved', 'revisit'].includes(get(p.id)?.status ?? '')).length;
             const dates = weekDates(start, w.n);
@@ -464,7 +464,7 @@ export function DsaHq() {
         </p>
       </Rise>
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Rise>
           <Contests />
         </Rise>

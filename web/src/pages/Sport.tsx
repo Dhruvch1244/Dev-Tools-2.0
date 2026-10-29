@@ -530,7 +530,7 @@ export function SportPage() {
         <Telemetry label="Burned · 7 days" value={<AnimatedNumber value={Math.round(sum(week, (a) => a.kcal ?? 0))} />} unit="kcal" accent="var(--purple)" />
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)]">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)]">
         <Card>
           <SectionTitle>Active minutes / week</SectionTitle>
           <div className="flex h-40 items-end gap-2">

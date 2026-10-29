@@ -90,7 +90,7 @@ export function GuidedJournal({ autoStart }: { autoStart?: boolean }) {
   const dateLabel = parseDate(t).toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' });
 
   return (
-    <Card id="journal" className="scroll-mt-16 lg:col-span-5">
+    <Card id="journal" className="min-w-0 scroll-mt-16 lg:col-span-5">
       <div className="mb-3 flex items-center justify-between gap-2">
         <p className="flex items-center gap-2 font-display text-[17px]">
           <BookOpen className="size-4 text-pink" /> Journal · {dateLabel}

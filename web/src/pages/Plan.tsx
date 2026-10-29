@@ -121,7 +121,7 @@ export function PlanPage() {
         })}
       </Rise>
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
         <div className="relative rounded-xl border border-line bg-surface p-3" style={{ height: (last - first) * PX + 24 }}>
           {Array.from({ length: Math.ceil((last - first) / 60) + 1 }, (_, i) => first - (first % 60) + i * 60)
             .filter((x) => x >= first && x <= last)

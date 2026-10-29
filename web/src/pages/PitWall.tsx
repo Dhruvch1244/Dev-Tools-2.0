@@ -95,7 +95,7 @@ export function PitWallPage() {
       />
 
       {msgs.length === 0 && (
-        <Rise className="grid gap-3 sm:grid-cols-2">
+        <Rise className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {STARTERS.map((g) => (
             <div key={g.k} className="rounded-xl border border-line bg-surface p-3">
               <p className="mb-2 text-micro font-black uppercase tracking-[0.25em] text-ink-3">{g.k}</p>

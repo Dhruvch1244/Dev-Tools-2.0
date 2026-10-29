@@ -90,7 +90,7 @@ export function RunPanel({ lang, code }: { lang: Lang; code: string }) {
 
   return (
     <div className="space-y-3">
-      <div className="grid gap-2 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         <Textarea autoCorrect="off" autoCapitalize="off" spellCheck={false} rows={3} placeholder="stdin" value={stdin} onChange={(e) => setStdin(e.target.value)} className="font-mono text-label" />
         <Textarea autoCorrect="off" autoCapitalize="off" spellCheck={false} rows={3} placeholder="expected output (optional — checked on run)" value={expected} onChange={(e) => setExpected(e.target.value)} className="font-mono text-label" />
       </div>

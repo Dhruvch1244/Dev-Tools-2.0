@@ -49,7 +49,7 @@ export function DsaWeek() {
       <PageHeader eyebrow={`Round ${w.n} · ${parseDate(dates.start).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })} – ${parseDate(dates.end).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}`} title={`${w.gp} GP`} />
       <Rise className="-mt-4 mb-6 text-lg text-ink-2">{w.topic}</Rise>
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
         <div className="space-y-4">
           <Card>
             <SectionTitle>Race schedule</SectionTitle>

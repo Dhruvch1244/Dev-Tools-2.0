@@ -19,7 +19,7 @@ export function VizGallery() {
         </Link>
       </Rise>
       <PageHeader eyebrow="Telemetry replays" title="Visualizer" action={<Link to="/dsa/lab"><Button variant="soft">Animate my own code</Button></Link>} />
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {ALGOS.map((a, i) => (
           <motion.div key={a.id} initial={{ opacity: 0, y: 18, skewX: -6 }} animate={{ opacity: 1, y: 0, skewX: 0 }} transition={{ delay: i * 0.04, type: 'spring', stiffness: 300, damping: 24 }}>
             <Link to={`/dsa/viz/${a.id}`} className="group relative block h-full overflow-hidden rounded-lg border border-line bg-surface p-4 transition hover:border-accent">
@@ -95,7 +95,7 @@ export function VizPlayer() {
         </form>
       </Rise>
 
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
         <Card className="space-y-5">
           {frame ? <FrameView frame={frame} id={algo.id} /> : <p className="text-sm text-warn">That input couldn't be parsed.</p>}
           <PlayerBar p={p} count={frames.length} msg={frame?.msg} />
@@ -138,7 +138,7 @@ export function CodeLab() {
         Write a full program in C++, Java or Python. It compiles and runs on this laptop. Call <code className="font-mono text-accent-2">array</code>, <code className="font-mono text-accent-2">ptr</code>, <code className="font-mono text-accent-2">table</code>, <code className="font-mono text-accent-2">cell</code>, <code className="font-mono text-accent-2">var</code> and{' '}
         <code className="font-mono text-accent-2">step</code> on <code className="font-mono">viz</code> ({lang === 'cpp' ? 'viz::' : lang === 'java' ? 'Viz.' : 'viz.'}) and your run is replayed as an animation — each <code className="font-mono">step</code> is one frame.
       </Rise>
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
         <Card>
           <SectionTitle action={<button onClick={() => setCode(PLAYGROUND_STARTER[lang])} className="text-xs font-bold uppercase text-ink-3 hover:text-ink">Reset</button>}>Program</SectionTitle>
           <CodeView value={codes[lang]} lang={lang} onChange={setCode} minHeight={420} maxHeight={640} />

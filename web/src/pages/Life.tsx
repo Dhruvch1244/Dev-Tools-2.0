@@ -186,7 +186,7 @@ function HealthToday() {
   useEffect(() => setW(weight != null ? String(weight) : ''), [weight]);
 
   return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:col-span-2 lg:grid-cols-1">
+    <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 lg:col-span-2 lg:grid-cols-1">
       <Card className="flex items-center gap-5">
         <WaterGlass value={water} goal={goal} />
         <div className="flex-1">
@@ -264,7 +264,7 @@ export function LifePage() {
   return (
     <Page>
       <PageHeader eyebrow="Habits · Health · Journal" title="Life" />
-      <div className="grid gap-4 lg:grid-cols-5">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
         <Habits />
         <HealthToday />
         <GuidedJournal autoStart={params.get('journal') === '1'} />

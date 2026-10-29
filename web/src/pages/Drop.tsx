@@ -372,7 +372,7 @@ export function DropPage() {
         )}
 
         <Rise>
-          <ul className="grid gap-3 sm:grid-cols-2">
+          <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <AnimatePresence initial={false}>
               {shown.map((d) => (
                 <DropCard key={d.id} drop={d} onDelete={() => void remove(d)} onPin={() => void pin(d)} />

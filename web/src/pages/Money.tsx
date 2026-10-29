@@ -327,7 +327,7 @@ export function MoneyPage() {
         }
       />
 
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <Card className="relative overflow-hidden sm:col-span-1">
           <p className="flex items-center gap-1.5 text-sm text-ink-3">
             <ArrowUpRight className="size-4" /> Spent

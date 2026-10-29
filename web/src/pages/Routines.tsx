@@ -359,7 +359,7 @@ export function RoutinesPage() {
   return (
     <Page>
       <PageHeader eyebrow="Paddock · Routines" title="Routines" action={<Button onClick={() => setEditing({ ...blank })}><Plus className="size-4" /> New routine</Button>} />
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
         <Card>
           <SectionTitle>Today</SectionTitle>
           <TodaySchedule />

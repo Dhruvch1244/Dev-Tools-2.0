@@ -7,7 +7,7 @@
 // flyover autoplay, no dash animation. All animation loops stop when the component unmounts.
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import * as maplibregl from 'maplibre-gl';
-import type { GeoJSONSource, Map as MLMap, StyleSpecification } from 'maplibre-gl';
+import type { ExpressionSpecification, GeoJSONSource, Map as MLMap, StyleSpecification } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 // maplibre 6 runs tile parsing in a module worker; Vite ships the file as an asset and we point at it.
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url';
@@ -17,9 +17,25 @@ import { bearing, climb, haversine, kmMarks, resample, type Pt } from '../core/s
 
 const STYLE_URL = 'https://tiles.openfreemap.org/styles/liberty';
 const DEM = 'https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png';
+// Route paint. The flyover reveals the line by swapping these for a cut-off step — a paint change
+// lands the same frame, where re-sending the geometry goes through the worker and trails the camera.
+const LINE: ExpressionSpecification = ['interpolate', ['linear'], ['line-progress'], 0, '#ff5747', 1, '#e10600'];
+const GLOW: ExpressionSpecification = ['interpolate', ['linear'], ['line-progress'], 0, '#e10600', 1, '#e10600'];
+const upTo = (color: string, f: number): ExpressionSpecification => ['step', ['line-progress'], color, Math.max(1e-4, f), 'rgba(0,0,0,0)'];
 const reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-/** Re-colour the "liberty" street style into the F1 carbon voice, layer by layer. */
+// Line widths for the small streets: liberty only draws service lanes from z15.5 and keeps
+// colony streets hairline-thin, so the gali you actually run down vanished. Wider and earlier.
+const LANE_WIDTH: Record<string, unknown> = {
+  minor: ['interpolate', ['exponential', 1.2], ['zoom'], 12.5, 0.6, 14, 2.6, 16, 5, 20, 20],
+  service: ['interpolate', ['exponential', 1.2], ['zoom'], 13, 0.4, 15, 1.8, 17, 4, 20, 10],
+  path: ['interpolate', ['exponential', 1.2], ['zoom'], 13.5, 0.6, 16, 1.8, 20, 8],
+};
+
+/**
+ * Re-colour the "liberty" street style into the F1 voice — night asphalt rather than pitch black,
+ * so every street down to the inner lanes reads at a glance and the red racing line still pops.
+ */
 function carbonize(style: StyleSpecification): StyleSpecification {
   const layers = style.layers
     // Bus-stop icons drown the map at running zoom; rail/metro stations stay via the poi_r* layers.
@@ -27,32 +43,47 @@ function carbonize(style: StyleSpecification): StyleSpecification {
     .map((l) => {
       const id = l.id;
       const p = { ...(('paint' in l && l.paint) || {}) } as Record<string, unknown>;
-      if (l.type === 'background') p['background-color'] = '#0b0c10';
+      let minzoom = l.minzoom;
+      if (l.type === 'background') p['background-color'] = '#1c1f26';
       else if (l.type === 'fill') {
-        if (/water/.test(id)) p['fill-color'] = '#0c1824';
-        else if (/park|wood|grass|landcover/.test(id)) (p['fill-color'] = '#12241a'), (p['fill-opacity'] = 0.75);
-        else if (/building/.test(id)) (p['fill-color'] = '#17191f'), (p['fill-outline-color'] = '#22252d');
-        else (p['fill-color'] = '#101216'), (p['fill-opacity'] = 0.6);
+        if (/water/.test(id)) p['fill-color'] = '#1c3a56';
+        else if (/park|wood|grass|landcover/.test(id)) (p['fill-color'] = '#1f3a2a'), (p['fill-opacity'] = 0.9);
+        else if (/building/.test(id)) (p['fill-color'] = '#2b2f39'), (p['fill-outline-color'] = '#3a3f4b');
+        else if (/residential/.test(id)) (p['fill-color'] = '#21242c'), (p['fill-opacity'] = 1);
+        else (p['fill-color'] = '#23262e'), (p['fill-opacity'] = 0.8);
         delete p['fill-pattern'];
-      } else if (l.type === 'fill-extrusion') (p['fill-extrusion-color'] = '#1b1e26'), (p['fill-extrusion-opacity'] = 0.85);
-      else if (l.type === 'line') {
-        if (/water/.test(id)) p['line-color'] = '#13283c';
-        else if (/casing/.test(id)) p['line-color'] = '#07080b';
-        else if (/motorway|trunk|primary/.test(id)) p['line-color'] = '#4a505e';
-        else if (/secondary|tertiary/.test(id)) p['line-color'] = '#373b46';
-        else if (/rail/.test(id)) p['line-color'] = '#2a2e38';
-        else if (/path|pedestrian|track|service/.test(id)) (p['line-color'] = '#262a33'), delete p['line-dasharray'];
-        else if (/road|highway|minor|link|bridge|tunnel/.test(id)) p['line-color'] = '#2c3039';
-        else if (/boundary/.test(id)) p['line-color'] = '#2a2e38';
+      } else if (l.type === 'fill-extrusion') {
+        // Low and see-through: full-height blocks at this pitch hide the lanes between them.
+        p['fill-extrusion-color'] = '#30343f';
+        p['fill-extrusion-opacity'] = 0.55;
+        p['fill-extrusion-height'] = ['*', ['coalesce', ['get', 'render_height'], 0], 0.45];
+        p['fill-extrusion-base'] = ['*', ['coalesce', ['get', 'render_min_height'], 0], 0.45];
+      } else if (l.type === 'line') {
+        const lane = /path|pedestrian/.test(id) ? 'path' : /service|track/.test(id) ? 'service' : /minor|street/.test(id) ? 'minor' : null;
+        if (/water/.test(id)) p['line-color'] = '#24507a';
+        else if (/casing/.test(id)) (p['line-color'] = '#121419'), lane === 'service' && (minzoom = 13);
+        else if (/motorway|trunk|primary/.test(id)) p['line-color'] = '#a3a9b6';
+        else if (/secondary|tertiary/.test(id)) p['line-color'] = '#868c99';
+        else if (/rail/.test(id)) p['line-color'] = '#4a4f5c';
+        else if (lane === 'path') (p['line-color'] = '#6f7686'), (p['line-dasharray'] = [1.5, 1]), (minzoom = 13.5);
+        else if (lane === 'service') p['line-color'] = '#626875';
+        else if (/road|highway|minor|link|bridge|tunnel/.test(id)) p['line-color'] = '#6e7482';
+        else if (/boundary/.test(id)) p['line-color'] = '#3a3f4b';
+        if (lane && !/casing/.test(id)) {
+          p['line-width'] = LANE_WIDTH[lane];
+          if (lane === 'service') minzoom = 13;
+        }
       } else if (l.type === 'symbol') {
         if ('layout' in l && l.layout && 'text-field' in l.layout) {
-          p['text-color'] = /water/.test(id) ? '#4f7ea8' : /poi/.test(id) ? '#c9cdd6' : '#7d8392';
-          p['text-halo-color'] = '#0b0c10';
+          p['text-color'] = /water/.test(id) ? '#7fb0dc' : /poi/.test(id) ? '#dfe2e8' : /highway-name/.test(id) ? '#c3c8d2' : '#a7adb9';
+          p['text-halo-color'] = '#15171c';
           p['text-halo-width'] = 1.4;
         }
+        // Lane names a bit sooner, so the colony's streets are labelled at running zoom.
+        if (/highway-name-(minor|path)/.test(id)) minzoom = 14.5;
         if (/poi/.test(id)) p['icon-opacity'] = 0.9;
       }
-      return { ...l, paint: p } as typeof l;
+      return { ...l, paint: p, ...(minzoom !== undefined && { minzoom }) } as typeof l;
     });
   return { ...style, layers };
 }
@@ -77,6 +108,9 @@ export default function TrackMap({ pts, mode, height = 340, onInfo, flyKey, fall
   const ready = useRef(false);
   const frames = useRef<number[]>([]);
   const markers = useRef<maplibregl.Marker[]>([]);
+  const summit = useRef<maplibregl.Marker | null>(null);
+  const orbiting = useRef(false);
+  const flying = useRef(false);
   const me = useRef<maplibregl.Marker | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
   const info = useRef(onInfo);
@@ -104,21 +138,22 @@ export default function TrackMap({ pts, mode, height = 340, onInfo, flyKey, fall
           canvasContextAttributes: { antialias: true },
         });
         map.current = m;
-        m.on('load', () => {
+                m.on('load', () => {
           m.addSource('dem', { type: 'raster-dem', tiles: [DEM], tileSize: 256, encoding: 'terrarium', maxzoom: 15 });
           // Exaggerated so a city's gentle slopes actually read as terrain.
           m.setTerrain({ source: 'dem', exaggeration: 2.2 });
           const firstRoad = m.getStyle().layers.find((l: { id: string }) => /road|highway/.test(l.id))?.id;
-          m.addLayer({ id: 'hills', type: 'hillshade', source: 'dem', paint: { 'hillshade-shadow-color': '#000000', 'hillshade-highlight-color': '#3a3f4c', 'hillshade-accent-color': '#1b1e26', 'hillshade-exaggeration': 0.55 } }, firstRoad);
-          m.setSky({ 'sky-color': '#0b0c10', 'horizon-color': '#2a1214', 'fog-color': '#0b0c10', 'sky-horizon-blend': 0.6, 'horizon-fog-blend': 0.7, 'fog-ground-blend': 0.5 });
+          m.addLayer({ id: 'hills', type: 'hillshade', source: 'dem', paint: { 'hillshade-shadow-color': '#0b0c10', 'hillshade-highlight-color': '#4a505e', 'hillshade-accent-color': '#2a2e38', 'hillshade-exaggeration': 0.35 } }, firstRoad);
+          m.setSky({ 'sky-color': '#14161c', 'horizon-color': '#3a1a1c', 'fog-color': '#1c1f26', 'sky-horizon-blend': 0.6, 'horizon-fog-blend': 0.6, 'fog-ground-blend': 0.75 });
 
           m.addSource('route', { type: 'geojson', data: lineData(pts), lineMetrics: true });
-          m.addLayer({ id: 'route-glow', type: 'line', source: 'route', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#e10600', 'line-width': 14, 'line-blur': 10, 'line-opacity': 0.55 } });
-          m.addLayer({ id: 'route-line', type: 'line', source: 'route', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-width': 5, 'line-gradient': ['interpolate', ['linear'], ['line-progress'], 0, '#ff5747', 1, '#e10600'] } });
+          m.addLayer({ id: 'route-glow', type: 'line', source: 'route', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-gradient': GLOW, 'line-width': 14, 'line-blur': 10, 'line-opacity': 0.55 } });
+          m.addLayer({ id: 'route-line', type: 'line', source: 'route', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-width': 5, 'line-gradient': LINE } });
           m.addLayer({ id: 'route-flow', type: 'line', source: 'route', layout: { 'line-cap': 'butt', 'line-join': 'round' }, paint: { 'line-color': '#ffffff', 'line-width': 2, 'line-opacity': 0.85, 'line-dasharray': [0, 4, 3] } });
           ready.current = true;
           render(true);
           if (!reduced()) flow();
+          if (pendingFly.current) flyover();
           // Measure once tiles are in, *then* start any orbit. Not the 'idle' event: the flowing dashes
           // repaint every frame, so the map may never report idle.
           void tilesLoaded(m).then(() => {
@@ -139,6 +174,7 @@ export default function TrackMap({ pts, mode, height = 340, onInfo, flyKey, fall
     return () => {
       cancelled = true;
       frames.current.forEach(cancelAnimationFrame);
+      summit.current?.remove();
       map.current?.remove();
       map.current = null;
     };
@@ -174,20 +210,20 @@ export default function TrackMap({ pts, mode, height = 340, onInfo, flyKey, fall
     const el = (cls: string, html: string) => Object.assign(document.createElement('div'), { className: cls, innerHTML: html });
     // A loop ends where it started: one combined flag, and no km mark buried under it.
     const loop = pts.length > 2 && haversine(pts[0], pts.at(-1)!) < 60;
-    const nearFinish = (p: Pt) => mode === 'replay' && pts.length > 1 && haversine(p, pts.at(-1)!) < 80;
+    const nearFinish = (p: Pt) => mode === 'replay' && pts.length > 1 && haversine(p, pts.at(-1)!) < 150;
     if (pts.length) {
-      markers.current.push(new maplibregl.Marker({ element: el(`tm-flag ${loop && mode === 'replay' ? 'tm-finish' : 'tm-start'}`, `<span>${loop && mode === 'replay' ? 'START · FINISH' : 'START'}</span>`), anchor: 'bottom' }).setLngLat([pts[0][1], pts[0][0]]).addTo(m));
-      for (const k of kmMarks(pts).filter((k) => !nearFinish(k.at))) markers.current.push(new maplibregl.Marker({ element: el(`tm-km${k.fastest ? ' tm-fast' : ''}`, `KM${k.km}<small>${Math.floor(k.minutes)}:${String(Math.round((k.minutes % 1) * 60)).padStart(2, '0')}</small>`), anchor: 'bottom' }).setLngLat([k.at[1], k.at[0]]).addTo(m));
+      markers.current.push(new maplibregl.Marker({ opacityWhenCovered: '1', element: el(`tm-flag ${loop && mode === 'replay' ? 'tm-finish' : 'tm-start'}`, `<span>${loop && mode === 'replay' ? 'START · FINISH' : 'START'}</span>`), anchor: 'bottom' }).setLngLat([pts[0][1], pts[0][0]]).addTo(m));
+      for (const k of kmMarks(pts).filter((k) => !nearFinish(k.at))) markers.current.push(new maplibregl.Marker({ opacityWhenCovered: '1', element: el(`tm-km${k.fastest ? ' tm-fast' : ''}`, `KM${k.km}<small>${Math.floor(k.minutes)}:${String(Math.round((k.minutes % 1) * 60)).padStart(2, '0')}</small>`), anchor: 'bottom' }).setLngLat([k.at[1], k.at[0]]).addTo(m));
     }
     const head = pts.at(-1);
     if (mode === 'live' && head) {
-      if (!me.current) me.current = new maplibregl.Marker({ element: el('tm-me', '<i></i>') }).setLngLat([head[1], head[0]]).addTo(m);
+      if (!me.current) me.current = new maplibregl.Marker({ opacityWhenCovered: '1', element: el('tm-me', '<i></i>') }).setLngLat([head[1], head[0]]).addTo(m);
       me.current.setLngLat([head[1], head[0]]);
       // Onboard camera: follow, tilted, facing the direction of travel.
       const prev = pts.at(-4) ?? pts[0];
-      m.easeTo({ center: [head[1], head[0]], bearing: pts.length > 3 ? bearing(prev, head) : m.getBearing(), pitch: 62, zoom: 17, duration: first || reduced() ? 0 : 900 });
+      m.easeTo({ center: [head[1], head[0]], bearing: pts.length > 3 ? bearing(prev, head) : m.getBearing(), pitch: 62, zoom: 17.5, duration: first || reduced() ? 0 : 900 });
     } else if (mode === 'replay' && pts.length > 1) {
-      if (!loop) markers.current.push(new maplibregl.Marker({ element: el('tm-flag tm-finish', '<span>FINISH</span>'), anchor: 'bottom' }).setLngLat([pts.at(-1)![1], pts.at(-1)![0]]).addTo(m));
+      if (!loop) markers.current.push(new maplibregl.Marker({ opacityWhenCovered: '1', element: el('tm-flag tm-finish', '<span>FINISH</span>'), anchor: 'bottom' }).setLngLat([pts.at(-1)![1], pts.at(-1)![0]]).addTo(m));
       const b = new maplibregl.LngLatBounds();
       pts.forEach(([la, ln]) => b.extend([ln, la]));
       // fitBounds ignores pitch for its framing, so fit flat, then tilt for the 3D look.
@@ -196,16 +232,26 @@ export default function TrackMap({ pts, mode, height = 340, onInfo, flyKey, fall
     }
   };
 
-  // Slow broadcast-style orbit around a finished route.
+  // Slow broadcast-style orbit around a finished route. Paused by the flyover (they'd fight over
+  // the camera every frame) and stopped for good the moment you touch the map.
+  // One rAF loop nudging the bearing — no rotateTo/moveend chains, which raced the flyover's
+  // camera and crashed maplibre mid-ease.
   const orbit = () => {
     const m = map.current;
     if (!m) return;
-    const spin = () => {
-      if (!map.current || map.current.isMoving()) return;
-      map.current.rotateTo((map.current.getBearing() + 25) % 360, { duration: 9000, easing: (t) => t });
+    orbiting.current = true;
+    const stop = () => (orbiting.current = false);
+    m.on('dragstart', stop);
+    m.on('touchstart', stop);
+    m.on('wheel', stop);
+    let last = 0;
+    const tick = (t: number) => {
+      if (!map.current) return;
+      if (last && orbiting.current && !flying.current && !map.current.isMoving()) map.current.setBearing((map.current.getBearing() + ((t - last) * 25) / 9000) % 360);
+      last = t;
+      frames.current.push(requestAnimationFrame(tick));
     };
-    m.on('moveend', spin);
-    spin();
+    frames.current.push(requestAnimationFrame(tick));
   };
 
   /** Elevation profile from the DEM + named landmarks near the route, once tiles are in. */
@@ -243,8 +289,13 @@ export default function TrackMap({ pts, mode, height = 340, onInfo, flyKey, fall
     const hi = profile.indexOf(Math.max(...profile));
     if (hi > 0 && Math.max(...profile) - Math.min(...profile) >= 3) {
       const [la, ln] = samples[hi];
-      const el = Object.assign(document.createElement('div'), { className: 'tm-summit', innerHTML: `▲ ${Math.round(profile[hi])} m` });
-      markers.current.push(new maplibregl.Marker({ element: el, anchor: 'bottom' }).setLngLat([ln, la]).addTo(m));
+      // Skip it when it would sit on a flag or km mark — a pile of labels reads as noise.
+      const taken = markers.current.map((k) => k.getLngLat());
+      if (!taken.some((c) => haversine([c.lat, c.lng, 0], [la, ln, 0]) < 150)) {
+        const el = Object.assign(document.createElement('div'), { className: 'tm-summit', innerHTML: `▲ ${Math.round(profile[hi])} m` });
+        summit.current?.remove();
+        summit.current = new maplibregl.Marker({ opacityWhenCovered: '1', element: el, anchor: 'bottom' }).setLngLat([ln, la]).addTo(m);
+      }
     }
     info.current?.({ climb: climb(profile), profile, landmarks });
   };
@@ -256,28 +307,75 @@ export default function TrackMap({ pts, mode, height = 340, onInfo, flyKey, fall
   }, [pts.length]);
 
   // ---- flyover replay: draw the route progressively with a chase camera ----
-  useEffect(() => {
+  // A tap before the map has loaded is remembered and flown as soon as it's ready.
+  const pendingFly = useRef(false);
+  const stopFly = useRef<() => void>(() => {});
+  const flyover = () => {
     const m = map.current;
-    if (!flyKey || !m || !ready.current || pts.length < 2) return;
+    if (!m || pts.length < 2) return;
+    if (!ready.current) return void (pendingFly.current = true);
+    pendingFly.current = false;
+    stopFly.current();
+    flying.current = true;
     m.stop();
-    const src = m.getSource('route') as GeoJSONSource;
-    const total = Math.min(14_000, 4000 + pts.length * 12);
+    // Marks pop back in at the end; mid-flight they'd just float across the chase camera.
+    const hidden = [...markers.current, ...(summit.current ? [summit.current] : [])];
+    hidden.forEach((k) => (k.getElement().style.visibility = 'hidden'));
+    (m.getSource('route') as GeoJSONSource).setData(lineData(pts));
+    m.setPaintProperty('route-flow', 'line-opacity', 0);
+    // Distance along the route at each point, so the reveal matches line-progress exactly.
+    const cum = [0];
+    for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1] + haversine(pts[i - 1], pts[i]));
+    const length = cum.at(-1) || 1;
+    const done = () => {
+      m.setPaintProperty('route-line', 'line-gradient', LINE);
+      m.setPaintProperty('route-glow', 'line-gradient', GLOW);
+      m.setPaintProperty('route-flow', 'line-opacity', 0.85);
+      hidden.forEach((x) => (x.getElement().style.visibility = ''));
+      flying.current = false;
+    };
+    const total = Math.min(16_000, 5000 + pts.length * 12);
+    // Heading from a point well behind, eased toward each frame: GPS wobble no longer whips the camera.
+    const look = Math.max(4, Math.round(pts.length / 60));
+    let heading = bearing(pts[0], pts[Math.min(pts.length - 1, look)]);
+    let center: [number, number] = [pts[0][1], pts[0][0]];
     const t0 = performance.now();
+    let prevT = t0;
     let id = 0;
     const step = (t: number) => {
+      // Time-based easing, so a slow phone lags no further behind than a fast one.
+      const dt = Math.min(500, t - prevT);
+      prevT = t;
+      const ease = (tau: number) => 1 - Math.exp(-dt / tau);
       const k = Math.min(1, (t - t0) / total);
       const n = Math.max(2, Math.floor(k * pts.length));
       const slice = pts.slice(0, n);
-      src.setData(lineData(slice));
+      const f = cum[n - 1] / length;
+      m.setPaintProperty('route-line', 'line-gradient', upTo('#ff5747', f));
+      m.setPaintProperty('route-glow', 'line-gradient', upTo('#e10600', f));
       const head = slice.at(-1)!;
-      const prev = slice.at(-8) ?? slice[0];
-      m.jumpTo({ center: [head[1], head[0]], bearing: bearing(prev, head), pitch: 64, zoom: 16.6 });
+      const prev = slice.at(-look - 1) ?? slice[0];
+      const want = bearing(prev, head);
+      heading += ((((want - heading) % 360) + 540) % 360 - 180) * ease(400);
+      const a = ease(90);
+      center = [center[0] + (head[1] - center[0]) * a, center[1] + (head[0] - center[1]) * a];
+      m.jumpTo({ center, bearing: heading, pitch: 60, zoom: 16.3 });
       if (k < 1) id = requestAnimationFrame(step);
-      else render();
+      else {
+        done();
+        render();
+      }
     };
     id = requestAnimationFrame(step);
     frames.current.push(id);
-    return () => cancelAnimationFrame(id);
+    stopFly.current = () => {
+      cancelAnimationFrame(id);
+      if (map.current) done();
+    };
+  };
+  useEffect(() => {
+    if (flyKey) flyover();
+    return () => stopFly.current();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [flyKey]);
 
