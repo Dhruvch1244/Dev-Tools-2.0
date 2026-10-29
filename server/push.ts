@@ -89,14 +89,8 @@ async function tick() {
   }
 }
 
-let started = false;
-export function startReminderLoop() {
-  if (started) return;
-  started = true;
-  const run = () => tick().catch((e) => console.error('reminder tick', e));
-  run();
-  setInterval(run, 20_000);
-}
+/** Called by the app scheduler (scheduler.ts) every tick. */
+export const remindersTick = tick;
 
 /** Notification button actions, handled without opening the app. */
 export function taskAction(taskId: string, action: 'done' | 'snooze') {

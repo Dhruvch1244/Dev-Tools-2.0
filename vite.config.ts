@@ -33,12 +33,26 @@ export default defineConfig({
           { src: 'icon-512.png', sizes: '512x512', type: 'image/png' },
           { src: 'icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
+        // Long-press the home-screen icon (Android & iOS 17+ installed PWAs).
+        shortcuts: [
+          { name: 'Log food', short_name: 'Food', url: '/?quick=food', icons: [{ src: 'icon-192.png', sizes: '192x192' }] },
+          { name: 'Water +1', short_name: 'Water', url: '/?quick=water', icons: [{ src: 'icon-192.png', sizes: '192x192' }] },
+          { name: 'Start a run', short_name: 'Run', url: '/sport?start=run', icons: [{ src: 'icon-192.png', sizes: '192x192' }] },
+          { name: 'New task', short_name: 'Task', url: '/?quick=task', icons: [{ src: 'icon-192.png', sizes: '192x192' }] },
+        ],
+        // Android: "Share → Dev Tools" sends links, text and files straight to Drop.
+        share_target: {
+          action: '/share',
+          method: 'POST',
+          enctype: 'multipart/form-data',
+          params: { title: 'title', text: 'text', url: 'url', files: [{ name: 'file', accept: ['*/*'] }] },
+        },
       },
       workbox: {
         // Push + notification-click handlers (web/public/push-sw.js) layered onto the generated SW.
         importScripts: ['/push-sw.js'],
         navigateFallback: '/index.html',
-        navigateFallbackDenylist: [/^\/api/],
+        navigateFallbackDenylist: [/^\/api/, /^\/share/],
         runtimeCaching: [
           {
             // Show last-known data when the laptop is unreachable.

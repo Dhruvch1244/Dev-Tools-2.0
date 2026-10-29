@@ -6,7 +6,8 @@ import { ExercisePicker } from '../components/ExercisePicker';
 import { useList, useResource, useSettings } from '../lib/api';
 import { addDays, parseDate, relativeDay, today } from '../lib/format';
 import { listItem, spring } from '../lib/motion';
-import { CYCLE, DAY_META, DEFAULT_TEMPLATES, bestByExercise, dayTypeOn, e1rm, sectorColor, volume, type DayType, type Exercise } from '../core/gym';
+import { CYCLE, DAY_META, DEFAULT_TEMPLATES, bestByExercise, dayTypeOn, e1rm, platesPerSide, sectorColor, suggestNext, volume, type DayType, type Exercise } from '../core/gym';
+import { EXERCISES } from '../core/exercises';
 import type { GymSet, Workout } from '../lib/types';
 import { Chequered, CountdownBar, SectorChip, SectorLegend, StartLights, Telemetry } from '../components/f1';
 import { useToast } from '../components/toast';
@@ -90,9 +91,13 @@ function Stepper({ value, onChange, step, unit, label, decimal }: { value: strin
 
 function ExerciseCard({ ex, workout, sets, lastSets, priorBest, onLogged, onSwap }: { ex: Exercise; workout: Workout; sets: GymSet[]; lastSets: GymSet[]; priorBest: number; onLogged: () => void; onSwap?: () => void }) {
   const { create, remove } = useResource<GymSet>('sets');
-  const next = lastSets[sets.length] ?? lastSets.at(-1) ?? sets.at(-1);
+  // Coach first (double progression from last session), else repeat last time, else this session's last set.
+  const coach = suggestNext(ex.name, ex.reps, lastSets);
+  const next = coach ?? lastSets[sets.length] ?? lastSets.at(-1) ?? sets.at(-1);
   const [weight, setWeight] = useState<string>(next ? String(next.weight) : '');
   const [reps, setReps] = useState<string>(next ? String(next.reps) : '');
+  const barbell = EXERCISES.find((e) => e.name === ex.name)?.equipment === 'Barbell';
+  const plates = barbell && Number(weight) ? platesPerSide(Number(weight)) : null;
   const done = sets.length >= ex.sets;
   const lastBest = lastSets.reduce((m, s) => Math.max(m, e1rm(s.weight, s.reps)), 0);
   const sessionBest = sets.reduce((m, s) => Math.max(m, e1rm(s.weight, s.reps)), 0);
@@ -127,6 +132,12 @@ function ExerciseCard({ ex, workout, sets, lastSets, priorBest, onLogged, onSwap
           </span>
         </div>
       </div>
+      {coach && sets.length < ex.sets && (
+        <p className="mt-2 flex items-center gap-1.5 text-xs font-semibold text-green">
+          <span className="slant bg-green px-1.5 text-[10px] font-black text-black">COACH</span> {coach.why} → {coach.weight} × {coach.reps}
+        </p>
+      )}
+      {!lastSets.length && sets.length === 0 && <p className="mt-2 text-xs text-ink-3">First time: pick a weight you could do for {ex.reps} with ~2 reps left in the tank.</p>}
       {sets.length > 0 && (
         <ul className="mt-3 flex flex-wrap gap-2">
           <AnimatePresence initial={false}>
@@ -154,6 +165,11 @@ function ExerciseCard({ ex, workout, sets, lastSets, priorBest, onLogged, onSwap
         <Stepper value={weight} onChange={setWeight} step={2.5} unit="kg" label="Weight" decimal />
         <span className="pb-3 text-ink-3 max-sm:hidden">×</span>
         <Stepper value={reps} onChange={setReps} step={1} unit="reps" label="Reps" />
+        {plates && plates.length > 0 && (
+          <p className="basis-full font-mono text-[11px] text-ink-3">
+            Per side on a 20 kg bar: <span className="text-ink">{plates.join(' + ')}</span>
+          </p>
+        )}
         <Button type="submit" className="h-12 basis-full sm:basis-auto" disabled={!reps}>
           <CheckIcon className="size-4" /> Log set
         </Button>
@@ -415,7 +431,55 @@ function WeeklyVolume({ sets }: { sets: GymSet[] }) {
   );
 }
 
+/** e1RM of the best set per session for one exercise — the line that should go up. */
+function ProgressSheet({ exercise, sets, onClose }: { exercise: string | null; sets: GymSet[]; onClose: () => void }) {
+  const points = useMemo(() => {
+    const byDate = new Map<string, number>();
+    for (const s of sets) if (s.exercise === exercise) byDate.set(s.date, Math.max(byDate.get(s.date) ?? 0, e1rm(s.weight, s.reps)));
+    return [...byDate].sort((a, b) => a[0].localeCompare(b[0])).map(([date, v]) => ({ date, v: Math.round(v) }));
+  }, [exercise, sets]);
+  const [hover, setHover] = useState<number | null>(null);
+  const min = Math.min(...points.map((p) => p.v)) * 0.95;
+  const max = Math.max(...points.map((p) => p.v)) * 1.03;
+  const X = (i: number) => (points.length < 2 ? 50 : 4 + (i / (points.length - 1)) * 92);
+  const Y = (v: number) => 92 - ((v - min) / Math.max(1, max - min)) * 84;
+  const shown = points[hover ?? points.length - 1];
+  return (
+    <Sheet open={!!exercise} onClose={onClose} title={exercise ?? ''}>
+      {points.length === 0 ? (
+        <p className="text-sm text-ink-3">No sets logged yet.</p>
+      ) : (
+        <div>
+          <p className="text-xs text-ink-3">{shown && relativeDay(shown.date)} · estimated 1-rep max</p>
+          <p className="mb-3 text-4xl font-black italic">
+            {shown?.v} <span className="text-base not-italic text-ink-3">kg</span>
+            {points.length > 1 && (
+              <span className={cx('ml-3 text-sm not-italic', points.at(-1)!.v >= points[0].v ? 'text-green' : 'text-warn')}>
+                {points.at(-1)!.v >= points[0].v ? '▲' : '▼'} {Math.abs(points.at(-1)!.v - points[0].v)} kg since {relativeDay(points[0].date).toLowerCase()}
+              </span>
+            )}
+          </p>
+          <svg viewBox="0 0 100 100" className="h-56 w-full" preserveAspectRatio="none" onMouseLeave={() => setHover(null)}>
+            {[0.25, 0.5, 0.75].map((g) => (
+              <line key={g} x1="0" x2="100" y1={8 + g * 84} y2={8 + g * 84} stroke="var(--line)" strokeWidth="0.3" vectorEffect="non-scaling-stroke" />
+            ))}
+            <motion.polyline points={points.map((p, i) => `${X(i)},${Y(p.v)}`).join(' ')} fill="none" stroke="var(--accent)" strokeWidth="2" vectorEffect="non-scaling-stroke" strokeLinejoin="round" initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 1, ease: 'easeOut' }} />
+            {points.map((p, i) => (
+              <g key={p.date} onMouseEnter={() => setHover(i)} onClick={() => setHover(i)}>
+                <rect x={X(i) - 3} y="0" width="6" height="100" fill="transparent" />
+                <circle cx={X(i)} cy={Y(p.v)} r={hover === i ? 2.2 : 1.4} fill={i === points.length - 1 ? 'var(--purple)' : 'var(--accent)'} vectorEffect="non-scaling-stroke" />
+              </g>
+            ))}
+          </svg>
+          <p className="mt-2 text-[11px] text-ink-3">One point per session — your best set, converted with the Epley formula.</p>
+        </div>
+      )}
+    </Sheet>
+  );
+}
+
 function PrBoard({ sets }: { sets: GymSet[] }) {
+  const [chart, setChart] = useState<string | null>(null);
   const rows = useMemo(() => {
     const best = new Map<string, GymSet>();
     for (const s of sets) {
@@ -436,7 +500,7 @@ function PrBoard({ sets }: { sets: GymSet[] }) {
       ) : (
         <ol className="space-y-1.5">
           {rows.map((s, i) => (
-            <motion.li key={s.exercise} initial={{ opacity: 0, x: -12 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.05 }} className="flex items-center gap-3 rounded-md bg-bg px-3 py-2 text-sm">
+            <motion.li key={s.exercise} initial={{ opacity: 0, x: -12 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.05 }} onClick={() => setChart(s.exercise)} className="flex cursor-pointer items-center gap-3 rounded-md bg-bg px-3 py-2 text-sm transition hover:bg-surface-2">
               <span className="w-6 font-mono font-bold text-ink-3">P{i + 1}</span>
               <span className="flex-1 truncate font-semibold">{s.exercise}</span>
               <span className="font-mono text-ink-2">
@@ -447,7 +511,8 @@ function PrBoard({ sets }: { sets: GymSet[] }) {
           ))}
         </ol>
       )}
-      <p className="mt-2 text-[11px] text-ink-3">Right column: estimated 1-rep max (Epley), kg.</p>
+      <p className="mt-2 text-[11px] text-ink-3">Right column: estimated 1-rep max (Epley), kg. Tap a lift for its progress chart.</p>
+      <ProgressSheet exercise={chart} sets={sets} onClose={() => setChart(null)} />
     </Card>
   );
 }

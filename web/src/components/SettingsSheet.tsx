@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
-import { Bell, BellOff, Send } from 'lucide-react';
+import { Bell, BellOff, DatabaseBackup, Send, Sunrise, Sunset } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { api } from '../lib/api';
 import { useSettings } from '../lib/api';
 import { CURRENCIES } from '../lib/categories';
 import { disablePush, enablePush, pushState, sendTestPush, type PushState } from '../lib/push';
-import { Button, Chip, Input, Sheet } from './ui';
+import { Button, Chip, Input, Sheet, cx } from './ui';
 import { useToast } from './toast';
 
 const PUSH_COPY: Record<PushState, string> = {
@@ -67,6 +69,54 @@ function PushSection() {
   );
 }
 
+function BriefsSection() {
+  const { settings, save } = useSettings();
+  const toast = useToast();
+  const b = settings.briefs ?? {};
+  const set = (patch: Partial<NonNullable<typeof settings.briefs>>) => save({ briefs: { ...b, ...patch } });
+  const row = (kind: 'morning' | 'evening', label: string, icon: React.ReactNode, def: string) => {
+    const on = b[kind] ?? true;
+    const at = (kind === 'morning' ? b.morningAt : b.eveningAt) ?? def;
+    return (
+      <div className="flex flex-wrap items-center gap-2">
+        <button onClick={() => set({ [kind]: !on })} className={cx('flex flex-1 items-center gap-2 rounded-md px-3 py-2 text-left text-sm font-semibold', on ? 'bg-accent-soft text-ink' : 'bg-surface-2 text-ink-3')}>
+          {icon} {label} <span className="ml-auto text-[10px] font-black uppercase">{on ? 'On' : 'Off'}</span>
+        </button>
+        <input type="time" aria-label={`${label} time`} value={at} disabled={!on} onChange={(e) => set(kind === 'morning' ? { morningAt: e.target.value } : { eveningAt: e.target.value })} className="field h-10 w-28 !py-0" />
+        <Button size="sm" variant="ghost" onClick={async () => toast({ message: `Sent to ${(await api<{ sent: number }>(`/briefs/test?which=${kind}`, { method: 'POST' })).sent} device(s)` })}>
+          Test
+        </Button>
+      </div>
+    );
+  };
+  return (
+    <section className="space-y-2 rounded-xl border border-line p-4">
+      <p className="text-sm font-bold uppercase tracking-wide">Daily briefs</p>
+      <p className="text-xs text-ink-3">Morning: gym day, DSA laps, calorie & protein target, routines, due tasks. Evening: how the day went and what's short.</p>
+      {row('morning', 'Morning brief', <Sunrise className="size-4 text-yellow" />, '08:00')}
+      {row('evening', 'Evening debrief', <Sunset className="size-4 text-accent-2" />, '21:30')}
+    </section>
+  );
+}
+
+function BackupSection() {
+  const toast = useToast();
+  const { data: list = [], refetch } = useQuery({ queryKey: ['backups'], queryFn: () => api<string[]>('/backups') });
+  return (
+    <section className="flex items-center justify-between gap-3 rounded-xl border border-line p-4">
+      <div>
+        <p className="flex items-center gap-2 text-sm font-bold uppercase tracking-wide">
+          <DatabaseBackup className="size-4 text-green" /> Backups
+        </p>
+        <p className="text-xs text-ink-3">{list.length ? `Nightly at 03:00 · ${list.length} kept · latest ${list[0]}` : 'Nightly at 03:00 · none yet'} · data/backups</p>
+      </div>
+      <Button size="sm" variant="soft" onClick={async () => (await api('/backups', { method: 'POST' }), toast({ message: 'Backup saved' }), void refetch())}>
+        Back up now
+      </Button>
+    </section>
+  );
+}
+
 export function SettingsSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { settings, save } = useSettings();
   const [name, setName] = useState('');
@@ -95,6 +145,8 @@ export function SettingsSheet({ open, onClose }: { open: boolean; onClose: () =>
           <Input type="number" min={1} max={20} value={settings.waterGoal ?? 8} onChange={(e) => save({ waterGoal: Number(e.target.value) || 8 })} className="w-28" />
         </section>
         {open && <PushSection />}
+        {open && <BriefsSection />}
+        {open && <BackupSection />}
       </div>
     </Sheet>
   );

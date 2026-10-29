@@ -11,6 +11,11 @@ No accounts, no cloud, no restrictions: your data is one SQLite file in `data/`.
 | **DSA Season** | 13-week advanced roadmap (156 practice problems, 2/day), **full LeetCode statements in-app** (cached for offline), a **local judge** that runs your C++/Java/Python `Solution` against the official examples (215/219 problems; custom-`Node` ones defer to LeetCode), concept briefings with tables, weekly timed tests, 3 monthly Grand Prix mega tests + finale, spaced revision queue, points & streaks, live Codeforces / LeetCode / CodeChef contests with reminders, CF/LC rating sync |
 | **Visualizer** | 15 animated algorithms (prefix sums, two pointers, sliding window, binary search, monotonic stack, backtracking tree, tree BFS, heap, grid BFS, topo sort, Dijkstra, union-find, coin-change DP, LCS table, KMP) with the executing line highlighted in C++ / Java / Python |
 | **Code lab** | Write C++ / Java / Python, run it on this laptop (real g++ / javac / python3), and call `viz` helpers to replay your own run as an animation |
+| **Sport** | Badminton (singles/doubles, games won, partner), runs, walks, rides & more; live GPS tracker with F1 circuit-map route, pace and per-km splits; MET/ACSM calorie estimates; auto-ticks matching habits |
+| **Routines** | Recurring time blocks with steps, push reminders and linked habits; **two-way Google Calendar** (routines become weekly events; your events show on Today) |
+| **Race report** | Weekly classification: gym, fuel, sport, DSA, habits/routines, health — vs the week before |
+| **Briefs** | 08:00 morning brief + 21:30 evening debrief pushes (configurable), Sunday race-report push |
+| **Pit radio (AI coach)** | Graduated hints, "why is it failing?" from the judge's failing case, solution review and notes drafts on every DSA problem; a meal planner on Fuel. Runs through the **local Claude Code CLI** (`claude -p`, your existing login — no API key), with all tools disabled. Silent during tests/mocks. `COACH_MODEL` env overrides the model (default `sonnet`). |
 | **Tasks / Notes / Money / Drop / Life** | Tasks with reminders, notes, expenses & budgets & subscriptions, phone⇄laptop drop, habits/health/journal |
 
 Everything syncs **live** between devices: a write on your phone shows up on your laptop instantly (Server-Sent Events).
@@ -82,9 +87,18 @@ Notifications have **Mark done** and **Snooze 10 min** buttons (Android/desktop;
 VAPID keys are generated once into `data/vapid.json` (owner-only permissions) — back it up with `data/`,
 or every device has to re-enable push.
 
+## Google Calendar (two-way)
+
+Routines → Google Calendar card walks you through it. In short: create a Google Cloud project, enable the
+Calendar API, set up the OAuth consent screen (External) and **Publish** it (unpublished apps lose access
+every 7 days), create a *Web application* OAuth client with the redirect URI the card shows
+(`http://localhost:4300/api/google/callback`), paste the ID/secret, then **Connect** — from the laptop.
+Credentials and tokens live in `data/google.json` (0600).
+
 ## Data & backup
 
 - Database: `data/life.db` · Dropped files: `data/files/`
+- Nightly backups at 03:00 to `data/backups/<date>/` (last 14 kept; database + key files — dropped files aren't included). Settings → Back up now for an extra one.
 - Back up by copying the `data/` folder. Set `DATA_DIR=/some/path` to store it elsewhere (e.g. a synced drive).
 
 ## Shortcuts

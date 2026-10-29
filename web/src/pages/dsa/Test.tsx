@@ -3,7 +3,7 @@ import { Link, useParams } from 'react-router';
 import { AnimatePresence, motion } from 'motion/react';
 import { ArrowLeft, ExternalLink, Flag } from 'lucide-react';
 import { useList, useResource } from '../../lib/api';
-import { MEGAS, POINTS, WEEKS, type Problem } from '../../core/dsa/plan';
+import { MEGAS, POINTS, WEEKS, findProblem, type Problem } from '../../core/dsa/plan';
 import type { DsaTest } from '../../lib/types';
 import { Chequered, StartLights, Telemetry } from '../../components/f1';
 import { Button, Card, Page, PageHeader, Rise, SectionTitle, cx } from '../../components/ui';
@@ -30,9 +30,12 @@ export function DsaTestPage() {
   const isMega = kind === 'mega';
   const week = WEEKS[Number(ref) - 1];
   const mega = MEGAS.find((m) => m.id === ref);
-  const title = isMega ? (mega?.title ?? 'Grand Prix') : `Qualifying — R${ref} ${week?.gp ?? ''} GP`;
-  const problems = (isMega ? mega?.problems : week?.test) ?? [];
-  const duration = isMega ? (mega?.durationMin ?? 180) : 90;
+  const isMock = kind === 'mock';
+  const mockP = isMock ? findProblem(ref) : undefined;
+  const title = isMock ? `Mock interview — ${mockP?.title ?? ''}` : isMega ? (mega?.title ?? 'Grand Prix') : `Qualifying — R${ref} ${week?.gp ?? ''} GP`;
+  const problems = (isMock ? (mockP ? [mockP] : []) : isMega ? mega?.problems : week?.test) ?? [];
+  // Mock interviews run like the real thing: 45 min for a Medium, 60 for a Hard.
+  const duration = isMock ? (mockP?.diff === 'H' ? 60 : 45) : isMega ? (mega?.durationMin ?? 180) : 90;
   const { data: tests = [] } = useList<DsaTest>('dsa_tests');
   const { create, update } = useResource<DsaTest>('dsa_tests');
   const mine = tests.filter((t) => t.kind === kind && t.ref === ref);
@@ -73,18 +76,18 @@ export function DsaTestPage() {
   return (
     <Page>
       <Rise className="mb-3">
-        <Link to={isMega ? '/dsa' : `/dsa/week/${ref}`} className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-ink-3 hover:text-ink">
+        <Link to={isMega || isMock ? '/dsa' : `/dsa/week/${ref}`} className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-ink-3 hover:text-ink">
           <ArrowLeft className="size-4" /> Back
         </Link>
       </Rise>
-      <PageHeader eyebrow={isMega ? 'Grand Prix · mega test' : 'Qualifying · weekly test'} title={title} />
+      <PageHeader eyebrow={isMock ? 'Mock interview' : isMega ? 'Grand Prix · mega test' : 'Qualifying · weekly test'} title={title} />
 
       {!live ? (
         <Card className="flex flex-col items-center gap-6 py-10 text-center">
           <p className="max-w-lg text-ink-2">
             {problems.length} unseen problems · {duration} minutes. Open each one here — statement, editor and judge included — and a green run counts it on this grid. Solving in the first half of the clock earns a 25% bonus.
           </p>
-          <StartLights running={lights} onGo={async () => (await create({ kind: kind as 'weekly' | 'mega', ref, started_at: new Date().toISOString(), duration_min: duration, results: '{}' }), setLights(false))} />
+          <StartLights running={lights} onGo={async () => (await create({ kind: kind as 'weekly' | 'mega' | 'mock', ref, started_at: new Date().toISOString(), duration_min: duration, results: '{}' }), setLights(false))} />
           <Button className="h-12 px-10 text-base" disabled={lights} onClick={() => setLights(true)}>
             {lights ? 'Hold…' : 'Start the clock'}
           </Button>

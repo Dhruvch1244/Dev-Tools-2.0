@@ -85,6 +85,23 @@ db.exec(`
     problem TEXT PRIMARY KEY, status TEXT NOT NULL DEFAULT 'todo', confidence INTEGER, minutes INTEGER,
     notes TEXT, sol_cpp TEXT, sol_java TEXT, sol_py TEXT, solved_at TEXT, revisit_at TEXT, updated_at TEXT NOT NULL
   );
+  -- Sport: badminton / runs / walks / anything. route = GPS track [[lat, lng, tMs], …] when tracked live.
+  CREATE TABLE IF NOT EXISTS activities (
+    id TEXT PRIMARY KEY, date TEXT NOT NULL, type TEXT NOT NULL, started_at TEXT, duration_min REAL NOT NULL,
+    distance_km REAL, kcal REAL, rpe INTEGER, notes TEXT, details TEXT, route TEXT,
+    created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+  );
+  -- Routines: a recurring time block (days + time) with optional steps, linked habit and Google event.
+  CREATE TABLE IF NOT EXISTS routines (
+    id TEXT PRIMARY KEY, name TEXT NOT NULL, emoji TEXT, days TEXT NOT NULL, time TEXT NOT NULL, duration_min INTEGER NOT NULL DEFAULT 30,
+    steps TEXT, habit_id TEXT, remind INTEGER NOT NULL DEFAULT 1, gcal_event_id TEXT, active INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS routine_logs (routine_id TEXT NOT NULL, date TEXT NOT NULL, steps TEXT, PRIMARY KEY (routine_id, date));
+  -- Saved meals: a named bundle of foods logged in one tap.
+  CREATE TABLE IF NOT EXISTS saved_meals (
+    id TEXT PRIMARY KEY, name TEXT NOT NULL, meal TEXT, items TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+  );
   CREATE TABLE IF NOT EXISTS dsa_tests (
     id TEXT PRIMARY KEY, kind TEXT NOT NULL, ref TEXT NOT NULL, started_at TEXT NOT NULL, finished_at TEXT,
     duration_min INTEGER NOT NULL, results TEXT, score REAL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
@@ -107,6 +124,9 @@ export const RESOURCES: Record<string, Resource> = {
   sets: { cols: ['workout_id', 'date', 'exercise', 'set_no', 'weight', 'reps'], order: 'date ASC, set_no ASC', dateCol: 'date' },
   food_logs: { cols: ['date', 'meal', 'food_id', 'name', 'qty', 'unit', 'kcal', 'protein', 'carbs', 'fat'], order: 'date DESC, created_at ASC', dateCol: 'date' },
   custom_foods: { cols: ['name', 'serving', 'kcal', 'protein', 'carbs', 'fat'], order: 'name ASC' },
+  activities: { cols: ['date', 'type', 'started_at', 'duration_min', 'distance_km', 'kcal', 'rpe', 'notes', 'details', 'route'], order: 'date DESC, started_at DESC', dateCol: 'date' },
+  routines: { cols: ['name', 'emoji', 'days', 'time', 'duration_min', 'steps', 'habit_id', 'remind', 'gcal_event_id', 'active'], order: 'time ASC' },
+  saved_meals: { cols: ['name', 'meal', 'items'], order: 'name ASC' },
   dsa_tests: { cols: ['kind', 'ref', 'started_at', 'finished_at', 'duration_min', 'results', 'score'], order: 'started_at DESC' },
 };
 

@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import { motion } from 'motion/react';
 import { useQuery } from '@tanstack/react-query';
-import { Bell, CalendarClock, ChevronRight, Cpu, Flag, Flame, Play, RefreshCw, Trophy, Zap } from 'lucide-react';
+import { Bell, CalendarClock, ChevronRight, Cpu, Flag, Flame, Play, RefreshCw, Timer, Trophy, Zap } from 'lucide-react';
 import { api, useList, useResource, useSettings } from '../../lib/api';
 import { useDsa, useSeason, nextRevisit } from '../../lib/dsa';
 import { addDays, daysBetween, parseDate, today } from '../../lib/format';
 import { ALL_PRACTICE, MEGAS, POINTS, WEEKS, currentWeek, findProblem, megaDate, problemsForDay, weekDates } from '../../core/dsa/plan';
+import { mastery, pickMock } from '../../core/dsa/mastery';
 import type { DsaTest, Task } from '../../lib/types';
 import { useToast } from '../../components/toast';
 import { AnimatedNumber, Button, Card, Input, Page, PageHeader, ProgressRing, Rise, SectionTitle, cx } from '../../components/ui';
@@ -37,6 +38,59 @@ function Sparkline({ values, color }: { values: number[]; color: string }) {
     <svg viewBox="0 0 100 30" className="h-10 w-full" preserveAspectRatio="none" aria-hidden>
       <motion.polyline points={pts} fill="none" stroke={color} strokeWidth={2} vectorEffect="non-scaling-stroke" initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 1.2, ease: 'easeOut' }} />
     </svg>
+  );
+}
+
+/** 13-spoke radar of mastery per round; the weakest started rounds are called out. */
+function Radar({ data }: { data: ReturnType<typeof mastery> }) {
+  const n = data.length;
+  const pt = (i: number, r: number) => {
+    const a = (i / n) * Math.PI * 2 - Math.PI / 2;
+    return [50 + Math.cos(a) * r * 38, 50 + Math.sin(a) * r * 38] as const;
+  };
+  const poly = data.map((d, i) => pt(i, Math.max(0.03, d.value)).join(',')).join(' ');
+  const started = data.filter((d) => d.solved > 0);
+  const weakest = [...started].sort((a, b) => a.value - b.value).slice(0, 3);
+  return (
+    <Card>
+      <SectionTitle>Weakness radar</SectionTitle>
+      <div className="grid items-center gap-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+        <svg viewBox="0 0 100 100" className="mx-auto w-full max-w-[300px]" role="img" aria-label="Mastery by round">
+          {[0.25, 0.5, 0.75, 1].map((r) => (
+            <polygon key={r} points={data.map((_, i) => pt(i, r).join(',')).join(' ')} fill="none" stroke="var(--line)" strokeWidth={0.4} />
+          ))}
+          {data.map((d, i) => {
+            const [x, y] = pt(i, 1.17);
+            const [sx, sy] = pt(i, 1);
+            return (
+              <g key={d.week.n}>
+                <line x1={50} y1={50} x2={sx} y2={sy} stroke="var(--line)" strokeWidth={0.3} />
+                <text x={x} y={y + 1.2} textAnchor="middle" fontSize={3.4} fontWeight={800} className="fill-ink-3">
+                  R{d.week.n}
+                </text>
+              </g>
+            );
+          })}
+          <motion.polygon points={poly} fill="rgb(225 6 0 / .22)" stroke="var(--accent)" strokeWidth={0.9} initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: 'spring', stiffness: 90, damping: 14 }} style={{ transformOrigin: '50px 50px' }} />
+        </svg>
+        <div className="space-y-2 text-sm">
+          {weakest.length === 0 ? (
+            <p className="text-ink-3">Solve a few problems and the radar fills in — each spoke is a round, scored from solves, confidence and qualifying results.</p>
+          ) : (
+            <>
+              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-ink-3">Needs work</p>
+              {weakest.map((d) => (
+                <Link key={d.week.n} to={`/dsa/week/${d.week.n}`} className="flex items-center gap-2 rounded-md bg-bg px-3 py-2 hover:bg-surface-2">
+                  <span className="font-mono text-xs font-bold text-ink-3">R{d.week.n}</span>
+                  <span className="min-w-0 flex-1 truncate font-semibold">{d.week.topic}</span>
+                  <span className="font-mono text-xs text-accent-2">{Math.round(d.value * 100)}%</span>
+                </Link>
+              ))}
+            </>
+          )}
+        </div>
+      </div>
+    </Card>
   );
 }
 
@@ -92,6 +146,34 @@ function Contests() {
   );
 }
 
+function LeetCodePull() {
+  const toast = useToast();
+  const [busy, setBusy] = useState(false);
+  return (
+    <div className="-mt-2 mb-4 flex items-center gap-2 text-xs text-ink-3">
+      <Button
+        size="sm"
+        variant="ghost"
+        disabled={busy}
+        onClick={async () => {
+          setBusy(true);
+          try {
+            const r = await api<{ checked: number; marked: string[] }>('/dsa/sync-leetcode', { method: 'POST' });
+            toast({ message: r.marked.length ? `Marked ${r.marked.length} solved from LeetCode` : `Up to date (checked ${r.checked} recent ACs)` });
+          } catch (e) {
+            toast({ message: (e as Error).message });
+          } finally {
+            setBusy(false);
+          }
+        }}
+      >
+        <RefreshCw className={cx('size-3.5', busy && 'animate-spin')} /> Pull my LeetCode solves
+      </Button>
+      Season problems you get Accepted on LeetCode are marked solved here automatically every 30 min.
+    </div>
+  );
+}
+
 function Ratings() {
   const { settings, save } = useSettings();
   const h = settings.handles ?? {};
@@ -124,6 +206,7 @@ function Ratings() {
           Sync
         </Button>
       </form>
+      {h.leetcode && <LeetCodePull />}
       {isFetching && <p className="text-xs text-ink-3">Syncing…</p>}
       <div className="grid gap-3 sm:grid-cols-2">
         {data?.codeforces && (
@@ -187,6 +270,17 @@ export function DsaHq() {
   }, [list, t]);
   const diffCount = (d: 'E' | 'M' | 'H') => solvedPractice.filter((p) => p.diff === d).length;
   const testFor = (kind: string, ref: string) => tests.find((x) => x.kind === kind && x.ref === ref && x.finished_at);
+  const radar = useMemo(() => mastery(list, tests), [list, tests]);
+  const navigate = useNavigate();
+  const testsApi = useResource<DsaTest>('dsa_tests');
+  const toast = useToast();
+  const startMock = async () => {
+    const p = pickMock(list, tests, wk);
+    if (!p) return toast({ message: 'No unseen problems left to draw from — impressive.' });
+    await testsApi.create({ kind: 'mock', ref: p.id, started_at: new Date().toISOString(), duration_min: p.diff === 'H' ? 60 : 45, results: '{}' });
+    toast({ message: `Mock interview: ${p.title} · ${p.diff === 'H' ? 60 : 45} min — go!` });
+    navigate(`/dsa/p/${p.id}`);
+  };
 
   return (
     <Page>
@@ -205,10 +299,13 @@ export function DsaHq() {
               </Button>
             </Link>
             <Link to="/dsa/lab">
-              <Button variant="soft">
+              <Button variant="ghost">
                 <Cpu className="size-4" /> Code lab
               </Button>
             </Link>
+            <Button onClick={() => void startMock()}>
+              <Timer className="size-4" /> Mock interview
+            </Button>
           </div>
         }
       />
@@ -313,6 +410,10 @@ export function DsaHq() {
           )}
         </Card>
       </div>
+
+      <Rise className="mb-4">
+        <Radar data={radar} />
+      </Rise>
 
       {/* Season calendar */}
       <Rise className="mb-4">

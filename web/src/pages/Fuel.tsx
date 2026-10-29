@@ -1,12 +1,15 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { ChevronLeft, ChevronRight, Copy, Minus, Plus, Search, Settings2, Trash2 } from 'lucide-react';
+import { Bookmark, ChevronLeft, ChevronRight, Copy, Flame, Minus, Plus, Search, Settings2, Sparkles, Trash2, Zap } from 'lucide-react';
 import { useList, useResource, useSettings } from '../lib/api';
 import { addDays, parseDate, relativeDay, today } from '../lib/format';
 import { listItem } from '../lib/motion';
 import { FOODS, FOOD_CATS, searchFoods, type Food } from '../core/foods';
-import { ACTIVITY, DEFAULT_PROFILE, MEALS, sumMacros, targets, type Profile } from '../core/fuel';
-import type { CustomFood, FoodLog, Health } from '../lib/types';
+import { ACTIVITY, DEFAULT_PROFILE, MEALS, mealForNow, sumMacros, targets, type Profile } from '../core/fuel';
+import { parseFoodText, proteinFixes } from '../core/foodParse';
+import { streamCoach } from '../lib/coach';
+import { md } from '../lib/dsa';
+import type { Activity, CustomFood, FoodLog, Health, SavedMeal } from '../lib/types';
 import { useToast } from '../components/toast';
 import { AnimatedNumber, Button, Card, Chip, IconButton, Input, Page, PageHeader, Rise, SectionTitle, Segmented, Sheet, cx } from '../components/ui';
 
@@ -77,8 +80,26 @@ export function FoodSearch({ date, meal, onMealChange }: { date: string; meal: s
   const list = q ? searchFoods(all, q) : cat === 'Recent' ? (recent.length ? recent : FOODS.slice(0, 20)) : cat === 'Custom' ? all.filter((f) => f.cat === 'Custom') : all.filter((f) => f.cat === cat);
 
   const [added, setAdded] = useState<Record<string, number>>({});
-  const add = async (f: AnyFood) => {
-    const n = qty[f.id] ?? 1;
+  const [mode, setMode] = useState<'search' | 'type' | 'saved'>('search');
+  // "Your usual": foods logged for this meal on 3+ different days recently, with their usual quantity.
+  const usual = useMemo(() => {
+    const byFood = new Map<string, { days: Set<string>; qty: number[] }>();
+    for (const l of recentLogs) {
+      if (l.meal !== meal || !l.food_id) continue;
+      const e = byFood.get(l.food_id) ?? { days: new Set(), qty: [] };
+      e.days.add(l.date);
+      e.qty.push(l.qty);
+      byFood.set(l.food_id, e);
+    }
+    return [...byFood]
+      .filter(([, e]) => e.days.size >= 3)
+      .sort((a, b) => b[1].days.size - a[1].days.size)
+      .slice(0, 6)
+      .map(([id, e]) => ({ food: all.find((f) => f.id === id), qty: e.qty.sort((a, b) => a - b)[Math.floor(e.qty.length / 2)] }))
+      .filter((x): x is { food: AnyFood; qty: number } => !!x.food);
+  }, [recentLogs, meal, all]);
+  const add = async (f: AnyFood, forced?: number) => {
+    const n = forced ?? qty[f.id] ?? 1;
     await create({ date, meal, food_id: f.id, name: f.name, qty: n, unit: f.serving, kcal: f.kcal * n, protein: f.protein * n, carbs: f.carbs * n, fat: f.fat * n });
     navigator.vibrate?.(12);
     setAdded((a) => ({ ...a, [f.id]: (a[f.id] ?? 0) + n }));
@@ -94,6 +115,34 @@ export function FoodSearch({ date, meal, onMealChange }: { date: string; meal: s
               {m.label}
             </button>
           ))}
+        </div>
+      )}
+      <Segmented
+        className="mb-3 w-full"
+        value={mode}
+        onChange={setMode}
+        options={[
+          { value: 'search', label: 'Search' },
+          { value: 'type', label: 'Type it' },
+          { value: 'saved', label: 'Saved meals' },
+        ]}
+      />
+      {mode === 'type' && <TypeIt date={date} meal={meal} foods={all} recentIds={recent.map((f) => f.id)} />}
+      {mode === 'saved' && <SavedMeals date={date} meal={meal} />}
+      {mode === 'search' && (
+      <>
+      {usual.length > 0 && !q && (
+        <div className="mb-3">
+          <p className="mb-1.5 text-[10px] font-black uppercase tracking-[0.18em] text-ink-3">Your usual · one tap</p>
+          <div className="flex flex-wrap gap-1.5">
+            {usual.map(({ food, qty: n }) => (
+              <motion.button key={food.id} whileTap={{ scale: 0.92 }} onClick={() => void add(food, n)} className={cx('slant px-3 py-1.5 text-[12px] font-bold', added[food.id] ? 'bg-green text-black' : 'bg-surface-2 text-ink')}>
+                {added[food.id] ? '✓ ' : '+ '}
+                {n !== 1 ? `${n}× ` : ''}
+                {food.name}
+              </motion.button>
+            ))}
+          </div>
         </div>
       )}
       <div className="relative mb-3">
@@ -165,7 +214,132 @@ export function FoodSearch({ date, meal, onMealChange }: { date: string; meal: s
           </form>
         )}
       </div>
+      </>
+      )}
     </>
+  );
+}
+
+/** "2 roti, dal tadka, 1 katori chawal" → preview with matches you can fix → log all. */
+function TypeIt({ date, meal, foods, recentIds }: { date: string; meal: string; foods: AnyFood[]; recentIds: string[] }) {
+  const { create } = useResource<FoodLog>('food_logs');
+  const toast = useToast();
+  const [text, setText] = useState('');
+  const [picks, setPicks] = useState<Record<number, string>>({});
+  const parsed = useMemo(() => parseFoodText(text, foods, recentIds), [text, foods, recentIds]);
+  const rows = parsed.map((p, i) => ({ ...p, food: (picks[i] && foods.find((f) => f.id === picks[i])) || p.food }));
+  const ok = rows.filter((r) => r.food);
+  const total = ok.reduce((a, r) => a + r.food!.kcal * r.qty, 0);
+  const logAll = async () => {
+    for (const r of ok) {
+      const f = r.food!;
+      await create({ date, meal, food_id: f.id, name: f.name, qty: r.qty, unit: f.serving, kcal: f.kcal * r.qty, protein: f.protein * r.qty, carbs: f.carbs * r.qty, fat: f.fat * r.qty });
+    }
+    navigator.vibrate?.([15, 30, 15]);
+    toast({ message: `Logged ${ok.length} item${ok.length === 1 ? '' : 's'} · ${Math.round(total)} kcal` });
+    setText('');
+    setPicks({});
+  };
+  return (
+    <div className="space-y-3">
+      <textarea
+        autoFocus
+        rows={2}
+        value={text}
+        onChange={(e) => (setText(e.target.value), setPicks({}))}
+        placeholder="2 roti, dal tadka, 1 katori chawal, chai"
+        className="field w-full resize-none text-base"
+      />
+      <ul className="space-y-1">
+        {rows.map((r, i) => (
+          <motion.li key={i + r.text} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} className="flex items-center gap-2 rounded-md bg-bg px-3 py-2 text-sm">
+            <span className="w-9 font-mono font-bold">{r.qty}×</span>
+            {r.food ? (
+              <select value={r.food.id} onChange={(e) => setPicks({ ...picks, [i]: e.target.value })} className="min-w-0 flex-1 truncate bg-transparent font-semibold outline-none">
+                {[r.food, ...r.alternatives.filter((a) => a.id !== r.food!.id)].map((f) => (
+                  <option key={f.id} value={f.id}>
+                    {f.name} — {f.serving}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <span className="flex-1 text-warn">“{r.text}” — no match, try Search</span>
+            )}
+            {r.food && <span className="font-mono text-xs text-ink-3">{Math.round(r.food.kcal * r.qty)}</span>}
+          </motion.li>
+        ))}
+      </ul>
+      <Button className="h-12 w-full" disabled={!ok.length} onClick={() => void logAll()}>
+        <Zap className="size-4" /> Log {ok.length || ''} to {MEALS.find((m) => m.id === meal)?.label} {ok.length ? `· ${Math.round(total)} kcal` : ''}
+      </Button>
+      <p className="text-[11px] text-ink-3">Understands numbers, “ek/do/half”, katori/plate/glass and Hinglish names (chawal, dahi, anda, chapati…).</p>
+    </div>
+  );
+}
+
+function SavedMeals({ date, meal }: { date: string; meal: string }) {
+  const { data: saved = [] } = useList<SavedMeal>('saved_meals');
+  const { remove } = useResource<SavedMeal>('saved_meals');
+  const { create } = useResource<FoodLog>('food_logs');
+  const toast = useToast();
+  const log = async (m: SavedMeal) => {
+    const items: Omit<FoodLog, 'id' | 'created_at' | 'updated_at' | 'date' | 'meal'>[] = JSON.parse(m.items);
+    for (const it of items) await create({ ...it, date, meal });
+    navigator.vibrate?.([15, 30, 15]);
+    toast({ message: `${m.name} logged · ${Math.round(items.reduce((a, x) => a + x.kcal, 0))} kcal` });
+  };
+  if (!saved.length) return <p className="py-6 text-center text-sm text-ink-3">No saved meals yet. On the Fuel page, tap the bookmark on any meal to save it for one-tap logging.</p>;
+  return (
+    <ul className="space-y-1.5">
+      {saved.map((m) => {
+        const items: FoodLog[] = JSON.parse(m.items);
+        return (
+          <li key={m.id} className="group flex items-center gap-3 rounded-md bg-bg px-3 py-2.5">
+            <div className="min-w-0 flex-1">
+              <p className="truncate font-bold">{m.name}</p>
+              <p className="truncate text-xs text-ink-3">
+                {items.map((x) => `${x.qty !== 1 ? `${x.qty}× ` : ''}${x.name}`).join(' · ')} · {Math.round(items.reduce((a, x) => a + x.kcal, 0))} kcal
+              </p>
+            </div>
+            <IconButton label={`Delete ${m.name}`} onClick={() => remove(m.id)} className="opacity-0 transition group-hover:opacity-100 max-sm:opacity-50">
+              <Trash2 className="size-4" />
+            </IconButton>
+            <Button size="sm" onClick={() => void log(m)}>
+              Log
+            </Button>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+/** Ask the local Claude CLI for meal ideas that fit what's left of today's macros. */
+function MealCoach({ open, onClose, remaining, usual }: { open: boolean; onClose: () => void; remaining: { kcal: number; protein: number; carbs: number; fat: number }; usual: string[] }) {
+  const [text, setText] = useState('');
+  const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    if (!open) return;
+    const ctl = new AbortController();
+    setText('');
+    setErr(null);
+    setBusy(true);
+    streamCoach('fuel', { remaining, usual, meal: MEALS.find((m) => m.id === mealForNow())?.label ?? 'next meal' }, (t) => setText((x) => x + t), ctl.signal)
+      .catch((e) => (e as Error).name !== 'AbortError' && setErr((e as Error).message))
+      .finally(() => setBusy(false));
+    return () => ctl.abort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+  return (
+    <Sheet open={open} onClose={onClose} title="Pit radio · meal plan">
+      <p className="mb-3 font-mono text-xs text-ink-3">
+        Left today: {Math.round(remaining.kcal)} kcal · P {Math.round(remaining.protein)} · C {Math.round(remaining.carbs)} · F {Math.round(remaining.fat)} g
+      </p>
+      {err ? <p className="text-sm text-warn">{err}</p> : text ? <div className="prose-f1 text-[14px]" dangerouslySetInnerHTML={{ __html: md(text) }} /> : <span className="cursor-blink inline-block h-4 w-2 bg-accent" />}
+      {busy && text && <span className="cursor-blink ml-1 inline-block h-4 w-2 bg-accent" />}
+      <p className="mt-3 text-[10px] text-ink-3">From your local Claude Code login · log what you pick with Type it.</p>
+    </Sheet>
   );
 }
 
@@ -276,6 +450,30 @@ export function FuelPage() {
   const day = logs.filter((l) => l.date === date);
   const total = sumMacros(day);
   const left = t.kcal - total.kcal;
+  const savedApi = useResource<SavedMeal>('saved_meals');
+  const { data: acts = [] } = useList<Activity>('activities', { from: date, to: date });
+  const burned = acts.reduce((a, x) => a + (x.kcal ?? 0), 0);
+  const recentIds = [...new Set(logs.map((l) => l.food_id).filter(Boolean))] as string[];
+  const gap = Math.round(t.protein - total.protein);
+  const fixes = gap >= 15 ? proteinFixes(gap, FOODS, recentIds) : [];
+  const saveMeal = async (meal: string, label: string) => {
+    const items = day.filter((l) => l.meal === meal).map(({ food_id, name, qty, unit, kcal, protein, carbs, fat }) => ({ food_id, name, qty, unit, kcal, protein, carbs, fat }));
+    if (!items.length) return toast({ message: `${label} is empty — log it first, then save it` });
+    const name = prompt(`Name this meal`, `My ${label.toLowerCase()}`)?.trim();
+    if (!name) return;
+    await savedApi.create({ name, meal, items: JSON.stringify(items) });
+    toast({ message: `Saved “${name}” — find it under Add → Saved meals` });
+  };
+  const [coachOpen, setCoachOpen] = useState(false);
+  const usualNames = useMemo(() => {
+    const n = new Map<string, number>();
+    for (const l of logs) n.set(l.name, (n.get(l.name) ?? 0) + 1);
+    return [...n].sort((a, b) => b[1] - a[1]).map(([k]) => k);
+  }, [logs]);
+  const quickAdd = async (f: (typeof FOODS)[number], qty: number) => {
+    await create({ date, meal: mealForNow(), food_id: f.id, name: f.name, qty, unit: f.serving, kcal: f.kcal * qty, protein: f.protein * qty, carbs: f.carbs * qty, fat: f.fat * qty });
+    toast({ message: `${qty} × ${f.name} added` });
+  };
 
   const copyYesterday = async (meal: string) => {
     const y = logs.filter((l) => l.date === addDays(date, -1) && l.meal === meal);
@@ -340,7 +538,38 @@ export function FuelPage() {
           <MacroBar label="Carbs" value={total.carbs} target={t.carbs} color="var(--yellow)" />
           <MacroBar label="Fat" value={total.fat} target={t.fat} color="var(--sky)" />
         </div>
+        {burned > 0 && (
+          <p className="mt-4 flex items-center gap-1.5 text-xs text-ink-3">
+            <Flame className="size-3.5 text-yellow" /> {Math.round(burned)} kcal burned in sport {date === today() ? 'today' : 'that day'} — shown for reference, target unchanged.
+          </p>
+        )}
       </Card>
+
+      {date === today() && left > 150 && (
+        <Rise className="-mt-1 mb-4 flex justify-end">
+          <Button size="sm" variant="ghost" onClick={() => setCoachOpen(true)}>
+            <Sparkles className="size-4 text-accent-2" /> Plan my next meal
+          </Button>
+        </Rise>
+      )}
+      <MealCoach open={coachOpen} onClose={() => setCoachOpen(false)} remaining={{ kcal: left, protein: Math.max(0, t.protein - total.protein), carbs: Math.max(0, t.carbs - total.carbs), fat: Math.max(0, t.fat - total.fat) }} usual={usualNames} />
+      <AnimatePresence>
+        {fixes.length > 0 && date === today() && (
+          <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="mb-4 rounded-xl border border-accent/40 bg-accent-soft p-4">
+            <p className="flex items-center gap-2 text-sm font-black uppercase italic">
+              <Sparkles className="size-4 text-accent-2" /> {gap} g protein to go — close it with one of these
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {fixes.map((x) => (
+                <motion.button key={x.food.id} whileTap={{ scale: 0.94 }} onClick={() => void quickAdd(x.food, x.qty)} className="rounded-md border border-line bg-bg px-3 py-2 text-left text-sm">
+                  <span className="font-bold">{x.qty !== 1 ? `${x.qty}× ` : ''}{x.food.name}</span>
+                  <span className="block font-mono text-[11px] text-ink-3">+{x.protein} g · {x.kcal} kcal</span>
+                </motion.button>
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <div className="grid gap-4 lg:grid-cols-2">
         {MEALS.map((m) => {
@@ -355,6 +584,9 @@ export function FuelPage() {
                 </div>
                 <div className="flex items-center gap-1">
                   <span className="mr-2 font-mono text-sm font-bold">{Math.round(mt.kcal)} kcal</span>
+                  <IconButton label={`Save ${m.label} as a meal`} onClick={() => void saveMeal(m.id, m.label)}>
+                    <Bookmark className="size-4" />
+                  </IconButton>
                   <IconButton label={`Copy yesterday's ${m.label}`} onClick={() => void copyYesterday(m.id)}>
                     <Copy className="size-4" />
                   </IconButton>

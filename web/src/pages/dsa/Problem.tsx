@@ -16,6 +16,7 @@ import { CodeView } from '../../components/CodeView';
 import { FrameView, PlayerBar, usePlayer } from '../../components/VizStage';
 import { Button, Card, Page, PageHeader, Rise, SectionTitle, Segmented, Textarea, cx } from '../../components/ui';
 import { DiffChip, STATUS } from './shared';
+import { CoachPanel, type JudgeSummary } from './Coach';
 
 export type RunResult = { phase: 'compile' | 'run'; ok: boolean; exitCode: number | null; timedOut: boolean; stdout: string; stderr: string; events: unknown[]; ms: number; error?: string };
 
@@ -188,7 +189,7 @@ function Statement({ q, error }: { q?: LcQuestion; error?: Error | null }) {
 }
 
 /** Runs the solution against LeetCode's examples (or custom input) with the generated harness. */
-function JudgePanel({ slug, lang, code, q, onAllPass }: { slug: string; lang: Lang; code: string; q?: LcQuestion; onAllPass: () => void }) {
+function JudgePanel({ slug, lang, code, q, onAllPass, onResult }: { slug: string; lang: Lang; code: string; q?: LcQuestion; onAllPass: () => void; onResult: (s: JudgeSummary) => void }) {
   const [res, setRes] = useState<JudgeResult | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
@@ -208,6 +209,13 @@ function JudgePanel({ slug, lang, code, q, onAllPass }: { slug: string; lang: La
     try {
       const r = await api<JudgeResult>('/judge', { method: 'POST', body: JSON.stringify({ slug, lang, code, ignoreOrder: anyOrder, input: customOn ? custom : undefined }) });
       setRes(r);
+      onResult({
+        passed: r.results.filter((x) => x.pass).length,
+        total: r.results.length,
+        compileError: r.phase === 'compile' ? r.stderr : undefined,
+        failing: r.results.find((x) => x.pass === false || x.output === undefined) ?? null,
+        stderr: r.phase === 'run' && r.stderr ? r.stderr : undefined,
+      });
       setFrames(framesFromEvents(r.events));
       const first = r.results.findIndex((x) => x.pass === false);
       setOpen(first >= 0 ? first : null);
@@ -326,7 +334,7 @@ function useLiveTest(id: string) {
   const { data: tests = [] } = useList<DsaTest>('dsa_tests');
   const { update } = useResource<DsaTest>('dsa_tests');
   const live = tests.find((t) => !t.finished_at && Date.parse(t.started_at) + t.duration_min * 60_000 > Date.now());
-  const inTest = live && (live.kind === 'weekly' ? WEEKS[Number(live.ref) - 1]?.test : MEGAS.find((m) => m.id === live.ref)?.problems)?.some((p) => p.id === id);
+  const inTest = live && (live.kind === 'mock' ? live.ref === id : (live.kind === 'weekly' ? WEEKS[Number(live.ref) - 1]?.test : MEGAS.find((m) => m.id === live.ref)?.problems)?.some((p) => p.id === id));
   const markSolved = () => {
     if (!live) return;
     const results = JSON.parse(live.results ?? '{}');
@@ -368,8 +376,9 @@ export function DsaProblem() {
   const [code, setCode] = useState<string>('');
   const [notes, setNotes] = useState('');
   const [preview, setPreview] = useState(false);
-  const [leftTab, setLeftTab] = useState<'statement' | 'notes'>('statement');
-  const [mobileTab, setMobileTab] = useState<'problem' | 'code' | 'notes'>('problem');
+  const [leftTab, setLeftTab] = useState<'statement' | 'notes' | 'coach'>('statement');
+  const [mobileTab, setMobileTab] = useState<'problem' | 'code' | 'coach' | 'notes'>('problem');
+  const [judge, setJudge] = useState<JudgeSummary | null>(null);
   const [timerStart, setTimerStart] = useState<number | null>(null);
   const [now, setNow] = useState(Date.now());
   const [celebrate, setCelebrate] = useState(false);
@@ -440,6 +449,24 @@ export function DsaProblem() {
     </>
   );
 
+  const coachPanel = (
+    <CoachPanel
+      slug={id}
+      title={p.title}
+      lang={lang}
+      code={code}
+      judge={judge}
+      locked={!!test}
+      onSaveToNotes={(text) => {
+        const next = `${notes ? `${notes.trimEnd()}\n\n` : ''}${text}`;
+        setNotes(next);
+        save({ problem: id, notes: next });
+        setLeftTab('notes');
+        setMobileTab('notes');
+      }}
+    />
+  );
+
   const codePanel = (
     <>
       <SectionTitle
@@ -472,7 +499,7 @@ export function DsaProblem() {
         }}
       />
       <div className="mt-4">
-        <JudgePanel slug={id} lang={lang} code={code} q={q} onAllPass={() => setCelebrate(true)} />
+        <JudgePanel slug={id} lang={lang} code={code} q={q} onAllPass={() => setCelebrate(true)} onResult={setJudge} />
       </div>
       <details className="mt-4 rounded-md border border-line p-3">
         <summary className="flex cursor-pointer items-center gap-1 text-[11px] font-black uppercase tracking-widest text-ink-3">
@@ -555,11 +582,12 @@ export function DsaProblem() {
           onChange={setMobileTab}
           options={[
             { value: 'problem', label: 'Problem' },
-            { value: 'code', label: 'Code & tests' },
+            { value: 'code', label: 'Code' },
+            { value: 'coach', label: 'Coach' },
             { value: 'notes', label: 'Notes' },
           ]}
         />
-        <Card>{mobileTab === 'problem' ? <Statement q={q} error={lc.error} /> : mobileTab === 'code' ? codePanel : notesPanel}</Card>
+        <Card>{mobileTab === 'problem' ? <Statement q={q} error={lc.error} /> : mobileTab === 'code' ? codePanel : mobileTab === 'coach' ? coachPanel : notesPanel}</Card>
       </div>
 
       {/* Desktop: statement/notes beside the editor */}
@@ -571,10 +599,11 @@ export function DsaProblem() {
             onChange={setLeftTab}
             options={[
               { value: 'statement', label: 'Statement' },
+              { value: 'coach', label: 'Pit radio' },
               { value: 'notes', label: "Engineer's notes" },
             ]}
           />
-          {leftTab === 'statement' ? <Statement q={q} error={lc.error} /> : notesPanel}
+          {leftTab === 'statement' ? <Statement q={q} error={lc.error} /> : leftTab === 'coach' ? coachPanel : notesPanel}
         </Card>
         <Card>{codePanel}</Card>
       </div>

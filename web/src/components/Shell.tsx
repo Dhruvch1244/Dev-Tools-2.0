@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router';
 import { AnimatePresence, motion } from 'motion/react';
-import { Binary, ChevronLeft, Droplets, Dumbbell, HeartPulse, House, LayoutGrid, ListTodo, Plus, Send, Settings as SettingsIcon, StickyNote, Utensils, Wallet } from 'lucide-react';
+import { Activity, Trophy, Binary, CalendarClock, ChevronLeft, Droplets, Dumbbell, HeartPulse, House, LayoutGrid, ListTodo, Plus, Send, Settings as SettingsIcon, StickyNote, Utensils, Wallet } from 'lucide-react';
 import { mealForNow } from '../core/fuel';
 import { FoodSearch } from '../pages/Fuel';
 import { useHealthToday } from '../pages/Life';
@@ -21,6 +21,8 @@ export const NAV_GROUPS = [
     label: 'Paddock',
     items: [
       { to: '/', label: 'Today', icon: House },
+      { to: '/report', label: 'Race report', icon: Trophy },
+      { to: '/routines', label: 'Routines', icon: CalendarClock },
       { to: '/tasks', label: 'Tasks', icon: ListTodo },
       { to: '/notes', label: 'Notes', icon: StickyNote },
       { to: '/money', label: 'Money', icon: Wallet },
@@ -31,6 +33,7 @@ export const NAV_GROUPS = [
     label: 'Body',
     items: [
       { to: '/gym', label: 'Gym', icon: Dumbbell },
+      { to: '/sport', label: 'Sport', icon: Activity },
       { to: '/fuel', label: 'Fuel', icon: Utensils },
       { to: '/life', label: 'Life', icon: HeartPulse },
     ],
@@ -103,10 +106,11 @@ function Hud() {
 
 type QuickKind = 'menu' | 'task' | 'expense' | 'note' | 'drop' | 'food';
 
-const QUICK_TILES: { kind: QuickKind | 'water' | 'gym'; label: string; icon: typeof House; color: string }[] = [
+const QUICK_TILES: { kind: QuickKind | 'water' | 'gym' | 'sport'; label: string; icon: typeof House; color: string }[] = [
   { kind: 'food', label: 'Food', icon: Utensils, color: 'var(--green)' },
   { kind: 'water', label: 'Water +1', icon: Droplets, color: 'var(--sky)' },
   { kind: 'gym', label: 'Gym set', icon: Dumbbell, color: 'var(--yellow)' },
+  { kind: 'sport', label: 'Sport', icon: Activity, color: 'var(--sky)' },
   { kind: 'task', label: 'Task', icon: ListTodo, color: 'var(--accent)' },
   { kind: 'expense', label: 'Expense', icon: Wallet, color: 'var(--purple)' },
   { kind: 'note', label: 'Note', icon: StickyNote, color: 'var(--accent-2)' },
@@ -131,8 +135,8 @@ function QuickAdd({ open, onClose, kind, setKind }: { open: boolean; onClose: ()
       health.set({ kind: 'water', value: before + 1 });
       toast({ message: `💧 ${before + 1} glasses today`, action: { label: 'Undo', onClick: () => health.set({ kind: 'water', value: before }) } });
       onClose();
-    } else if (k === 'gym') {
-      navigate('/gym');
+    } else if (k === 'gym' || k === 'sport') {
+      navigate(`/${k}`);
       onClose();
     } else setKind(k);
   };
@@ -227,6 +231,24 @@ export function Shell({ children }: { children: ReactNode }) {
   const [quickKind, setQuickKind] = useState<QuickKind>('task');
   const [settings, setSettings] = useState(false);
   const [more, setMore] = useState(false);
+  const navigateTo = useNavigate();
+  // Home-screen shortcuts arrive as ?quick=food|water|task — open the matching action, then clean the URL.
+  const water = useHealthToday();
+  const toast = useToast();
+  useEffect(() => {
+    const k = new URLSearchParams(location.search).get('quick');
+    if (!k) return;
+    navigateTo(location.pathname, { replace: true });
+    if (k === 'water') {
+      const before = water.get('water') ?? 0;
+      water.set({ kind: 'water', value: before + 1 });
+      toast({ message: `💧 ${before + 1} glasses today` });
+    } else if (['food', 'task', 'expense', 'note', 'drop'].includes(k)) {
+      setQuickKind(k as QuickKind);
+      setQuick(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.search]);
   const section = '/' + (location.pathname.split('/')[1] ?? '');
 
   useEffect(() => {

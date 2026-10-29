@@ -1,4 +1,4 @@
-import { Hono } from 'hono';
+import { Hono, type Context } from 'hono';
 import { serve } from '@hono/node-server';
 import { serveStatic } from '@hono/node-server/serve-static';
 import { streamSSE } from 'hono/streaming';
@@ -12,7 +12,13 @@ import { profiles, upcomingContests } from './contests.ts';
 import { run, type Lang } from './runner.ts';
 import { getQuestion } from './leetcode.ts';
 import { judge, support } from './judge.ts';
-import { publicKey, pushAll, startReminderLoop, subscribe, subscriptions, taskAction, unsubscribe } from './push.ts';
+import { localStamp, publicKey, pushAll, remindersTick, subscribe, subscriptions, taskAction, unsubscribe } from './push.ts';
+import { schedule, startScheduler } from './scheduler.ts';
+import { listBackups, runBackup } from './backup.ts';
+import * as google from './google.ts';
+import { briefsTick, eveningRecap, morningBrief } from './briefs.ts';
+import { syncLeetCode } from './lcsync.ts';
+import { DSA_SYSTEM, FUEL_SYSTEM, ask, dsaPrompt, type DsaAsk } from './coach.ts';
 
 const PORT = Number(process.env.PORT ?? 4300);
 // Loopback by default: `tailscale serve` proxies to it, so only devices on your tailnet can reach it.
@@ -69,6 +75,7 @@ app.post('/api/r/:res', async (c) => {
   const keys = Object.keys(row);
   db.prepare(`INSERT INTO ${name} (${keys.join(',')}) VALUES (${keys.map(() => '?').join(',')})`).run(...Object.values(row));
   emit(name);
+  if (name === 'routines') void google.syncRoutine(row.id).then(() => emit('routines'));
   return c.json(db.prepare(`SELECT * FROM ${name} WHERE id = ?`).get(row.id), 201);
 });
 
@@ -80,12 +87,18 @@ app.patch('/api/r/:res/:id', async (c) => {
   const keys = Object.keys(patch);
   db.prepare(`UPDATE ${name} SET ${keys.map((k) => `${k} = ?`).join(', ')} WHERE id = ?`).run(...Object.values(patch), c.req.param('id'));
   emit(name);
+  if (name === 'routines' && !('gcal_event_id' in patch)) void google.syncRoutine(c.req.param('id')).then(() => emit('routines'));
   return c.json(db.prepare(`SELECT * FROM ${name} WHERE id = ?`).get(c.req.param('id')) ?? null);
 });
 
 app.delete('/api/r/:res/:id', (c) => {
   const name = c.req.param('res');
   if (!RESOURCES[name]) return c.json({ error: 'unknown resource' }, 404);
+  if (name === 'routines') {
+    const ev = (db.prepare('SELECT gcal_event_id FROM routines WHERE id = ?').get(c.req.param('id')) as { gcal_event_id: string | null } | undefined)?.gcal_event_id;
+    db.prepare('DELETE FROM routine_logs WHERE routine_id = ?').run(c.req.param('id'));
+    void google.syncRoutine(c.req.param('id'), ev ?? null);
+  }
   db.prepare(`DELETE FROM ${name} WHERE id = ?`).run(c.req.param('id'));
   emit(name);
   if (name === 'habits') emit('habit_logs');
@@ -265,7 +278,118 @@ app.post('/api/push/action', async (c) => {
   return c.json({ ok: true });
 });
 
+// ---- Routines: check-offs (a linked habit is ticked with them) ----
+app.get('/api/routine_logs', (c) => c.json(db.prepare('SELECT * FROM routine_logs WHERE date >= ?').all(c.req.query('from') ?? '0000')));
+app.post('/api/routine_logs/toggle', async (c) => {
+  const { routine_id, date } = await c.req.json<{ routine_id: string; date: string }>();
+  const removed = db.prepare('DELETE FROM routine_logs WHERE routine_id = ? AND date = ?').run(routine_id, date).changes > 0;
+  if (!removed) db.prepare('INSERT INTO routine_logs (routine_id, date) VALUES (?, ?)').run(routine_id, date);
+  const habit = (db.prepare('SELECT habit_id FROM routines WHERE id = ?').get(routine_id) as { habit_id: string | null } | undefined)?.habit_id;
+  if (habit) {
+    if (removed) db.prepare('DELETE FROM habit_logs WHERE habit_id = ? AND date = ?').run(habit, date);
+    else db.prepare('INSERT OR IGNORE INTO habit_logs (habit_id, date) VALUES (?, ?)').run(habit, date);
+    emit('habit_logs');
+  }
+  emit('routine_logs');
+  return c.json({ done: !removed });
+});
+
+// ---- Google Calendar ----
+/** Public origin of this request — behind `tailscale serve` the scheme is https even though we see http. */
+const originOf = (c: { req: { url: string; header: (k: string) => string | undefined } }) => {
+  const u = new URL(c.req.url);
+  const host = c.req.header('x-forwarded-host') ?? c.req.header('host') ?? u.host;
+  const proto = c.req.header('x-forwarded-proto') ?? (host.endsWith('.ts.net') ? 'https' : u.protocol.replace(':', ''));
+  return `${proto}://${host}`;
+};
+app.get('/api/google/status', (c) => c.json({ ...google.status(), redirectUri: `${originOf(c)}/api/google/callback` }));
+app.post('/api/google/config', async (c) => {
+  const { clientId, clientSecret } = await c.req.json<{ clientId: string; clientSecret: string }>();
+  if (!clientId?.includes('.apps.googleusercontent.com') || !clientSecret) return c.json({ error: 'That doesn’t look like an OAuth client ID / secret' }, 400);
+  google.configure(clientId, clientSecret);
+  return c.json(google.status());
+});
+app.get('/api/google/auth', (c) => c.redirect(google.authUrl(`${originOf(c)}/api/google/callback`)));
+app.get('/api/google/callback', async (c) => {
+  const err = c.req.query('error');
+  if (err) return c.redirect(`/routines?google=${encodeURIComponent(err)}`);
+  try {
+    await google.finishAuth(c.req.query('code') ?? '');
+    const n = await google.syncAll();
+    emit('routines');
+    return c.redirect(`/routines?google=connected&synced=${n}`);
+  } catch (e) {
+    return c.redirect(`/routines?google=${encodeURIComponent((e as Error).message)}`);
+  }
+});
+app.post('/api/google/disconnect', async (c) => (await google.disconnect(), emit('routines'), c.json(google.status())));
+app.post('/api/google/sync', async (c) => (c.json({ synced: await google.syncAll() })));
+app.get('/api/google/events', async (c) => {
+  try {
+    return c.json(await google.events(c.req.query('from') ?? '', c.req.query('to') ?? c.req.query('from') ?? ''));
+  } catch (e) {
+    return c.json({ error: (e as Error).message }, 502);
+  }
+});
+
+app.get('/api/briefs/preview', (c) => c.json({ morning: morningBrief(), evening: eveningRecap() }));
+app.post('/api/briefs/test', async (c) => {
+  const which = c.req.query('which') === 'evening' ? eveningRecap() : morningBrief();
+  return c.json(await pushAll({ tag: 'brief-test', ...which }));
+});
+
+app.post('/api/dsa/sync-leetcode', async (c) => {
+  const r = await syncLeetCode();
+  if (!r) return c.json({ error: 'Add your LeetCode username in DSA → Driver ratings first' }, 400);
+  if (r.marked.length) emit('dsa');
+  return c.json(r);
+});
+
+// ---- AI coach via the local Claude Code CLI (streamed as SSE) ----
+function coachStream(c: Context, system: string, prompt: string) {
+  return streamSSE(c, async (stream) => {
+    const ctl = new AbortController();
+    stream.onAbort(() => ctl.abort());
+    try {
+      await ask(system, prompt, { signal: ctl.signal, onDelta: (t) => void stream.writeSSE({ event: 'delta', data: JSON.stringify(t) }) });
+      await stream.writeSSE({ event: 'done', data: '' });
+    } catch (e) {
+      if (!ctl.signal.aborted) await stream.writeSSE({ event: 'error', data: (e as Error).message });
+    }
+  });
+}
+app.post('/api/coach/dsa', async (c) => {
+  const body = await c.req.json<DsaAsk & { slug?: string }>();
+  let statementHtml: string | undefined;
+  if (body.slug) statementHtml = await getQuestion(body.slug).then((q) => q.html).catch(() => undefined);
+  return coachStream(c, DSA_SYSTEM, dsaPrompt({ ...body, statementHtml }));
+});
+app.post('/api/coach/fuel', async (c) => {
+  const { remaining, usual, meal } = await c.req.json<{ remaining: { kcal: number; protein: number; carbs: number; fat: number }; usual: string[]; meal: string }>();
+  const prompt = `Plan my ${meal} so I finish the day on target.\nRemaining today: ${Math.round(remaining.kcal)} kcal, ${Math.round(remaining.protein)} g protein, ${Math.round(remaining.carbs)} g carbs, ${Math.round(remaining.fat)} g fat.\nFoods I eat often: ${usual.slice(0, 20).join(', ') || 'typical North Indian home food'}.\nI'm vegetarian-friendly unless I've logged meat above.`;
+  return coachStream(c, FUEL_SYSTEM, prompt);
+});
+
+app.get('/api/backups', async (c) => c.json(await listBackups()));
+app.post('/api/backups', async (c) => c.json(await runBackup()));
+
 app.get('/api/health-check', (c) => c.json({ ok: true, time: now() }));
+
+// ---- Android share target: Share → Dev Tools lands in Drop ----
+app.post('/share', async (c) => {
+  const body = await c.req.parseBody({ all: true });
+  const device = deviceFrom(c.req.header('user-agent'));
+  const text = [body.title, body.text, body.url].filter((x) => typeof x === 'string' && x.trim()).join('\n');
+  if (text) db.prepare('INSERT INTO drops (id, kind, text, device, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)').run(randomUUID(), 'text', text, device, now(), now());
+  const files = ([] as unknown[]).concat(body.file ?? []).filter((f): f is File => f instanceof File && f.size > 0);
+  for (const file of files) {
+    const id = randomUUID();
+    await writeFile(join(FILES_DIR, id), Buffer.from(await file.arrayBuffer()));
+    db.prepare('INSERT INTO drops (id, kind, filename, mime, size, device, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(id, 'file', file.name || 'shared', file.type || 'application/octet-stream', file.size, device, now(), now());
+  }
+  emit('drops');
+  return c.redirect('/drop', 303);
+});
 
 // ---- Built web app (production) ----
 if (process.env.NODE_ENV === 'production') {
@@ -274,7 +398,32 @@ if (process.env.NODE_ENV === 'production') {
   app.get('*', async (c) => c.html(await readFile('./dist/index.html', 'utf8')));
 }
 
-startReminderLoop();
+schedule({ name: 'task-reminders', every: 20_000, run: remindersTick });
+schedule({ name: 'backup', at: '03:00', run: runBackup });
+schedule({ name: 'routine-reminders', every: 20_000, run: routineReminders });
+schedule({ name: 'briefs', every: 20_000, run: briefsTick });
+schedule({ name: 'leetcode-sync', every: 30 * 60_000, run: async () => (await syncLeetCode())?.marked.length && emit('dsa') });
+// If the laptop was off at 03:00, back up on the first start of the day instead.
+schedule({ name: 'backup-catchup', at: '00:00', run: async () => (await listBackups())[0] !== new Date().toISOString().slice(0, 10) && runBackup() });
+/** Push "time for X" when a routine's start time arrives on one of its days (once per day). */
+async function routineReminders() {
+  const now = new Date();
+  const stamp = localStamp(now);
+  const [day, hm] = stamp.split('T');
+  const rows = db.prepare('SELECT id, name, emoji, days, time, duration_min FROM routines WHERE active = 1 AND remind = 1').all() as { id: string; name: string; emoji: string | null; days: string; time: string; duration_min: number }[];
+  for (const r of rows) {
+    if (!JSON.parse(r.days).includes(now.getDay()) || r.time > hm || hm > addMinutes(r.time, 10)) continue;
+    const claimed = db.prepare('INSERT OR IGNORE INTO push_sent (task_id, due, sent_at) VALUES (?, ?, ?)').run(`routine:${r.id}`, `${day}T${r.time}`, now.toISOString());
+    if (claimed.changes) await pushAll({ tag: `routine-${r.id}`, title: `${r.emoji ?? '⏱️'} ${r.name}`, body: `Starting now · ${r.duration_min} min`, url: '/routines' });
+  }
+}
+const addMinutes = (hm: string, n: number) => {
+  const [h, m] = hm.split(':').map(Number);
+  const t = h * 60 + m + n;
+  return `${String(Math.floor(t / 60) % 24).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`;
+};
+
+startScheduler();
 
 serve({ fetch: app.fetch, port: PORT, hostname: HOST }, (info) => {
   console.log(`✦ Dev Tools 2.0 API on http://${HOST}:${info.port}`);

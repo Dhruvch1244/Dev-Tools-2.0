@@ -8,6 +8,9 @@ import { DropPage } from './pages/Drop';
 import { LifePage } from './pages/Life';
 import { GymPage } from './pages/Gym';
 import { FuelPage } from './pages/Fuel';
+import { SportPage } from './pages/Sport';
+import { RoutinesPage } from './pages/Routines';
+import { ReportPage } from './pages/Report';
 import { lazy, Suspense } from 'react';
 
 // DSA pulls in CodeMirror and three language grammars (~400 KB); keep it out of the first load.
@@ -34,6 +37,9 @@ export function App() {
         <Route path="/life" element={<LifePage />} />
         <Route path="/gym" element={<GymPage />} />
         <Route path="/fuel" element={<FuelPage />} />
+        <Route path="/sport" element={<SportPage />} />
+        <Route path="/routines" element={<RoutinesPage />} />
+        <Route path="/report" element={<ReportPage />} />
         <Route path="/dsa" element={<DsaHq />} />
         <Route path="/dsa/week/:n" element={<DsaWeek />} />
         <Route path="/dsa/p/:id" element={<DsaProblem />} />

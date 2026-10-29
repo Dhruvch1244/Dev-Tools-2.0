@@ -15,6 +15,7 @@ import { problemsForDay, currentWeek, WEEKS } from '../core/dsa/plan';
 import { useDsa, useSeason } from '../lib/dsa';
 import type { FoodLog } from '../lib/types';
 import { useHabits, useHealthToday } from './Life';
+import { TodaySchedule } from './Routines';
 
 function Headline({ name }: { name?: string }) {
   const text = `${greeting()}${name ? `, ${name}` : ''}.`;
@@ -199,6 +200,10 @@ export function TodayPage() {
         </Card>
 
         <div className="space-y-4 lg:col-span-2">
+          <Card>
+            <SectionTitle action={<Link to="/routines" className="text-xs font-medium text-accent hover:underline">Routines</Link>}>Schedule</SectionTitle>
+            <TodaySchedule compact />
+          </Card>
           <Card>
             <SectionTitle>Today's habits</SectionTitle>
             {habits.length === 0 ? (

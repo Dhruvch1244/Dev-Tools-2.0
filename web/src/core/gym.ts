@@ -105,3 +105,40 @@ export function bestByExercise(sets: (SetRow & { workout_id: string })[], exclud
   for (const s of sets) if (s.workout_id !== excludeWorkout) m.set(s.exercise, Math.max(m.get(s.exercise) ?? 0, e1rm(s.weight, s.reps)));
   return m;
 }
+
+// ---------- Progressive overload (double progression) ----------
+const BIG_LOWER = /squat|deadlift|leg press|hip thrust|rack pull|hack/i;
+
+export function repRange(reps: string): [number, number] {
+  const m = /(\d+)\s*-\s*(\d+)/.exec(reps);
+  if (m) return [Number(m[1]), Number(m[2])];
+  const n = Number(reps) || 8;
+  return [n, n];
+}
+
+export type Suggestion = { weight: number; reps: number; why: string };
+
+/**
+ * Double progression: keep the weight and add reps until every working set reaches the top of the
+ * range, then add weight (+5 kg for big lower-body lifts, +2.5 kg otherwise) and drop back to the
+ * bottom of the range. No history → no guess; the coach says how to pick a starting weight.
+ */
+export function suggestNext(exercise: string, reps: string, last: SetRow[]): Suggestion | null {
+  if (!last.length) return null;
+  const [lo, hi] = repRange(reps);
+  const top = Math.max(...last.map((s) => s.weight));
+  const atTop = last.filter((s) => s.weight === top);
+  const step = BIG_LOWER.test(exercise) ? 5 : 2.5;
+  if (atTop.every((s) => s.reps >= hi)) return { weight: top + step, reps: lo, why: `All sets hit ${hi} at ${top} kg — add ${step} kg` };
+  const best = Math.max(...atTop.map((s) => s.reps));
+  return { weight: top, reps: Math.min(hi, best + 1), why: `Stay at ${top} kg, beat ${best} reps (aim ${Math.min(hi, best + 1)})` };
+}
+
+/** Plates per side for a barbell load (kg), greedy over a standard plate set. */
+export function platesPerSide(total: number, bar = 20): number[] | null {
+  let side = (total - bar) / 2;
+  if (side < 0) return null;
+  const out: number[] = [];
+  for (const p of [25, 20, 15, 10, 5, 2.5, 1.25]) while (side >= p - 1e-9) (out.push(p), (side -= p));
+  return side > 0.01 ? null : out;
+}
