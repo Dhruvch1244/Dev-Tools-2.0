@@ -18,6 +18,8 @@ import { MachineScan } from '../components/gym/MachineScan';
 import { PlanSheet, type SavedPlan } from '../components/gym/PlanSheet';
 import { WeekCard } from '../components/gym/WeekCard';
 import { plannedHeat } from '../core/gymStats';
+import { WarmupCard } from '../components/gym/WarmupCard';
+import { cooldownFor, warmupFor } from '../core/warmup';
 import { AnimatedNumber, Button, Card, IconButton, Input, Page, PageHeader, Rise, SectionTitle, Sheet, cx } from '../components/ui';
 
 const kg = (n: number) => `${+n.toFixed(1)}`;
@@ -330,108 +332,129 @@ function TodayPanel({ shift, workouts, sets, onGuide }: { shift: number; workout
   const type = (active?.day_type as DayType | undefined) ?? override ?? planned;
   const meta = DAY_META[type];
   const tomorrow = DAY_META[dayTypeOn(addDays(t, 1), shift)];
+  // Warm-up ramps to the last working weight on the session's first lift.
+  const first = forToday(type)[0];
+  const lastOnFirst = sets.filter((x) => x.exercise === first?.name && x.date < t).sort((a, b) => b.date.localeCompare(a.date));
+  const working = lastOnFirst.length ? Math.max(...lastOnFirst.filter((x) => x.date === lastOnFirst[0].date).map((x) => x.weight)) : null;
+  const warm = <WarmupCard kind="warm" title="Pre-race warm-up" phases={warmupFor(type, first, working)} accent={meta.color} open={!active} />;
+  const cool = (open: boolean) => <WarmupCard kind="cool" title="Cool-down" phases={[cooldownFor(type)]} accent="var(--sky)" open={open} />;
 
   if (active && !active.finished_at) {
     const p = todayPlan(type);
-    return <Session workout={active} template={forToday(type)} sets={sets.filter((s) => s.workout_id === active.id)} allSets={sets} workouts={workouts} onGuide={onGuide} targets={p ? Object.fromEntries(p.exercises.map((e) => [e.name, { weight: e.weight, why: e.why }])) : undefined} />;
+    return (
+      <div className="space-y-4">
+        {warm}
+        <Session workout={active} template={forToday(type)} sets={sets.filter((s) => s.workout_id === active.id)} allSets={sets} workouts={workouts} onGuide={onGuide} targets={p ? Object.fromEntries(p.exercises.map((e) => [e.name, { weight: e.weight, why: e.why }])) : undefined} />
+        {cool(false)}
+      </div>
+    );
   }
 
   if (active?.finished_at) {
     const s = sets.filter((x) => x.workout_id === active.id);
     return (
-      <Card className="flex flex-col items-center gap-4 py-10 text-center sm:flex-row sm:text-left">
-        <Chequered className="h-20 w-28 shrink-0" />
-        <div className="flex-1">
-          <p className="text-3xl font-black italic uppercase">{meta.label} — finished</p>
-          <p className="text-ink-2">
-            {s.length} sets · {Math.round(volume(s))} kg volume. Next up: <b className="text-ink">{tomorrow.label}</b> tomorrow.
-          </p>
-        </div>
-      </Card>
+      <div className="space-y-4">
+        <Card className="flex flex-col items-center gap-4 py-10 text-center sm:flex-row sm:text-left">
+          <Chequered className="h-20 w-28 shrink-0" />
+          <div className="flex-1">
+            <p className="text-3xl font-black italic uppercase">{meta.label} — finished</p>
+            <p className="text-ink-2">
+              {s.length} sets · {Math.round(volume(s))} kg volume. Next up: <b className="text-ink">{tomorrow.label}</b> tomorrow.
+            </p>
+          </div>
+        </Card>
+        {cool(true)}
+      </div>
     );
   }
 
   if (type === 'rest') {
     return (
-      <Card className="relative overflow-hidden">
-        <div className="pointer-events-none absolute -right-10 -top-10 text-[180px] font-black italic leading-none text-white/[0.03]">BOX</div>
-        <p className="slant inline-block bg-ink px-3 py-0.5 text-mini font-black italic uppercase tracking-widest text-bg">Pit stop</p>
-        <p className="mt-3 text-4xl font-black italic uppercase">Rest day</p>
-        <p className="mt-1 max-w-lg text-ink-2">Muscle is built while you recover. Tomorrow is <b className="text-ink">{tomorrow.label}</b> ({tomorrow.focus}).</p>
-        <ul className="mt-5 grid gap-2 sm:grid-cols-2">
-          {['8k+ steps / easy walk', '10 min mobility & stretching', 'Hit your protein target', '7.5–8 h sleep'].map((x, i) => (
-            <motion.li key={x} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.3 + i * 0.08 }} className="flex items-center gap-2 rounded-lg bg-bg px-3 py-2.5 text-sm">
-              <span className="h-3 w-1 -skew-x-12 bg-green" /> {x}
-            </motion.li>
-          ))}
-        </ul>
-        <div className="mt-5 flex flex-wrap gap-2">
-          {(['upper', 'lower', 'push', 'pull', 'legs'] as DayType[]).map((d) => (
-            <Button key={d} size="sm" variant="ghost" onClick={() => setOverride(d)}>
-              Train {DAY_META[d].label} anyway
-            </Button>
-          ))}
-        </div>
-      </Card>
+      <div className="space-y-4">
+        <Card className="relative overflow-hidden">
+          <div className="pointer-events-none absolute -right-10 -top-10 text-[180px] font-black italic leading-none text-white/[0.03]">BOX</div>
+          <p className="slant inline-block bg-ink px-3 py-0.5 text-mini font-black italic uppercase tracking-widest text-bg">Pit stop</p>
+          <p className="mt-3 text-4xl font-black italic uppercase">Rest day</p>
+          <p className="mt-1 max-w-lg text-ink-2">Muscle is built while you recover. Tomorrow is <b className="text-ink">{tomorrow.label}</b> ({tomorrow.focus}).</p>
+          <ul className="mt-5 grid gap-2 sm:grid-cols-2">
+            {['8k+ steps / easy walk', '10 min mobility & stretching', 'Hit your protein target', '7.5–8 h sleep'].map((x, i) => (
+              <motion.li key={x} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.3 + i * 0.08 }} className="flex items-center gap-2 rounded-lg bg-bg px-3 py-2.5 text-sm">
+                <span className="h-3 w-1 -skew-x-12 bg-green" /> {x}
+              </motion.li>
+            ))}
+          </ul>
+          <div className="mt-5 flex flex-wrap gap-2">
+            {(['upper', 'lower', 'push', 'pull', 'legs'] as DayType[]).map((d) => (
+              <Button key={d} size="sm" variant="ghost" onClick={() => setOverride(d)}>
+                Train {DAY_META[d].label} anyway
+              </Button>
+            ))}
+          </div>
+        </Card>
+        <WarmupCard kind="mobility" title="Rest-day mobility" phases={warmupFor('rest')} accent="var(--green)" open={false} />
+      </div>
     );
   }
 
   const template = forToday(type);
   const plan = todayPlan(type);
   return (
-    <Card className="relative overflow-hidden">
-      <PlanSheet open={planning} onClose={() => setPlanning(false)} dayType={type} onGuide={onGuide} />
-      <div className="pointer-events-none absolute -right-6 -top-8 text-[170px] font-black italic leading-none opacity-[0.05]" style={{ color: meta.color }}>
-        {meta.short}
-      </div>
-      <div className="flex flex-col gap-6 lg:flex-row lg:items-center">
-        <div className="flex-1">
-          <p className="slant inline-block px-3 py-0.5 text-mini font-black italic uppercase tracking-widest text-black" style={{ background: meta.color }}>
-            Lights out
-          </p>
-          <p className="mt-3 text-5xl font-black italic uppercase">{meta.label} day</p>
-          <p className="text-ink-2">{plan ? plan.title : meta.focus}</p>
-          <div className="mt-4 grid grid-cols-[minmax(0,1fr)_8.5rem] items-start gap-3 sm:grid-cols-[minmax(0,1fr)_11rem]">
-            <ol className="space-y-1 text-sm text-ink-2">
-              {template.map((e, i) => (
-                <motion.li key={e.name} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.1 + i * 0.05 }} className="flex gap-2">
-                  <span className="w-5 shrink-0 font-mono text-ink-3">{String(i + 1).padStart(2, '0')}</span>
-                  <button onClick={() => onGuide(e.name)} className="min-w-0 text-left">
-                    {e.name} <span className="text-ink-3">{e.sets}×{e.reps}</span>
-                  </button>
-                </motion.li>
-              ))}
-            </ol>
-            <BodyMap heat={plannedHeat(template)} pulse className="h-44" />
+    <div className="space-y-4">
+      <Card className="relative overflow-hidden">
+        <PlanSheet open={planning} onClose={() => setPlanning(false)} dayType={type} onGuide={onGuide} />
+        <div className="pointer-events-none absolute -right-6 -top-8 text-[170px] font-black italic leading-none opacity-[0.05]" style={{ color: meta.color }}>
+          {meta.short}
+        </div>
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-center">
+          <div className="flex-1">
+            <p className="slant inline-block px-3 py-0.5 text-mini font-black italic uppercase tracking-widest text-black" style={{ background: meta.color }}>
+              Lights out
+            </p>
+            <p className="mt-3 text-5xl font-black italic uppercase">{meta.label} day</p>
+            <p className="text-ink-2">{plan ? plan.title : meta.focus}</p>
+            <div className="mt-4 grid grid-cols-[minmax(0,1fr)_8.5rem] items-start gap-3 sm:grid-cols-[minmax(0,1fr)_11rem]">
+              <ol className="space-y-1 text-sm text-ink-2">
+                {template.map((e, i) => (
+                  <motion.li key={e.name} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.1 + i * 0.05 }} className="flex gap-2">
+                    <span className="w-5 shrink-0 font-mono text-ink-3">{String(i + 1).padStart(2, '0')}</span>
+                    <button onClick={() => onGuide(e.name)} className="min-w-0 text-left">
+                      {e.name} <span className="text-ink-3">{e.sets}×{e.reps}</span>
+                    </button>
+                  </motion.li>
+                ))}
+              </ol>
+              <BodyMap heat={plannedHeat(template)} pulse className="h-44" />
+            </div>
+            <Button variant={plan ? 'ghost' : 'soft'} className="mt-4 w-full sm:w-auto" onClick={() => setPlanning(true)}>
+              <Sparkles className="size-4" /> {plan ? 'Coach plan locked in · view' : 'AI-plan my session (time, niggles, progress)'}
+            </Button>
           </div>
-          <Button variant={plan ? 'ghost' : 'soft'} className="mt-4 w-full sm:w-auto" onClick={() => setPlanning(true)}>
-            <Sparkles className="size-4" /> {plan ? 'Coach plan locked in · view' : 'AI-plan my session (time, niggles, progress)'}
-          </Button>
+          <div className="flex flex-col items-center gap-4">
+            <StartLights
+              running={lights}
+              size={26}
+              onGo={async () => {
+                await create({ date: t, day_type: type, started_at: new Date().toISOString() });
+                setLights(false);
+              }}
+            />
+            <Button className="h-12 w-full px-8 text-base" disabled={lights} onClick={() => setLights(true)}>
+              {lights ? 'Hold…' : 'Start session'}
+            </Button>
+            <button
+              className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-ink-3 hover:text-ink"
+              onClick={() => {
+                save({ gymShift: (settings.gymShift ?? 0) + 1 });
+                toast({ message: `Skipped — ${meta.label} moves to tomorrow`, action: { label: 'Undo', onClick: () => save({ gymShift: settings.gymShift ?? 0 }) } });
+              }}
+            >
+              <Redo2 className="size-3.5" /> Skipped today? Push plan by a day
+            </button>
+          </div>
         </div>
-        <div className="flex flex-col items-center gap-4">
-          <StartLights
-            running={lights}
-            size={26}
-            onGo={async () => {
-              await create({ date: t, day_type: type, started_at: new Date().toISOString() });
-              setLights(false);
-            }}
-          />
-          <Button className="h-12 w-full px-8 text-base" disabled={lights} onClick={() => setLights(true)}>
-            {lights ? 'Hold…' : 'Start session'}
-          </Button>
-          <button
-            className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-ink-3 hover:text-ink"
-            onClick={() => {
-              save({ gymShift: (settings.gymShift ?? 0) + 1 });
-              toast({ message: `Skipped — ${meta.label} moves to tomorrow`, action: { label: 'Undo', onClick: () => save({ gymShift: settings.gymShift ?? 0 }) } });
-            }}
-          >
-            <Redo2 className="size-3.5" /> Skipped today? Push plan by a day
-          </button>
-        </div>
-      </div>
-    </Card>
+      </Card>
+      {warm}
+    </div>
   );
 }
 
