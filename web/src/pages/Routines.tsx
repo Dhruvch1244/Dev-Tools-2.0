@@ -6,7 +6,8 @@ import { Bell, BellOff, CalendarCheck, CalendarDays, Check as CheckIcon, Copy, E
 import { api, useList, useResource, useSettings, wasQueued } from '../lib/api';
 import { addDays, parseDate, today } from '../lib/format';
 import { listItem, spring } from '../lib/motion';
-import { dayTypeOn } from '../core/gym';
+import { DAY_META, dayTypeOn } from '../core/gym';
+import { isGymRoutine } from '../core/weekPlan';
 import type { Habit, Routine, RoutineLog } from '../lib/types';
 import { useToast } from '../components/toast';
 import { Button, Card, Check, Input, Page, PageHeader, Rise, SectionTitle, Sheet, cx } from '../components/ui';
@@ -49,9 +50,12 @@ export function TodaySchedule({ compact }: { compact?: boolean }) {
     return () => clearInterval(id);
   }, []);
   const dow = parseDate(t).getDay();
+  const { settings } = useSettings();
+  const gymToday = dayTypeOn(t, settings.gymShift ?? 0);
   type Item = { key: string; start: number; end: number; title: string; kind: 'routine' | 'event'; routine?: Routine; event?: GEvent };
   const items: Item[] = [
-    ...routines.filter((r) => r.active && days(r).includes(dow)).map((r) => ({ key: `r${r.id}`, start: minutesOf(r.time), end: minutesOf(r.time) + r.duration_min, title: `${r.emoji ?? ''} ${r.name}`.trim(), kind: 'routine' as const, routine: r })),
+    // The gym routine follows the split: "Gym · Upper day", or marked as a rest day.
+    ...routines.filter((r) => r.active && days(r).includes(dow)).map((r) => ({ key: `r${r.id}`, start: minutesOf(r.time), end: minutesOf(r.time) + r.duration_min, title: `${r.emoji ?? ''} ${r.name}${isGymRoutine(r.name) ? (gymToday === 'rest' ? ' — rest day, skip 🛞' : ` · ${DAY_META[gymToday].label} day`) : ''}`.trim(), kind: 'routine' as const, routine: r })),
     // Calendar copies of our own routines are already shown as routines.
     ...events.filter((e) => !e.fromRoutine && !e.allDay).map((e) => ({ key: `e${e.id}`, start: minutesOf(hmOf(e.start)), end: minutesOf(hmOf(e.end)), title: e.title, kind: 'event' as const, event: e })),
   ].sort((a, b) => a.start - b.start);

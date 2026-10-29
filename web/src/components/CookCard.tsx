@@ -6,6 +6,7 @@ import { addDays, haptic, today } from '../lib/format';
 import { FOODS } from '../core/foods';
 import { PROTEIN_STAPLES, cookBrief, cookConfig, planCookDay, shoppingList, type CookConfig, type DayCook } from '../core/cook';
 import { workConfig, workDay } from '../core/work';
+import { portionText } from '../core/portion';
 import type { FoodLog, SavedMeal, ShopRow } from '../lib/types';
 import { Button, Input, Sheet, cx } from './ui';
 import { useToast } from './toast';
@@ -40,9 +41,11 @@ function DishRow({ label, when, dish, keep, onSwap }: { label: string; when: str
             {label} <span className="text-ink-3/70">· {when}</span>
           </p>
           <p className="font-bold leading-snug">{dish.name}</p>
-          <p className="text-tiny text-ink-3">
-            {dish.items.map((i) => `${i.qty !== 1 ? `${i.qty}× ` : ''}${i.food.name}`).join(' · ')}
-          </p>
+          <ul className="mt-1 space-y-0.5 text-mini text-ink-2">
+            {dish.items.map((i) => (
+              <li key={i.food.id}>• {portionText(i.food, i.qty)}</li>
+            ))}
+          </ul>
           <p className="mt-0.5 font-mono text-tiny text-ink-2">
             {dish.kcal} kcal · <span className="text-accent">{dish.protein} g P</span>
           </p>

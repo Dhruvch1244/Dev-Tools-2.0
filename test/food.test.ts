@@ -74,3 +74,17 @@ test('cook plan: make-ahead breakfast + dinner around the rice bowl, near target
   assert.ok(list.some((i) => i.name === 'Rice'));
   assert.ok(list.every((i) => i.qty));
 });
+
+import { amount, nice, portionText } from '../web/src/core/portion.ts';
+
+test('portions read like a cook would say them', () => {
+  assert.equal(nice(1.5), '1½');
+  assert.equal(nice(0.25), '¼');
+  assert.equal(amount('1 katori (100 g)', 1.5), '1½ katori (~150 g)');
+  assert.equal(amount('1 katori', 2), '2 katoris (~300 g)');
+  assert.equal(amount('100 g', 0.5), '50 g');
+  assert.equal(amount('4 pieces', 1.5), '6 pieces');
+  assert.equal(amount('1 glass (250 ml)', 1.5), '1½ glass (~375 ml)');
+  assert.equal(portionText({ id: 'roti', name: 'Roti / Phulka', serving: '1 medium (35 g atta)' }, 3), '3 rotis');
+  assert.equal(portionText({ id: 'whey', name: 'Whey protein', serving: '1 scoop (30 g)' }, 1.5), 'Whey protein · 1½ scoop (~45 g)');
+});

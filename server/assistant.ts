@@ -14,6 +14,8 @@ import { nextSwitch, weekLabel, workConfig, workDay, workPings, workWeek } from 
 import { ACTIONS_GUIDE } from '../web/src/core/aiActions.ts';
 import { nextBirthday, nextContact, peoplePings, type Person } from '../web/src/core/people.ts';
 import { REMIND_KINDS, type DayPlan } from '../web/src/core/weekPlan.ts';
+import { questionsFor, type Answer, type DayFacts } from '../web/src/core/journal.ts';
+import { claimToday } from './scheduler.ts';
 import { cookBrief, cookConfig, planCookDay } from '../web/src/core/cook.ts';
 
 const q = <T>(sql: string, ...a: (string | number)[]) => db.prepare(sql).all(...a) as T[];
@@ -88,7 +90,11 @@ export type ChatTurn = { role: 'user' | 'assistant'; text: string };
 
 /** Journal entries (newest first) for "talk to your journal", capped so the prompt stays small. */
 export function journalContext(days = 180, budget = 30_000) {
-  const rows = q<{ date: string; body: string; mood: number | null }>("SELECT date, body, mood FROM journal WHERE body IS NOT NULL AND trim(body) != '' AND date >= date('now', ?) ORDER BY date DESC", `-${days} days`);
+  // A day with answers but no written story still counts: use the Q&A.
+  const rows = q<{ date: string; body: string | null; answers: string | null; mood: number | null }>("SELECT date, body, answers, mood FROM journal WHERE (trim(coalesce(body,'')) != '' OR answers IS NOT NULL) AND date >= date('now', ?) ORDER BY date DESC", `-${days} days`).map((r) => ({
+    ...r,
+    body: r.body?.trim() || (JSON.parse(r.answers ?? '[]') as Answer[]).filter((x) => x.a?.trim()).map((x) => `${x.q} — ${x.a.trim()}`).join('\n'),
+  })).filter((r) => r.body);
   const moods = q<{ date: string; value: number }>("SELECT date, value FROM health WHERE kind = 'mood' AND date >= date('now', ?) ORDER BY date DESC", `-${days} days`);
   const moodOf = new Map(moods.map((m) => [m.date, m.value]));
   let used = 0;
@@ -197,4 +203,54 @@ export async function planTick() {
     const icon = { gym: '🏋️', dsa: '💻', walk: '🚶', pack: '🎒', shop: '🛒', cook: '🍳', call: '📞' }[b.kind as string] ?? '⏱️';
     await pushAll({ tag: `plan-${b.kind}`, title: `${icon} ${b.title} ${lead ? `in ${lead} min` : 'now'}`, body: `${b.start}–${b.end}${b.note ? ` · ${b.note}` : ''}`, url: '/plan' });
   }
+}
+
+/** Facts about a day that shape the journal questions ("You trained Push today — how did it feel?"). */
+export function dayFacts(day: string): DayFacts {
+  const s = settings();
+  const w = workDay(day, workConfig(s.work), s.workOverrides);
+  const wo = one<{ day_type: string }>('SELECT day_type FROM workouts WHERE date = ? AND finished_at IS NOT NULL ORDER BY created_at DESC', day);
+  const planned = dayTypeOn(day, s.gymShift ?? 0);
+  const act = one<{ type: string; duration_min: number; distance_km: number | null }>('SELECT type, duration_min, distance_km FROM activities WHERE date = ? ORDER BY duration_min DESC', day);
+  const food = one<{ name: string }>("SELECT name FROM food_logs WHERE date = ? AND meal IN ('dinner','lunch') ORDER BY kcal DESC", day);
+  const dsa = one<{ n: number }>("SELECT count(*) n FROM dsa_progress WHERE status IN ('solved','revisit') AND substr(solved_at,1,10) = ?", day)?.n ?? 0;
+  const called = one<{ name: string }>('SELECT name FROM people WHERE last_contact = ?', day)?.name ?? null;
+  const meta = (t: string) => DAY_META[t as keyof typeof DAY_META]?.label ?? t;
+  return {
+    gym: wo ? meta(wo.day_type) : null,
+    gymPlanned: meta(planned),
+    work: w.mode,
+    sport: act ? `${act.type}${act.distance_km ? ` ${act.distance_km.toFixed(1)} km` : ` ${Math.round(act.duration_min)} min`}` : null,
+    food: food?.name.toLowerCase() ?? null,
+    dsaSolved: dsa,
+    called,
+    weekday: new Date(`${day}T12:00:00`).getDay(),
+  };
+}
+
+export function dayFactsText(day: string) {
+  const f = dayFacts(day);
+  return [
+    f.work === 'office' ? 'office day (commute)' : f.work === 'wfh' ? 'worked from home' : f.work === 'leave' ? 'on leave' : 'day off',
+    f.gym ? `${f.gym} gym session` : f.gymPlanned !== 'Rest' ? `planned ${f.gymPlanned} day, no session logged` : 'rest day',
+    f.sport,
+    f.dsaSolved ? `${f.dsaSolved} DSA problem(s) solved` : null,
+    f.called ? `talked to ${f.called}` : null,
+  ]
+    .filter(Boolean)
+    .join('; ');
+}
+
+/** Evening nudge (default 21:45) with tonight's questions, unless the journal is already done. */
+export async function journalTick() {
+  const b = (settings().briefs ?? {}) as { journal?: boolean; journalAt?: string };
+  if (b.journal === false) return;
+  const [day, hm] = localStamp(new Date()).split('T');
+  const at = b.journalAt ?? '21:45';
+  if (hm < at || hm > '23:30') return;
+  const row = one<{ answers: string | null; body: string | null }>('SELECT answers, body FROM journal WHERE date = ?', day);
+  if (row?.body?.trim() || (row?.answers && JSON.parse(row.answers).some((x: Answer) => x.a?.trim()))) return;
+  if (!claimToday('journal-nudge')) return;
+  const first = questionsFor(day, dayFacts(day))[0];
+  await pushAll({ tag: 'journal', title: '📓 5 quick questions about today', body: first, url: '/life?journal=1' });
 }

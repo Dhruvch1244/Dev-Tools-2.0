@@ -5,6 +5,7 @@
 
 import { FOODS, type Diet } from './foods';
 import { COMBOS, fit, type Suggestion } from './mealPlan';
+import { portionText } from './portion';
 
 type Item = [id: string, qty: number];
 export type Dish = { name: string; items: Item[]; keep: string };
@@ -102,10 +103,8 @@ export function planCookDay(date: string, opts: { target: { kcal: number; protei
   };
 }
 
-const portion = (it: { food: { name: string; serving: string }; qty: number }) => {
-  const n = it.qty === 1 ? '' : ` ×${it.qty}`;
-  return `${it.food.name}${n}`;
-};
+/** "3 rotis", "Matar paneer · 1½ katori (~225 g)" — portions the cook can follow. */
+const portion = (it: { food: { id: string; name: string; serving: string }; qty: number }) => portionText(it.food, it.qty);
 
 /** Text to send the cook (WhatsApp-ready): tonight's dinner and tomorrow's make-ahead breakfast. */
 export function cookBrief(tonight: DayCook | null, tomorrow: DayCook | null) {

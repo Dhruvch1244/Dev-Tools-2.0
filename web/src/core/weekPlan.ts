@@ -15,6 +15,9 @@ export const DEFAULT_PREFS: PlanPrefs = { wake: '06:30', sleep: '23:00', gymMin:
 /** Blocks the reminders job pings for ("Gym in 10 min"). */
 export const REMIND_KINDS: BlockKind[] = ['gym', 'dsa', 'walk', 'pack', 'shop', 'cook', 'call'];
 
+/** A routine that is the user's gym session ("Gym", "Workout", "Lift"). */
+export const isGymRoutine = (name: string) => /\b(gym|workout|lift|weights?)\b/i.test(name);
+
 const m = (hm: string) => Number(hm.slice(0, 2)) * 60 + Number(hm.slice(3, 5));
 const hm = (n: number) => `${String(Math.floor(n / 60) % 24).padStart(2, '0')}:${String(n % 60).padStart(2, '0')}`;
 const DAY = 86_400_000;
@@ -83,7 +86,17 @@ export function planWeek(input: PlanInput): DayPlan[] {
       put({ kind: 'work', title: `Office · ${w.shift.label}`, start: w.shift.login, end: w.shift.logout, fixed: true, note: 'Rice bowl lunch at desk' });
       put({ kind: 'commute', title: 'Commute home', start: w.shift.logout, end: w.homeBy!, fixed: true });
     } else if (w.shift && w.mode === 'wfh') put({ kind: 'work', title: `WFH · ${w.shift.label}`, start: w.shift.login, end: w.shift.logout, fixed: true, note: `Rice bowl lunch ~13:30${input.cookAt ? ` · brief the cook at ${input.cookAt}` : ''}` });
-    for (const r of input.routines.filter((r) => r.days.includes(dow(date)))) put({ kind: 'routine', title: r.name, start: r.time, end: hm(m(r.time) + r.duration_min), fixed: true });
+    // Your own gym / wind-down routines ARE those blocks: don't schedule a second one beside them.
+    let gymRoutine: { time: string; duration_min: number } | null = null;
+    let windRoutine = false;
+    for (const r of input.routines.filter((r) => r.days.includes(dow(date)))) {
+      if (isGymRoutine(r.name)) {
+        gymRoutine = r;
+        continue;
+      }
+      if (/wind|sleep|bed/i.test(r.name)) windRoutine = true;
+      put({ kind: r.name.match(/wind|sleep|bed/i) ? 'winddown' : 'routine', title: r.name, start: r.time, end: hm(m(r.time) + r.duration_min), fixed: true });
+    }
     for (const e of (input.events ?? []).filter((e) => e.date === date)) put({ kind: 'event', title: e.title, start: e.start, end: e.end, fixed: true });
 
     // Meals: breakfast before leaving / early, dinner ~20:30 (after the gym if it runs late).
@@ -92,7 +105,9 @@ export function planWeek(input: PlanInput): DayPlan[] {
     if (weekend) place('meal', 'Lunch', 30, [[13 * 60, 15 * 60]]);
 
     // Gym: after work on office days (home + 20 min), else the user's preference.
-    if (gym !== 'rest') {
+    if (gym !== 'rest' && gymRoutine && !busy.some((b) => b.s < m(gymRoutine!.time) + gymRoutine!.duration_min && b.e > m(gymRoutine!.time))) {
+      put({ kind: 'gym', title: `${DAY_META[gym].label} day`, start: gymRoutine.time, end: hm(m(gymRoutine.time) + gymRoutine.duration_min), fixed: false, note: `${DAY_META[gym].focus} · your Gym routine` });
+    } else if (gym !== 'rest') {
       const evening: [number, number] = [w.homeBy ? m(w.homeBy) + 20 : w.shift ? m(w.shift.logout) + 15 : 17 * 60, 22 * 60];
       const morning: [number, number] = [wake + 15, w.mode === 'office' && w.leaveBy ? m(w.leaveBy) - 35 : w.shift ? m(w.shift.login) - 15 : 12 * 60];
       const order = p.gymWhen === 'morning' ? [morning, evening] : p.gymWhen === 'evening' ? [evening, morning] : weekend ? [[9 * 60, 12 * 60] as [number, number], evening] : [evening, morning];
@@ -115,7 +130,7 @@ export function planWeek(input: PlanInput): DayPlan[] {
       place('review', 'Read the weekly debrief', 15, [[19 * 60 + 30, 21 * 60 + 30]]);
     }
     if (tomorrow.mode === 'office') place('pack', 'Pack for the office', 10, [[21 * 60 + 30, sleep - 20], [20 * 60, sleep]], 'ID, laptop, charger, bottle — gym bag if needed');
-    put({ kind: 'winddown', title: 'Wind down — screens off', start: hm(sleep - 30), end: hm(sleep), fixed: false });
+    if (!windRoutine) put({ kind: 'winddown', title: 'Wind down — screens off', start: hm(sleep - 30), end: hm(sleep), fixed: false });
 
     blocks.sort((a, b) => m(a.start) - m(b.start));
     const used = busy.reduce((a, b) => a + (b.e - b.s), 0);

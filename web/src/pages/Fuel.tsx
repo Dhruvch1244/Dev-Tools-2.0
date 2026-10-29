@@ -11,6 +11,7 @@ import { planDay, planHeadline, type MealId, type MealPlan } from '../core/mealP
 import { streamCoach } from '../lib/coach';
 import { MICRO_META, microReport, microTargets, sumMicros } from '../core/micros';
 import { CookCard } from '../components/CookCard';
+import { portionText } from '../core/portion';
 import { AiSnap } from '../components/AiSnap';
 import { md } from '../lib/dsa';
 import type { Activity, CustomFood, FoodLog, Health, SavedMeal } from '../lib/types';
@@ -110,7 +111,7 @@ export function FoodSearch({ date, meal, onMealChange }: { date: string; meal: s
     await create({ date, meal, food_id: f.id, name: f.name, qty: n, unit: f.serving, kcal: f.kcal * n, protein: f.protein * n, carbs: f.carbs * n, fat: f.fat * n });
     navigator.vibrate?.(12);
     setAdded((a) => ({ ...a, [f.id]: (a[f.id] ?? 0) + n }));
-    toast({ message: `${n} × ${f.name} → ${MEALS.find((m) => m.id === meal)?.label}` });
+    toast({ message: `${portionText(f, n)} → ${MEALS.find((m) => m.id === meal)?.label}` });
   };
 
   return (
@@ -147,8 +148,7 @@ export function FoodSearch({ date, meal, onMealChange }: { date: string; meal: s
             {usual.map(({ food, qty: n }) => (
               <motion.button key={food.id} whileTap={{ scale: 0.92 }} onClick={() => void add(food, n)} className={cx('slant px-3 py-1.5 text-mini font-bold', added[food.id] ? 'bg-green text-black' : 'bg-surface-2 text-ink')}>
                 {added[food.id] ? '✓ ' : '+ '}
-                {n !== 1 ? `${n}× ` : ''}
-                {food.name}
+                {n !== 1 ? portionText(food, n) : food.name}
               </motion.button>
             ))}
           </div>
@@ -308,7 +308,7 @@ function SavedMeals({ date, meal }: { date: string; meal: string }) {
             <div className="min-w-0 flex-1">
               <p className="truncate font-bold">{m.name}</p>
               <p className="truncate text-xs text-ink-3">
-                {items.map((x) => `${x.qty !== 1 ? `${x.qty}× ` : ''}${x.name}`).join(' · ')} · {Math.round(items.reduce((a, x) => a + x.kcal, 0))} kcal
+                {items.map((x) => (x.unit ? portionText({ id: x.food_id, name: x.name, serving: x.unit }, x.qty) : x.name)).join(' · ')} · {Math.round(items.reduce((a, x) => a + x.kcal, 0))} kcal
               </p>
             </div>
             <IconButton label={`Delete ${m.name}`} onClick={() => remove(m.id)} className="opacity-0 transition group-hover:opacity-100 max-sm:opacity-50">
@@ -544,7 +544,7 @@ function DayPlan({ day, remaining, usualIds, diet }: { day: FoodLog[]; remaining
               {opt.items.map(({ food, qty }) => (
                 <li key={food.id} className="flex justify-between gap-3">
                   <span>
-                    <b className="font-mono">{qty}×</b> {food.name} <span className="text-xs text-ink-3">({food.serving})</span>
+                    {portionText(food, qty)}
                   </span>
                   <span className="font-mono text-xs text-ink-3">{Math.round(food.kcal * qty)}</span>
                 </li>
@@ -682,7 +682,7 @@ export function FuelPage() {
   }, [logs]);
   const quickAdd = async (f: (typeof FOODS)[number], qty: number) => {
     await create({ date, meal: mealForNow(), food_id: f.id, name: f.name, qty, unit: f.serving, kcal: f.kcal * qty, protein: f.protein * qty, carbs: f.carbs * qty, fat: f.fat * qty });
-    toast({ message: `${qty} × ${f.name} added` });
+    toast({ message: `${portionText(f, qty)} added` });
   };
 
   const copyYesterday = async (meal: string) => {
@@ -780,7 +780,7 @@ export function FuelPage() {
             <div className="mt-3 flex flex-wrap gap-2">
               {fixes.map((x) => (
                 <motion.button key={x.food.id} whileTap={{ scale: 0.94 }} onClick={() => void quickAdd(x.food, x.qty)} className="rounded-md border border-line bg-bg px-3 py-2 text-left text-sm">
-                  <span className="font-bold">{x.qty !== 1 ? `${x.qty}× ` : ''}{x.food.name}</span>
+                  <span className="font-bold">{portionText(x.food, x.qty)}</span>
                   <span className="block font-mono text-tiny text-ink-3">+{x.protein} g · {x.kcal} kcal</span>
                 </motion.button>
               ))}
@@ -819,8 +819,7 @@ export function FuelPage() {
                     <motion.li key={l.id} layout {...listItem} className="group flex items-center gap-3 rounded-md bg-bg px-3 py-2 text-sm">
                       <span className="h-5 w-1 -skew-x-12 bg-accent" />
                       <span className="min-w-0 flex-1 truncate">
-                        <b className="font-semibold">{l.qty !== 1 ? `${l.qty} × ` : ''}</b>
-                        {l.name}
+                        {l.unit ? portionText({ id: l.food_id, name: l.name, serving: l.unit }, l.qty) : `${l.qty !== 1 ? `${l.qty} × ` : ''}${l.name}`}
                         <span className="ml-1.5 text-tiny text-ink-3">P{r1(l.protein)}</span>
                       </span>
                       <span className="font-mono text-ink-2">{Math.round(l.kcal)}</span>

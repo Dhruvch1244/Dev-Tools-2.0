@@ -19,10 +19,11 @@ import * as google from './google.ts';
 import { briefsTick, eveningRecap, morningBrief } from './briefs.ts';
 import { syncLeetCode } from './lcsync.ts';
 import { DSA_SYSTEM, FUEL_SYSTEM, INTERVIEW_SYSTEM, SCORE_SYSTEM, ask, dsaPrompt, interviewPrompt, type DsaAsk, type InterviewAsk, type Prompt } from './coach.ts';
-import { CAPTURE_SYSTEM, CHAT_SYSTEM, JOURNAL_GUIDE, chatPrompt, lifeContext, workRemindersTick, cookTick, lifePingsTick, planTick, type ChatTurn } from './assistant.ts';
+import { CAPTURE_SYSTEM, CHAT_SYSTEM, JOURNAL_GUIDE, chatPrompt, lifeContext, workRemindersTick, cookTick, lifePingsTick, planTick, dayFacts, dayFactsText, journalTick, type ChatTurn } from './assistant.ts';
 import { normaliseActions, splitActions } from '../web/src/core/aiActions.ts';
 import { generateReview, listReviews, mondayOf, reviewTick } from './review.ts';
 import { contactKey, normalisePhone } from '../web/src/core/vcard.ts';
+import { STORY_SYSTEM, storyPrompt, type Answer } from '../web/src/core/journal.ts';
 import { RECEIPT_SYSTEM, normaliseReceipt } from '../web/src/core/money.ts';
 import { AI_FOOD_SYSTEM, aiUserText, extractJson, normaliseAi } from '../web/src/core/aiFood.ts';
 
@@ -134,13 +135,36 @@ app.put('/api/health/:date/:kind', async (c) => {
 });
 
 app.put('/api/journal/:date', async (c) => {
-  const { body = null, mood = null } = await c.req.json<{ body?: string; mood?: number }>();
+  // Only the fields sent are changed, so saving answers never wipes the story (and vice versa).
+  const patch = await c.req.json<{ body?: string | null; mood?: number | null; answers?: unknown }>();
+  const date = c.req.param('date');
+  const cur = db.prepare('SELECT body, mood, answers FROM journal WHERE date = ?').get(date) as { body: string | null; mood: number | null; answers: string | null } | undefined;
+  const body = 'body' in patch ? (patch.body ?? null) : (cur?.body ?? null);
+  const mood = 'mood' in patch ? (patch.mood ?? null) : (cur?.mood ?? null);
+  const answers = 'answers' in patch ? (patch.answers == null ? null : JSON.stringify(patch.answers)) : (cur?.answers ?? null);
   db.prepare(
-    `INSERT INTO journal (id, date, body, mood, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)
-     ON CONFLICT (date) DO UPDATE SET body = excluded.body, mood = excluded.mood, updated_at = excluded.updated_at`,
-  ).run(randomUUID(), c.req.param('date'), body, mood, now(), now());
+    `INSERT INTO journal (id, date, body, mood, answers, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT (date) DO UPDATE SET body = excluded.body, mood = excluded.mood, answers = excluded.answers, updated_at = excluded.updated_at`,
+  ).run(randomUUID(), date, body, mood, answers, now(), now());
   emit('journal');
   return c.json({ ok: true });
+});
+
+// ---- Guided journal: what happened today (for tailored questions) and the AI-written story ----
+app.get('/api/journal/:date/facts', (c) => c.json(dayFacts(c.req.param('date'))));
+app.post('/api/journal/:date/story', async (c) => {
+  const date = c.req.param('date');
+  const row = db.prepare('SELECT answers FROM journal WHERE date = ?').get(date) as { answers: string | null } | undefined;
+  const answers = (JSON.parse(row?.answers ?? '[]') as Answer[]).filter((x) => x?.a?.trim());
+  if (!answers.length) return c.json({ error: 'Answer at least one question first' }, 400);
+  try {
+    const story = (await ask(STORY_SYSTEM, storyPrompt(date, answers, dayFactsText(date)), { onDelta: () => {}, signal: c.req.raw.signal })).trim();
+    db.prepare('UPDATE journal SET body = ?, updated_at = ? WHERE date = ?').run(story, now(), date);
+    emit('journal');
+    return c.json({ body: story });
+  } catch (e) {
+    return c.json({ error: (e as Error).message }, 502);
+  }
 });
 
 // ---- Habit check-ins ----
@@ -608,6 +632,7 @@ schedule({ name: 'cook-brief', every: 20_000, run: cookTick });
 schedule({ name: 'people-supps', every: 20_000, run: lifePingsTick });
 schedule({ name: 'ai-review', every: 60_000, run: reviewTick });
 schedule({ name: 'week-plan', every: 20_000, run: planTick });
+schedule({ name: 'journal-nudge', every: 60_000, run: journalTick });
 schedule({ name: 'leetcode-sync', every: 30 * 60_000, run: async () => (await syncLeetCode())?.marked.length && emit('dsa') });
 // If the laptop was off at 03:00, back up on the first start of the day instead.
 schedule({ name: 'backup-catchup', at: '00:00', run: async () => (await listBackups())[0] !== new Date().toISOString().slice(0, 10) && runBackup() });

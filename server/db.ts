@@ -141,6 +141,8 @@ addColumn('tasks', 'repeat', 'TEXT');
 addColumn('tasks', 'remind_before', 'INTEGER');
 // What was on a shared bill (JSON item names) — flavours the "pay me" message.
 addColumn('splits', 'items', 'TEXT');
+// Guided journal: the night's questions and answers (JSON [{q, a}]); body holds the written story.
+addColumn('journal', 'answers', 'TEXT');
 // Pinned drops stay at the top and survive "clear old".
 addColumn('drops', 'pinned', 'INTEGER NOT NULL DEFAULT 0');
 
@@ -155,7 +157,7 @@ export const RESOURCES: Record<string, Resource> = {
   subscriptions: { cols: ['name', 'amount', 'cycle', 'next_date', 'category'], order: 'next_date ASC' },
   habits: { cols: ['name', 'emoji', 'color', 'archived'], order: 'created_at ASC' },
   health: { cols: ['date', 'kind', 'value'], order: 'date DESC', dateCol: 'date' },
-  journal: { cols: ['date', 'body', 'mood'], order: 'date DESC', dateCol: 'date' },
+  journal: { cols: ['date', 'body', 'mood', 'answers'], order: 'date DESC', dateCol: 'date' },
   workouts: { cols: ['date', 'day_type', 'notes', 'started_at', 'finished_at'], order: 'date DESC, created_at DESC', dateCol: 'date' },
   sets: { cols: ['workout_id', 'date', 'exercise', 'set_no', 'weight', 'reps'], order: 'date ASC, set_no ASC', dateCol: 'date' },
   food_logs: { cols: ['date', 'meal', 'food_id', 'name', 'qty', 'unit', 'kcal', 'protein', 'carbs', 'fat', 'micros'], order: 'date DESC, created_at ASC', dateCol: 'date' },

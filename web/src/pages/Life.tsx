@@ -8,7 +8,8 @@ import { bouncy, listItem, spring } from '../lib/motion';
 import { addDays, haptic, parseDate, relativeDay, today } from '../lib/format';
 import type { Habit, HabitLog, Health, Journal } from '../lib/types';
 import { AnimatedNumber, Button, Card, Empty, IconButton, Input, Page, PageHeader, SectionTitle, cx } from '../components/ui';
-import { Mic } from '../components/Mic';
+import { GuidedJournal } from '../components/GuidedJournal';
+import { useSearchParams } from 'react-router';
 
 export const MOODS = ['😞', '😕', '😐', '🙂', '😄'];
 
@@ -257,91 +258,16 @@ function HealthToday() {
   );
 }
 
-// ---------- Journal ----------
-function JournalCard() {
-  const t = today();
-  const { data: entries = [] } = useList<Journal>('journal', { from: addDays(t, -60) });
-  const qc = useQueryClient();
-  const todays = entries.find((e) => e.date === t);
-  const [body, setBody] = useState('');
-  const [status, setStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
-  const loaded = useRef(false);
-  const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
-
-  useEffect(() => {
-    if (!loaded.current && todays) {
-      setBody(todays.body ?? '');
-      loaded.current = true;
-    }
-  }, [todays]);
-
-  const onChange = (v: string) => {
-    setBody(v);
-    loaded.current = true;
-    setStatus('saving');
-    clearTimeout(timer.current);
-    timer.current = setTimeout(async () => {
-      await api(`/journal/${t}`, { method: 'PUT', body: JSON.stringify({ body: v, mood: todays?.mood ?? null }) });
-      void qc.invalidateQueries({ queryKey: ['journal'] });
-      setStatus('saved');
-    }, 700);
-  };
-
-  const past = entries.filter((e) => e.date !== t && e.body?.trim());
-
-  return (
-    <Card className="lg:col-span-5">
-      <SectionTitle
-        action={
-          <AnimatePresence mode="wait">
-            {status !== 'idle' && (
-              <motion.span key={status} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} className="text-xs text-ink-3">
-                {status === 'saving' ? 'Saving…' : 'Saved ✓'}
-              </motion.span>
-            )}
-          </AnimatePresence>
-        }
-      >
-        <span className="flex items-center gap-2">
-          <BookOpen className="size-4 text-pink" /> Journal · {parseDate(t).toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })}
-        </span>
-      </SectionTitle>
-      <textarea
-        value={body}
-        onChange={(e) => onChange(e.target.value)}
-        rows={5}
-        placeholder="What happened today? What are you grateful for? What's on your mind?"
-        className="w-full resize-none rounded-2xl bg-transparent text-[15px] leading-relaxed outline-none placeholder:text-ink-3"
-      />
-      <div className="flex items-center justify-end gap-2">
-        <span className="text-tiny text-ink-3">Speak it instead</span>
-        <Mic value={body} onChange={onChange} />
-      </div>
-      {past.length > 0 && (
-        <div className="mt-4 space-y-2 border-t border-line pt-4">
-          {past.slice(0, 7).map((e) => (
-            <details key={e.id} className="group rounded-2xl bg-surface px-4 py-3">
-              <summary className="flex cursor-pointer list-none items-center justify-between text-sm font-medium">
-                {relativeDay(e.date)}
-                <span className="text-ink-3 transition group-open:rotate-90">›</span>
-              </summary>
-              <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-ink-2">{e.body}</p>
-            </details>
-          ))}
-        </div>
-      )}
-    </Card>
-  );
-}
-
 export function LifePage() {
+  // ?journal=1 (from the evening push) opens straight into tonight's questions.
+  const [params] = useSearchParams();
   return (
     <Page>
       <PageHeader eyebrow="Habits · Health · Journal" title="Life" />
       <div className="grid gap-4 lg:grid-cols-5">
         <Habits />
         <HealthToday />
-        <JournalCard />
+        <GuidedJournal autoStart={params.get('journal') === '1'} />
       </div>
     </Page>
   );

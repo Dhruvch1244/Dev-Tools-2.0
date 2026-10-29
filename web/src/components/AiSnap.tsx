@@ -4,6 +4,7 @@ import { Camera, ImagePlus, Minus, Plus, Sparkles, Trash2, TriangleAlert, X, Zap
 import { useResource, useSettings } from '../lib/api';
 import { MEALS } from '../core/fuel';
 import { rescale, type AiItem, type AiResult } from '../core/aiFood';
+import { amount } from '../core/portion';
 import type { Diet } from '../core/foods';
 import type { FoodLog } from '../lib/types';
 import { haptic } from '../lib/format';
@@ -166,7 +167,7 @@ export function AiSnap({ date, meal, onMealChange, onDone }: { date: string; mea
                     <div className="min-w-0 flex-1">
                       <p className="truncate font-semibold">{x.name}</p>
                       <p className="text-tiny text-ink-3">
-                        <span className={cx('font-bold uppercase', CONF[x.confidence])}>{x.confidence}</span> · {x.food_id ? x.unit : `est. ${x.unit}`} · {x.kcal} kcal · P{x.protein}
+                        <span className={cx('font-bold uppercase', CONF[x.confidence])}>{x.confidence}</span> · {x.food_id ? amount(x.unit, x.qty) : `est. ${x.unit}`} · {x.kcal} kcal · P{x.protein}
                         {x.micros.fiber != null && ` · Fibre ${x.micros.fiber}`}
                       </p>
                     </div>

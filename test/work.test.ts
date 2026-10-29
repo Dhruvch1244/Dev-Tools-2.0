@@ -111,3 +111,29 @@ test('week plan: gym after the commute on office days, nothing overlaps, packing
     for (let i = 1; i < bs.length; i++) assert.ok(bs[i].start >= bs[i - 1].end, `${d.date}: ${bs[i - 1].title} overlaps ${bs[i].title}`);
   }
 });
+
+import { anotherQuestion, contextQuestions, questionsFor } from '../web/src/core/journal.ts';
+
+test('guided journal: stable per date, reacts to the day, recap first and tomorrow last', () => {
+  const facts = { gym: 'Push', work: 'office' as const, dsaSolved: 2 };
+  const a = questionsFor('2026-10-29', facts);
+  assert.deepEqual(a, questionsFor('2026-10-29', facts));
+  assert.equal(a.length, 5);
+  assert.equal(new Set(a).size, 5);
+  assert.ok(a.some((q) => contextQuestions(facts).includes(q)), 'asks about something that happened');
+  assert.notDeepEqual(a, questionsFor('2026-10-30', facts));
+  assert.ok(!a.includes(anotherQuestion(a, 1, 3)));
+});
+
+test('week plan: a "Gym" routine becomes the gym block (no second session), skipped on rest days', () => {
+  const routines = [{ name: '🏋️ Gym', time: '19:00', duration_min: 70, days: [1, 2, 3, 5, 6] }, { name: '🌙 Wind-down', time: '22:30', duration_min: 30, days: [0, 1, 2, 3, 4, 5, 6] }];
+  const days = planWeek({ from: '2026-11-09', days: 7, work: workConfig({}), gymShift: 0, dsaCount: () => 1, routines });
+  for (const d of days) {
+    const gyms = d.blocks.filter((b) => b.kind === 'gym' || /gym/i.test(b.title));
+    assert.ok(gyms.length <= 1, `${d.date}: ${gyms.map((g) => g.title).join(', ')}`);
+    assert.equal(d.blocks.filter((b) => b.kind === 'winddown').length, 1, `${d.date} wind-down once`);
+  }
+  const mon = days[0].blocks.find((b) => b.kind === 'gym')!;
+  assert.equal(mon.start, '19:00');
+  assert.match(mon.title, /day$/);
+});
