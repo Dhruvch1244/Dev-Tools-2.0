@@ -1,6 +1,6 @@
-/** POST to a coach endpoint and stream the SSE reply. Resolves when the reply is complete. */
+/** POST to a coach endpoint ("chat", or a full "/money/advisor" path) and stream the SSE reply. Resolves when complete. */
 export async function streamCoach(path: string, body: unknown, onDelta: (t: string) => void, signal: AbortSignal) {
-  const res = await fetch(`/api/coach/${path}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body), signal });
+  const res = await fetch(path.startsWith('/') ? `/api${path}` : `/api/coach/${path}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body), signal });
   if (!res.ok || !res.body) throw new Error(`Coach unavailable (${res.status})`);
   const reader = res.body.getReader();
   const dec = new TextDecoder();

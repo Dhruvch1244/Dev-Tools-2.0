@@ -177,6 +177,13 @@ db.exec(`CREATE TABLE IF NOT EXISTS learn (
   attempts INTEGER NOT NULL DEFAULT 0, done_at TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
 )`);
 
+// Portfolio holdings: a live one has a symbol (NSE / crypto) or an AMFI scheme code (mutual fund);
+// manual ones (FD, cash, gold, PF…) carry their current value.
+db.exec(`CREATE TABLE IF NOT EXISTS holdings (
+  id TEXT PRIMARY KEY, kind TEXT NOT NULL, symbol TEXT, name TEXT NOT NULL, qty REAL, avg_price REAL, value REAL,
+  created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+)`);
+
 type Resource = { cols: string[]; order: string; dateCol?: string };
 
 /** Tables exposed through the generic CRUD API, with the columns clients may write. */
@@ -200,6 +207,7 @@ export const RESOURCES: Record<string, Resource> = {
   splits: { cols: ['expense_id', 'person_id', 'amount', 'note', 'date', 'settled_at', 'items'], order: 'date DESC, created_at DESC', dateCol: 'date' },
   contacts: { cols: ['name', 'phone', 'birthday'], order: 'name COLLATE NOCASE ASC' },
   shopping: { cols: ['name', 'qty', 'done', 'source', 'trip'], order: 'done ASC, name ASC' },
+  holdings: { cols: ['kind', 'symbol', 'name', 'qty', 'avg_price', 'value'], order: 'kind ASC, name ASC' },
   learn: { cols: ['module', 'stars', 'xp', 'attempts', 'done_at'], order: 'updated_at DESC' },
   dsa_tests: { cols: ['kind', 'ref', 'started_at', 'finished_at', 'duration_min', 'results', 'score'], order: 'started_at DESC' },
 };

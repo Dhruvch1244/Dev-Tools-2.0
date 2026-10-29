@@ -28,6 +28,7 @@ import { INSIGHTS_SYSTEM, SUMMARY_SYSTEM, insightsPrompt, lifeRollup, moodLifts,
 import { RECEIPT_SYSTEM, normaliseReceipt } from '../web/src/core/money.ts';
 import { AI_FOOD_SYSTEM, aiUserText, extractJson, normaliseAi } from '../web/src/core/aiFood.ts';
 import { gym } from './gym.ts';
+import { money } from './money.ts';
 import { SORT_SYSTEM, normaliseSorted } from '../web/src/core/notes.ts';
 
 const PORT = Number(process.env.PORT ?? 4300);
@@ -36,6 +37,7 @@ const HOST = process.env.HOST ?? '127.0.0.1';
 
 const app = new Hono();
 app.route('/api/gym', gym);
+app.route('/api/money', money);
 const now = () => new Date().toISOString();
 
 // ---- Live sync: every write broadcasts the resource name; clients refetch it. ----
