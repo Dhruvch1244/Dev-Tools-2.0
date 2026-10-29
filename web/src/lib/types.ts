@@ -23,6 +23,8 @@ export type Settings = {
   /** Days the gym cycle has been pushed back (skipped/extra days). */
   gymShift?: number;
   gymTemplates?: Partial<Record<string, { name: string; sets: number; reps: string }[]>>;
+  /** Today's AI-planned session (core/gymAi GymPlan), used instead of the template on that date. */
+  gymPlan?: { date: string; day_type: import('../core/gym').DayType; plan: import('../core/gymAi').GymPlan };
   fuel?: { sex: 'male' | 'female'; age: number; height: number; weight: number; activity: number; goal: 'cut' | 'maintain' | 'bulk' };
   dsaStart?: string;
   dsaLang?: 'cpp' | 'java' | 'py';

@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { ArrowLeftRight, Check as CheckIcon, ChevronDown, Flag, Minus, Pencil, Plus, Redo2, Timer, Trash2, Trophy, X } from 'lucide-react';
+import { ArrowLeftRight, BookOpen, Camera, Check as CheckIcon, ChevronDown, Flag, Minus, Pencil, Plus, Redo2, Sparkles, Timer, Trash2, Trophy, X } from 'lucide-react';
 import { DAY_MUSCLES, muscleOf } from '../core/exercises';
 import { ExercisePicker } from '../components/ExercisePicker';
 import { useList, useResource, useSettings } from '../lib/api';
@@ -11,6 +11,13 @@ import { EXERCISES } from '../core/exercises';
 import type { GymSet, Workout } from '../lib/types';
 import { Chequered, CountdownBar, SectorChip, SectorLegend, StartLights, Telemetry } from '../components/f1';
 import { useToast } from '../components/toast';
+import { BodyMap } from '../components/BodyMap';
+import { DaySheet } from '../components/gym/DaySheet';
+import { GuideSheet } from '../components/gym/GuideSheet';
+import { MachineScan } from '../components/gym/MachineScan';
+import { PlanSheet, type SavedPlan } from '../components/gym/PlanSheet';
+import { WeekCard } from '../components/gym/WeekCard';
+import { plannedHeat } from '../core/gymStats';
 import { AnimatedNumber, Button, Card, IconButton, Input, Page, PageHeader, Rise, SectionTitle, Sheet, cx } from '../components/ui';
 
 const kg = (n: number) => `${+n.toFixed(1)}`;
@@ -19,31 +26,40 @@ function useTemplates() {
   const { settings, save } = useSettings();
   const get = (d: DayType): Exercise[] => (d === 'rest' ? [] : (settings.gymTemplates?.[d] as Exercise[] | undefined) ?? DEFAULT_TEMPLATES[d]);
   const set = (d: DayType, list: Exercise[]) => save({ gymTemplates: { ...settings.gymTemplates, [d]: list } });
-  return { get, set };
+  // Today's coach plan (if you locked one in for this day type) replaces the template for today only.
+  const plan = settings.gymPlan as SavedPlan | undefined;
+  const todayPlan = (d: DayType) => (plan?.date === today() && plan.day_type === d ? plan.plan : null);
+  const forToday = (d: DayType): Exercise[] => todayPlan(d)?.exercises.map(({ name, sets, reps }) => ({ name, sets, reps })) ?? get(d);
+  return { get, set, todayPlan, forToday };
 }
 
 
 // ---------- Race calendar strip ----------
-function Calendar({ shift, workouts }: { shift: number; workouts: Workout[] }) {
+function Calendar({ shift, workouts, onSelect }: { shift: number; workouts: Workout[]; onSelect: (d: string) => void }) {
   const t = today();
   const days = Array.from({ length: 14 }, (_, i) => addDays(t, i - 6));
+  const trainedAny = new Set(workouts.map((w) => w.date));
   const trained = new Set(workouts.filter((w) => w.finished_at).map((w) => w.date));
   return (
     <div className="no-scrollbar -mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
       <div className="grid min-w-[760px] grid-cols-14 gap-1.5" style={{ gridTemplateColumns: 'repeat(14, minmax(0, 1fr))' }}>
         {days.map((d, i) => {
-          const type = dayTypeOn(d, shift);
+          // A day you trained shows what you actually did; otherwise the split's plan.
+          const type = (workouts.find((w) => w.date === d)?.day_type as DayType | undefined) ?? dayTypeOn(d, shift);
           const meta = DAY_META[type];
           const isToday = d === t;
           const past = d < t;
-          const done = trained.has(d);
+          const done = trained.has(d) || trainedAny.has(d);
           return (
-            <motion.div
+            <motion.button
               key={d}
+              type="button"
+              onClick={() => onSelect(d)}
+              whileTap={{ scale: 0.94 }}
               initial={{ opacity: 0, y: 20, skewX: -8 }}
               animate={{ opacity: 1, y: 0, skewX: 0 }}
               transition={{ ...spring, delay: 0.15 + i * 0.03 }}
-              className={cx('relative overflow-hidden rounded-md border px-2 pb-2 pt-1.5', isToday ? 'border-accent bg-accent-soft' : 'border-line bg-surface', past && !isToday && 'opacity-60')}
+              className={cx('relative overflow-hidden rounded-md border px-2 pb-2 pt-1.5 text-left', isToday ? 'border-accent bg-accent-soft' : 'border-line bg-surface', past && !isToday && 'opacity-60')}
             >
               <span className="absolute inset-x-0 top-0 h-[3px]" style={{ background: meta.color }} />
               <p className="text-micro font-bold uppercase tracking-wider text-ink-3">{parseDate(d).toLocaleDateString(undefined, { weekday: 'short' })}</p>
@@ -53,7 +69,7 @@ function Calendar({ shift, workouts }: { shift: number; workouts: Workout[] }) {
               </p>
               {done && <Flag className="absolute right-1.5 top-2 size-3.5 fill-current text-ink" aria-label="Trained" />}
               {isToday && <motion.span layoutId="cal-today" className="absolute inset-x-0 bottom-0 h-[3px] bg-accent" />}
-            </motion.div>
+            </motion.button>
           );
         })}
       </div>
@@ -89,12 +105,12 @@ function Stepper({ value, onChange, step, unit, label, decimal }: { value: strin
   );
 }
 
-function ExerciseCard({ ex, workout, sets, lastSets, priorBest, onLogged, onSwap }: { ex: Exercise; workout: Workout; sets: GymSet[]; lastSets: GymSet[]; priorBest: number; onLogged: () => void; onSwap?: () => void }) {
+function ExerciseCard({ ex, workout, sets, lastSets, priorBest, onLogged, onSwap, onGuide, target }: { ex: Exercise; workout: Workout; sets: GymSet[]; lastSets: GymSet[]; priorBest: number; onLogged: () => void; onSwap?: () => void; onGuide: () => void; target?: { weight: number | null; why: string | null } }) {
   const { create, remove } = useResource<GymSet>('sets');
   // Coach first (double progression from last session), else repeat last time, else this session's last set.
   const coach = suggestNext(ex.name, ex.reps, lastSets);
   const next = coach ?? lastSets[sets.length] ?? lastSets.at(-1) ?? sets.at(-1);
-  const [weight, setWeight] = useState<string>(next ? String(next.weight) : '');
+  const [weight, setWeight] = useState<string>(target?.weight ? String(target.weight) : next ? String(next.weight) : '');
   const [reps, setReps] = useState<string>(next ? String(next.reps) : '');
   const barbell = EXERCISES.find((e) => e.name === ex.name)?.equipment === 'Barbell';
   const plates = barbell && Number(weight) ? platesPerSide(Number(weight)) : null;
@@ -122,6 +138,9 @@ function ExerciseCard({ ex, workout, sets, lastSets, priorBest, onLogged, onSwap
           </p>
         </div>
         <div className="flex items-center gap-1">
+          <IconButton label={`How to do ${ex.name}`} onClick={onGuide} className="size-8">
+            <BookOpen className="size-4" />
+          </IconButton>
           {onSwap && sets.length === 0 && (
             <IconButton label={`Swap ${ex.name}`} onClick={onSwap} className="size-8">
               <ArrowLeftRight className="size-4" />
@@ -132,7 +151,13 @@ function ExerciseCard({ ex, workout, sets, lastSets, priorBest, onLogged, onSwap
           </span>
         </div>
       </div>
-      {coach && sets.length < ex.sets && (
+      {target?.why && sets.length === 0 && (
+        <p className="mt-2 flex items-start gap-1.5 text-xs text-ink-2">
+          <span className="slant mt-0.5 shrink-0 bg-accent px-1.5 text-micro font-black text-white">PLAN</span> {target.weight ? `${target.weight} kg · ` : ''}
+          {target.why}
+        </p>
+      )}
+      {coach && !target?.weight && sets.length < ex.sets && (
         <p className="mt-2 flex items-center gap-1.5 text-xs font-semibold text-green">
           <span className="slant bg-green px-1.5 text-micro font-black text-black">COACH</span> {coach.why} → {coach.weight} × {coach.reps}
         </p>
@@ -178,7 +203,7 @@ function ExerciseCard({ ex, workout, sets, lastSets, priorBest, onLogged, onSwap
   );
 }
 
-function Session({ workout, template, sets, allSets, workouts }: { workout: Workout; template: Exercise[]; sets: GymSet[]; allSets: GymSet[]; workouts: Workout[] }) {
+function Session({ workout, template, sets, allSets, workouts, onGuide, targets }: { workout: Workout; template: Exercise[]; sets: GymSet[]; allSets: GymSet[]; workouts: Workout[]; onGuide: (n: string) => void; targets?: Record<string, { weight: number | null; why: string | null }> }) {
   const { update } = useResource<Workout>('workouts');
   const [rest, setRest] = useState(0);
   const [picking, setPicking] = useState<null | { swap?: string }>(null);
@@ -237,6 +262,8 @@ function Session({ workout, template, sets, allSets, workouts }: { workout: Work
             priorBest={prior.get(ex.name) ?? 0}
             onLogged={() => setRest((r) => r + 1)}
             onSwap={template.some((t) => t.name === original(ex.name)) ? () => setPicking({ swap: original(ex.name) }) : undefined}
+            onGuide={() => onGuide(ex.name)}
+            target={targets?.[ex.name]}
           />
         ))}
       </motion.div>
@@ -289,12 +316,13 @@ function Session({ workout, template, sets, allSets, workouts }: { workout: Work
 }
 
 // ---------- Today ----------
-function TodayPanel({ shift, workouts, sets }: { shift: number; workouts: Workout[]; sets: GymSet[] }) {
+function TodayPanel({ shift, workouts, sets, onGuide }: { shift: number; workouts: Workout[]; sets: GymSet[]; onGuide: (n: string) => void }) {
   const t = today();
   const planned = dayTypeOn(t, shift);
   const [override, setOverride] = useState<DayType | null>(null);
   const { create } = useResource<Workout>('workouts');
-  const { get } = useTemplates();
+  const { forToday, todayPlan } = useTemplates();
+  const [planning, setPlanning] = useState(false);
   const { save, settings } = useSettings();
   const toast = useToast();
   const [lights, setLights] = useState(false);
@@ -304,7 +332,8 @@ function TodayPanel({ shift, workouts, sets }: { shift: number; workouts: Workou
   const tomorrow = DAY_META[dayTypeOn(addDays(t, 1), shift)];
 
   if (active && !active.finished_at) {
-    return <Session workout={active} template={get(type)} sets={sets.filter((s) => s.workout_id === active.id)} allSets={sets} workouts={workouts} />;
+    const p = todayPlan(type);
+    return <Session workout={active} template={forToday(type)} sets={sets.filter((s) => s.workout_id === active.id)} allSets={sets} workouts={workouts} onGuide={onGuide} targets={p ? Object.fromEntries(p.exercises.map((e) => [e.name, { weight: e.weight, why: e.why }])) : undefined} />;
   }
 
   if (active?.finished_at) {
@@ -347,9 +376,11 @@ function TodayPanel({ shift, workouts, sets }: { shift: number; workouts: Workou
     );
   }
 
-  const template = get(type);
+  const template = forToday(type);
+  const plan = todayPlan(type);
   return (
     <Card className="relative overflow-hidden">
+      <PlanSheet open={planning} onClose={() => setPlanning(false)} dayType={type} onGuide={onGuide} />
       <div className="pointer-events-none absolute -right-6 -top-8 text-[170px] font-black italic leading-none opacity-[0.05]" style={{ color: meta.color }}>
         {meta.short}
       </div>
@@ -359,15 +390,23 @@ function TodayPanel({ shift, workouts, sets }: { shift: number; workouts: Workou
             Lights out
           </p>
           <p className="mt-3 text-5xl font-black italic uppercase">{meta.label} day</p>
-          <p className="text-ink-2">{meta.focus}</p>
-          <ol className="mt-4 grid gap-1 text-sm text-ink-2 sm:grid-cols-2">
-            {template.map((e, i) => (
-              <li key={e.name} className="flex gap-2">
-                <span className="w-5 font-mono text-ink-3">{String(i + 1).padStart(2, '0')}</span>
-                {e.name} <span className="text-ink-3">{e.sets}×{e.reps}</span>
-              </li>
-            ))}
-          </ol>
+          <p className="text-ink-2">{plan ? plan.title : meta.focus}</p>
+          <div className="mt-4 grid grid-cols-[minmax(0,1fr)_8.5rem] items-start gap-3 sm:grid-cols-[minmax(0,1fr)_11rem]">
+            <ol className="space-y-1 text-sm text-ink-2">
+              {template.map((e, i) => (
+                <motion.li key={e.name} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.1 + i * 0.05 }} className="flex gap-2">
+                  <span className="w-5 shrink-0 font-mono text-ink-3">{String(i + 1).padStart(2, '0')}</span>
+                  <button onClick={() => onGuide(e.name)} className="min-w-0 text-left">
+                    {e.name} <span className="text-ink-3">{e.sets}×{e.reps}</span>
+                  </button>
+                </motion.li>
+              ))}
+            </ol>
+            <BodyMap heat={plannedHeat(template)} pulse className="h-44" />
+          </div>
+          <Button variant={plan ? 'ghost' : 'soft'} className="mt-4 w-full sm:w-auto" onClick={() => setPlanning(true)}>
+            <Sparkles className="size-4" /> {plan ? 'Coach plan locked in · view' : 'AI-plan my session (time, niggles, progress)'}
+          </Button>
         </div>
         <div className="flex flex-col items-center gap-4">
           <StartLights
@@ -625,6 +664,10 @@ export function GymPage() {
   const { data: workouts = [] } = useList<Workout>('workouts');
   const { data: sets = [] } = useList<GymSet>('sets');
   const [editing, setEditing] = useState(false);
+  const [guide, setGuide] = useState<string | null>(null);
+  const [scan, setScan] = useState(false);
+  const [day, setDay] = useState<string | null>(null);
+  const { get } = useTemplates();
   const month = today().slice(0, 7);
   const sessionsThisMonth = workouts.filter((w) => w.finished_at && w.date.startsWith(month)).length;
   const lap = CYCLE.map((d) => DAY_META[d].short).join(' › ');
@@ -635,20 +678,28 @@ export function GymPage() {
         eyebrow="Garage · Body"
         title="Gym"
         action={
-          <Button variant="ghost" onClick={() => setEditing(true)}>
-            <Pencil className="size-4" /> Templates
-          </Button>
+          <div className="flex gap-1.5">
+            <Button variant="soft" onClick={() => setScan(true)} aria-label="Scan a machine">
+              <Camera className="size-4" /> <span className="max-sm:hidden">Scan machine</span>
+            </Button>
+            <Button variant="ghost" onClick={() => setEditing(true)} aria-label="Templates">
+              <Pencil className="size-4" /> <span className="max-sm:hidden">Templates</span>
+            </Button>
+          </div>
         }
       />
       <Rise className="mb-2 flex items-center justify-between text-tiny font-bold uppercase tracking-widest text-ink-3">
-        <span>Lap: {lap}</span>
+        <span>Lap: {lap} · tap a day</span>
         <span>{sessionsThisMonth} sessions this month</span>
       </Rise>
       <Rise className="mb-6">
-        <Calendar shift={shift} workouts={workouts} />
+        <Calendar shift={shift} workouts={workouts} onSelect={setDay} />
       </Rise>
       <Rise className="mb-6">
-        <TodayPanel shift={shift} workouts={workouts} sets={sets} />
+        <TodayPanel shift={shift} workouts={workouts} sets={sets} onGuide={setGuide} />
+      </Rise>
+      <Rise className="mb-4">
+        <WeekCard sets={sets} workouts={workouts} shift={shift} />
       </Rise>
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Rise>
@@ -662,6 +713,9 @@ export function GymPage() {
         <History workouts={workouts} sets={sets} />
       </Rise>
       <TemplateEditor open={editing} onClose={() => setEditing(false)} />
+      <DaySheet date={day} planned={day ? dayTypeOn(day, shift) : 'rest'} workouts={workouts} sets={sets} template={get} onClose={() => setDay(null)} onGuide={(n) => (setDay(null), setGuide(n))} />
+      <MachineScan open={scan} onClose={() => setScan(false)} onGuide={(n) => (setScan(false), setGuide(n))} />
+      <GuideSheet name={guide} sets={sets} onClose={() => setGuide(null)} />
     </Page>
   );
 }

@@ -26,12 +26,14 @@ import { contactKey, normalisePhone } from '../web/src/core/vcard.ts';
 import { STORY_SYSTEM, storyPrompt, type Answer } from '../web/src/core/journal.ts';
 import { RECEIPT_SYSTEM, normaliseReceipt } from '../web/src/core/money.ts';
 import { AI_FOOD_SYSTEM, aiUserText, extractJson, normaliseAi } from '../web/src/core/aiFood.ts';
+import { gym } from './gym.ts';
 
 const PORT = Number(process.env.PORT ?? 4300);
 // Loopback by default: `tailscale serve` proxies to it, so only devices on your tailnet can reach it.
 const HOST = process.env.HOST ?? '127.0.0.1';
 
 const app = new Hono();
+app.route('/api/gym', gym);
 const now = () => new Date().toISOString();
 
 // ---- Live sync: every write broadcasts the resource name; clients refetch it. ----
