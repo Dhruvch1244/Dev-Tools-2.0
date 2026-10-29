@@ -22,6 +22,8 @@ export type Settings = {
   dsaLang?: 'cpp' | 'java' | 'py';
   handles?: { codeforces?: string; leetcode?: string; codechef?: string };
   briefs?: Briefs;
+  /** Default 'veg' (no meat, fish or eggs). */
+  diet?: 'veg' | 'egg' | 'nonveg';
 };
 export type Workout = Stamped & { date: string; day_type: string; notes: string | null; started_at: string | null; finished_at: string | null };
 export type GymSet = Stamped & { workout_id: string; date: string; exercise: string; set_no: number; weight: number; reps: number };

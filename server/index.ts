@@ -365,8 +365,9 @@ app.post('/api/coach/dsa', async (c) => {
   return coachStream(c, DSA_SYSTEM, dsaPrompt({ ...body, statementHtml }));
 });
 app.post('/api/coach/fuel', async (c) => {
-  const { remaining, usual, meal } = await c.req.json<{ remaining: { kcal: number; protein: number; carbs: number; fat: number }; usual: string[]; meal: string }>();
-  const prompt = `Plan my ${meal} so I finish the day on target.\nRemaining today: ${Math.round(remaining.kcal)} kcal, ${Math.round(remaining.protein)} g protein, ${Math.round(remaining.carbs)} g carbs, ${Math.round(remaining.fat)} g fat.\nFoods I eat often: ${usual.slice(0, 20).join(', ') || 'typical North Indian home food'}.\nI'm vegetarian-friendly unless I've logged meat above.`;
+  const { remaining, usual, meal, diet = 'veg' } = await c.req.json<{ remaining: { kcal: number; protein: number; carbs: number; fat: number }; usual: string[]; meal: string; diet?: 'veg' | 'egg' | 'nonveg' }>();
+  const dietLine = { veg: 'I am strictly vegetarian: no meat, no fish, no eggs (dairy like paneer, curd, milk and whey is fine). Never suggest any of those.', egg: 'I am eggetarian: no meat or fish, eggs and dairy are fine.', nonveg: 'I eat everything.' }[diet];
+  const prompt = `Plan my ${meal} so I finish the day on target.\nRemaining today: ${Math.round(remaining.kcal)} kcal, ${Math.round(remaining.protein)} g protein, ${Math.round(remaining.carbs)} g carbs, ${Math.round(remaining.fat)} g fat.\nFoods I eat often: ${usual.slice(0, 20).join(', ') || 'typical North Indian home food'}.\n${dietLine}`;
   return coachStream(c, FUEL_SYSTEM, prompt);
 });
 

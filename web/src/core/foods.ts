@@ -193,3 +193,31 @@ export function searchFoods<T extends { name: string }>(foods: T[], q: string) {
     return words.every((w) => n.includes(w));
   });
 }
+
+// ---------- Diet ----------
+// Explicit lists, not keyword matching: "kanda poha" contains "anda" and "veggie" contains "egg".
+// Baked goods and mayo stay vegetarian — eggless versions are the norm in India.
+const MEAT = new Set(
+  `chicken-biryani chicken-curry butter-chicken tandoori-chicken chicken-tikka chicken-breast fish-curry mutton-curry keema chicken-roll
+  chicken-momos macher-jhol rogan-josh yakhni haleem hyd-dum-biryani kerala-fish-curry chettinad-chicken bamboo-pork chicken-65
+  chilli-chicken chicken-noodles chicken-tikka-masala kadai-chicken mutton-biryani shawarma burger-chicken pizza-chicken sandwich-chicken
+  subway-6-chicken fried-chicken nuggets wrap-chicken salad-chicken raw-chicken-breast raw-chicken-thigh raw-mutton raw-fish-rohu
+  raw-prawns chicken-bhuna chicken-keema chicken-soup momo-soup dhansak club-sandwich`.split(/\s+/),
+);
+const EGG = new Set(
+  `egg-curry boiled-egg egg-white omelette egg-bhurji bread-omelette akuri egg-fried-rice egg-biryani egg-roll raw-egg egg-paratha
+  egg-masala-dry egg-sandwich egg-white-omelette`.split(/\s+/),
+);
+
+/** veg = no meat, fish or eggs (dairy fine) · egg = eggetarian · nonveg = everything. */
+export type Diet = 'veg' | 'egg' | 'nonveg';
+export const DIETS: { value: Diet; label: string; hint: string }[] = [
+  { value: 'veg', label: 'Vegetarian', hint: 'No meat, fish or eggs · dairy is fine' },
+  { value: 'egg', label: 'Eggetarian', hint: 'Vegetarian + eggs' },
+  { value: 'nonveg', label: 'Non-veg', hint: 'Everything' },
+];
+export const foodKind = (id: string) => (MEAT.has(id) ? 'meat' : EGG.has(id) ? 'egg' : 'veg');
+export const allowedFor = (diet: Diet, id: string) => {
+  const k = foodKind(id);
+  return diet === 'nonveg' || k === 'veg' || (diet === 'egg' && k === 'egg');
+};

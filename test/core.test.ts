@@ -99,3 +99,17 @@ test('exercise library has unique names', () => {
   assert.equal(new Set(names).size, names.length);
   assert.ok(names.length > 200);
 });
+
+test('diet filtering: vegetarian means no meat, fish or eggs', async () => {
+  const { allowedFor, foodKind } = await import('../web/src/core/foods.ts');
+  assert.equal(foodKind('chicken-biryani'), 'meat');
+  assert.equal(foodKind('omelette'), 'egg');
+  assert.equal(foodKind('poha-kanda'), 'veg', '"kanda" contains "anda" but is onion poha');
+  assert.equal(foodKind('subway-6-veg'), 'veg', '"veggie" contains "egg"');
+  assert.equal(allowedFor('veg', 'egg-bhurji'), false);
+  assert.equal(allowedFor('egg', 'egg-bhurji'), true);
+  assert.equal(allowedFor('egg', 'fish-curry'), false);
+  assert.equal(allowedFor('veg', 'paneer-bhurji'), true);
+  const vegFixes = proteinFixes(40, FOODS.filter((f) => allowedFor('veg', f.id)), []);
+  assert.ok(vegFixes.length > 0 && vegFixes.every((f) => foodKind(f.food.id) === 'veg'));
+});

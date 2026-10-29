@@ -4,7 +4,7 @@ import { Bookmark, ChevronLeft, ChevronRight, Copy, Flame, Minus, Plus, Search, 
 import { useList, useResource, useSettings } from '../lib/api';
 import { addDays, parseDate, relativeDay, today } from '../lib/format';
 import { listItem } from '../lib/motion';
-import { FOODS, FOOD_CATS, searchFoods, type Food } from '../core/foods';
+import { DIETS, FOODS, FOOD_CATS, allowedFor, searchFoods, type Diet, type Food } from '../core/foods';
 import { ACTIVITY, DEFAULT_PROFILE, MEALS, mealForNow, sumMacros, targets, type Profile } from '../core/fuel';
 import { parseFoodText, proteinFixes } from '../core/foodParse';
 import { streamCoach } from '../lib/coach';
@@ -72,12 +72,15 @@ export function FoodSearch({ date, meal, onMealChange }: { date: string; meal: s
   const [making, setMaking] = useState(false);
   const [cf, setCf] = useState({ name: '', serving: '1 serving', kcal: '', protein: '', carbs: '', fat: '' });
 
-  const all: AnyFood[] = useMemo(() => [...custom.map((c) => ({ ...c, cat: 'Custom' as const })), ...FOODS], [custom]);
+  const { settings } = useSettings();
+  const diet: Diet = settings.diet ?? 'veg';
+  // Custom foods are the user's own, so they're always shown; the built-in list follows the diet.
+  const all: AnyFood[] = useMemo(() => [...custom.map((c) => ({ ...c, cat: 'Custom' as const })), ...FOODS.filter((f) => allowedFor(diet, f.id))], [custom, diet]);
   const recent = useMemo(() => {
     const ids = [...new Set(recentLogs.map((l) => l.food_id).filter(Boolean))] as string[];
     return ids.map((id) => all.find((f) => f.id === id)).filter(Boolean).slice(0, 20) as AnyFood[];
   }, [recentLogs, all]);
-  const list = q ? searchFoods(all, q) : cat === 'Recent' ? (recent.length ? recent : FOODS.slice(0, 20)) : cat === 'Custom' ? all.filter((f) => f.cat === 'Custom') : all.filter((f) => f.cat === cat);
+  const list = q ? searchFoods(all, q) : cat === 'Recent' ? (recent.length ? recent : all.slice(0, 20)) : cat === 'Custom' ? all.filter((f) => f.cat === 'Custom') : all.filter((f) => f.cat === cat);
 
   const [added, setAdded] = useState<Record<string, number>>({});
   const [mode, setMode] = useState<'search' | 'type' | 'saved'>('search');
@@ -151,7 +154,7 @@ export function FoodSearch({ date, meal, onMealChange }: { date: string; meal: s
       </div>
       {!q && (
         <div className="no-scrollbar -mx-1 mb-3 flex gap-1.5 overflow-x-auto px-1">
-          {['Recent', 'Custom', ...FOOD_CATS].map((c) => (
+          {['Recent', 'Custom', ...FOOD_CATS.filter((c) => !(c === 'Non-veg' && diet !== 'nonveg'))].map((c) => (
             <Chip key={c} active={cat === c} onClick={() => setCat(c)}>
               {c}
             </Chip>
@@ -315,7 +318,7 @@ function SavedMeals({ date, meal }: { date: string; meal: string }) {
 }
 
 /** Ask the local Claude CLI for meal ideas that fit what's left of today's macros. */
-function MealCoach({ open, onClose, remaining, usual }: { open: boolean; onClose: () => void; remaining: { kcal: number; protein: number; carbs: number; fat: number }; usual: string[] }) {
+function MealCoach({ open, onClose, remaining, usual, diet }: { open: boolean; onClose: () => void; remaining: { kcal: number; protein: number; carbs: number; fat: number }; usual: string[]; diet: Diet }) {
   const [text, setText] = useState('');
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -325,7 +328,7 @@ function MealCoach({ open, onClose, remaining, usual }: { open: boolean; onClose
     setText('');
     setErr(null);
     setBusy(true);
-    streamCoach('fuel', { remaining, usual, meal: MEALS.find((m) => m.id === mealForNow())?.label ?? 'next meal' }, (t) => setText((x) => x + t), ctl.signal)
+    streamCoach('fuel', { remaining, usual, diet, meal: MEALS.find((m) => m.id === mealForNow())?.label ?? 'next meal' }, (t) => setText((x) => x + t), ctl.signal)
       .catch((e) => (e as Error).name !== 'AbortError' && setErr((e as Error).message))
       .finally(() => setBusy(false));
     return () => ctl.abort();
@@ -348,6 +351,18 @@ function AddFoodSheet({ meal, date, onClose }: { meal: string | null; date: stri
     <Sheet open={!!meal} onClose={onClose} title={`Add to ${MEALS.find((m) => m.id === meal)?.label ?? ''}`}>
       {meal && <FoodSearch date={date} meal={meal} />}
     </Sheet>
+  );
+}
+
+function DietPicker() {
+  const { settings, save } = useSettings();
+  const diet: Diet = settings.diet ?? 'veg';
+  return (
+    <div>
+      <p className="mb-1 text-[10px] font-black uppercase tracking-widest text-ink-3">Diet</p>
+      <Segmented className="w-full" value={diet} onChange={(d) => save({ diet: d })} options={DIETS.map((d) => ({ value: d.value, label: d.label }))} />
+      <p className="mt-1 text-[11px] text-ink-3">{DIETS.find((d) => d.value === diet)?.hint} — food search, suggestions and the meal coach follow this.</p>
+    </div>
   );
 }
 
@@ -381,6 +396,7 @@ function ProfileSheet({ open, onClose, profile }: { open: boolean; onClose: () =
             </button>
           ))}
         </div>
+        <DietPicker />
         <Segmented className="w-full" value={p.goal} onChange={(goal) => setP({ ...p, goal })} options={[{ value: 'cut', label: 'Cut' }, { value: 'maintain', label: 'Maintain' }, { value: 'bulk', label: 'Lean bulk' }]} />
         <table className="w-full text-sm">
           <tbody className="[&_td]:border-b [&_td]:border-line [&_td]:py-1.5">
@@ -455,7 +471,8 @@ export function FuelPage() {
   const burned = acts.reduce((a, x) => a + (x.kcal ?? 0), 0);
   const recentIds = [...new Set(logs.map((l) => l.food_id).filter(Boolean))] as string[];
   const gap = Math.round(t.protein - total.protein);
-  const fixes = gap >= 15 ? proteinFixes(gap, FOODS, recentIds) : [];
+  const diet: Diet = settings.diet ?? 'veg';
+  const fixes = gap >= 15 ? proteinFixes(gap, FOODS.filter((f) => allowedFor(diet, f.id)), recentIds) : [];
   const saveMeal = async (meal: string, label: string) => {
     const items = day.filter((l) => l.meal === meal).map(({ food_id, name, qty, unit, kcal, protein, carbs, fat }) => ({ food_id, name, qty, unit, kcal, protein, carbs, fat }));
     if (!items.length) return toast({ message: `${label} is empty — log it first, then save it` });
@@ -552,7 +569,7 @@ export function FuelPage() {
           </Button>
         </Rise>
       )}
-      <MealCoach open={coachOpen} onClose={() => setCoachOpen(false)} remaining={{ kcal: left, protein: Math.max(0, t.protein - total.protein), carbs: Math.max(0, t.carbs - total.carbs), fat: Math.max(0, t.fat - total.fat) }} usual={usualNames} />
+      <MealCoach open={coachOpen} diet={diet} onClose={() => setCoachOpen(false)} remaining={{ kcal: left, protein: Math.max(0, t.protein - total.protein), carbs: Math.max(0, t.carbs - total.carbs), fat: Math.max(0, t.fat - total.fat) }} usual={usualNames} />
       <AnimatePresence>
         {fixes.length > 0 && date === today() && (
           <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="mb-4 rounded-xl border border-accent/40 bg-accent-soft p-4">
