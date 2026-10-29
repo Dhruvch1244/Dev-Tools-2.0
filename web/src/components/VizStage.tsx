@@ -22,7 +22,7 @@ function ArrayView({ a, id }: { a: ArrayState; id: string }) {
   const n = a.values.length;
   return (
     <div>
-      <p className="mb-1.5 text-[10px] font-black uppercase tracking-[0.2em] text-ink-3">{a.name}</p>
+      <p className="mb-1.5 text-micro font-black uppercase tracking-[0.2em] text-ink-3">{a.name}</p>
       <div className="no-scrollbar overflow-x-auto pb-7">
         <div className="relative inline-flex gap-1">
           {a.window && a.window[1] >= a.window[0] && (
@@ -40,12 +40,12 @@ function ArrayView({ a, id }: { a: ArrayState; id: string }) {
                 initial={{ scale: 0.7, opacity: 0.4 }}
                 animate={{ scale: 1, opacity: 1 }}
                 transition={spring}
-                className="grid h-11 w-11 place-items-center rounded-md border border-line bg-surface-2 font-mono text-[13px] font-bold transition-colors duration-200"
+                className="grid h-11 w-11 place-items-center rounded-md border border-line bg-surface-2 font-mono text-label font-bold transition-colors duration-200"
                 style={cellStyle(a.marks?.[i])}
               >
                 {v === null ? '·' : String(v)}
               </motion.div>
-              <span className="absolute -top-3.5 left-0 right-0 text-center font-mono text-[9px] text-ink-3">{i}</span>
+              <span className="absolute -top-3.5 left-0 right-0 text-center font-mono text-micro text-ink-3">{i}</span>
             </div>
           ))}
           {n === 0 && <span className="h-11 text-sm italic text-ink-3">empty</span>}
@@ -58,7 +58,7 @@ function ArrayView({ a, id }: { a: ArrayState; id: string }) {
               style={{ left: `calc(${p.index} * (2.75rem + 0.25rem))`, width: '2.75rem', zIndex: 2 }}
             >
               <span className="h-0 w-0 border-x-[5px] border-b-[6px] border-x-transparent" style={{ borderBottomColor: PTR_COLORS[k % PTR_COLORS.length] }} />
-              <span className="slant px-1.5 font-mono text-[10px] font-bold text-black" style={{ background: PTR_COLORS[k % PTR_COLORS.length], marginTop: (k % 2) * 13 }}>
+              <span className="slant px-1.5 font-mono text-micro font-bold text-black" style={{ background: PTR_COLORS[k % PTR_COLORS.length], marginTop: (k % 2) * 13 }}>
                 {p.name}
               </span>
             </motion.div>
@@ -73,9 +73,9 @@ const PTR_COLORS = ['#ffd23f', '#4fb3ff', '#ff5747', '#2bd46b', '#b26bff'];
 function TableView({ t }: { t: TableState }) {
   return (
     <div>
-      <p className="mb-1.5 text-[10px] font-black uppercase tracking-[0.2em] text-ink-3">{t.name}</p>
+      <p className="mb-1.5 text-micro font-black uppercase tracking-[0.2em] text-ink-3">{t.name}</p>
       <div className="no-scrollbar overflow-x-auto">
-        <table className="border-separate border-spacing-1 font-mono text-[12px]">
+        <table className="border-separate border-spacing-1 font-mono text-mini">
           {t.colLabels && (
             <thead>
               <tr>
@@ -241,7 +241,7 @@ export function FrameView({ frame, id = 'v' }: { frame: Frame; id?: string }) {
         {frame.vars && Object.keys(frame.vars).length > 0 && (
           <div className="flex flex-wrap gap-2">
             {Object.entries(frame.vars).map(([k, v]) => (
-              <span key={k} className="flex items-stretch overflow-hidden rounded font-mono text-[12px]">
+              <span key={k} className="flex items-stretch overflow-hidden rounded font-mono text-mini">
                 <span className="bg-ink px-2 py-0.5 font-bold text-bg">{k}</span>
                 <motion.span key={String(v)} initial={{ backgroundColor: 'rgba(225,6,0,.5)' }} animate={{ backgroundColor: 'rgba(27,30,38,1)' }} transition={{ duration: 0.6 }} className="border border-l-0 border-line px-2 py-0.5">
                   {v === null ? '—' : String(v)}
@@ -311,7 +311,7 @@ export function PlayerBar({ p, count, msg }: { p: ReturnType<typeof usePlayer>; 
         </span>
         <div className="flex overflow-hidden rounded-md border border-line">
           {SPEEDS.map((s) => (
-            <button key={s} onClick={() => p.setSpeed(s)} className={cx('px-2 py-1 font-mono text-[11px] font-bold', p.speed === s ? 'bg-accent text-white' : 'text-ink-3 hover:text-ink')}>
+            <button key={s} onClick={() => p.setSpeed(s)} className={cx('px-2 py-1 font-mono text-tiny font-bold', p.speed === s ? 'bg-accent text-white' : 'text-ink-3 hover:text-ink')}>
               {s}×
             </button>
           ))}

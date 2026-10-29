@@ -66,7 +66,7 @@ export function TodaySchedule({ compact }: { compact?: boolean }) {
       {allDay.length > 0 && (
         <div className="mb-2 flex flex-wrap gap-1.5">
           {allDay.map((e) => (
-            <span key={e.id} className="slant bg-surface-2 px-2.5 py-0.5 text-[11px] font-bold">
+            <span key={e.id} className="slant bg-surface-2 px-2.5 py-0.5 text-tiny font-bold">
               {e.title}
             </span>
           ))}
@@ -81,7 +81,7 @@ export function TodaySchedule({ compact }: { compact?: boolean }) {
             <motion.li key={it.key} initial={{ opacity: 0, x: -12 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.04 }}>
               {i === nowIdx && (
                 <div className="my-1 flex items-center gap-2" aria-label="Now">
-                  <span className="font-mono text-[10px] font-bold text-accent-2">{fmt(nowMin)}</span>
+                  <span className="font-mono text-micro font-bold text-accent-2">{fmt(nowMin)}</span>
                   <span className="h-[2px] flex-1 bg-accent" />
                 </div>
               )}
@@ -90,7 +90,7 @@ export function TodaySchedule({ compact }: { compact?: boolean }) {
                   {fmt(it.start)}–{fmt(it.end)}
                 </span>
                 <span className={cx('min-w-0 flex-1 truncate text-sm font-semibold', isDone && 'text-ink-3 line-through')}>{it.title}</span>
-                {live && <span className="slant bg-accent px-2 text-[10px] font-black text-white">NOW</span>}
+                {live && <span className="slant bg-accent px-2 text-micro font-black text-white">NOW</span>}
                 {it.kind === 'event' ? (
                   <a href={it.event!.link} target="_blank" rel="noreferrer" className="text-ink-3 hover:text-ink" aria-label="Open in Google Calendar">
                     <CalendarDays className="size-4" />
@@ -104,12 +104,12 @@ export function TodaySchedule({ compact }: { compact?: boolean }) {
         })}
         {nowIdx === -1 && items.length > 0 && (
           <div className="my-1 flex items-center gap-2">
-            <span className="font-mono text-[10px] font-bold text-accent-2">{fmt(nowMin)}</span>
+            <span className="font-mono text-micro font-bold text-accent-2">{fmt(nowMin)}</span>
             <span className="h-[2px] flex-1 bg-accent" />
           </div>
         )}
       </ol>
-      {connected && <p className="mt-2 text-[10px] font-bold uppercase tracking-widest text-ink-3">Blue = Google Calendar</p>}
+      {connected && <p className="mt-2 text-micro font-bold uppercase tracking-widest text-ink-3">Blue = Google Calendar</p>}
     </div>
   );
 }
@@ -144,7 +144,7 @@ function GoogleCard() {
       <SectionTitle>
         <span className="flex items-center gap-2">
           <CalendarCheck className="size-4 text-sky" /> Google Calendar
-          {st.connected && <span className="slant bg-green px-2 text-[10px] font-black text-black">SYNCED</span>}
+          {st.connected && <span className="slant bg-green px-2 text-micro font-black text-black">SYNCED</span>}
         </span>
       </SectionTitle>
       {st.connected ? (
@@ -195,8 +195,8 @@ function GoogleCard() {
             </li>
             <li>Paste the client ID and secret below.</li>
           </ol>
-          <Input placeholder="Client ID (…apps.googleusercontent.com)" value={id} onChange={(e) => setId(e.target.value)} className="font-mono text-xs" />
-          <Input placeholder="Client secret" value={secret} onChange={(e) => setSecret(e.target.value)} className="font-mono text-xs" type="password" />
+          <Input autoCorrect="off" autoCapitalize="off" spellCheck={false} placeholder="Client ID (…apps.googleusercontent.com)" value={id} onChange={(e) => setId(e.target.value)} className="font-mono text-xs" />
+          <Input autoCorrect="off" autoCapitalize="off" spellCheck={false} placeholder="Client secret" value={secret} onChange={(e) => setSecret(e.target.value)} className="font-mono text-xs" type="password" />
           <Button
             disabled={!id || !secret}
             onClick={async () => {
@@ -215,7 +215,7 @@ function GoogleCard() {
         <div className="space-y-3 text-sm text-ink-2">
           <p>Credentials saved. Sign in once to grant calendar access — Google will warn that the app is unverified (it's yours): click <b>Advanced → Go to … (unsafe)</b>.</p>
           {!local && !location.hostname.endsWith('.ts.net') && <p className="text-warn">Open this page on the laptop at http://localhost:4300/routines to sign in.</p>}
-          <p className="font-mono text-[11px] text-ink-3">Redirect URI in use: {st.redirectUri}</p>
+          <p className="font-mono text-tiny text-ink-3">Redirect URI in use: {st.redirectUri}</p>
           <a href="/api/google/auth">
             <Button>
               <ExternalLink className="size-4" /> Connect Google Calendar
@@ -264,17 +264,17 @@ function Editor({ draft, onClose }: { draft: Draft | null; onClose: () => void }
           ))}
         </div>
         <div className="grid grid-cols-2 gap-2">
-          <label className="text-[10px] font-black uppercase tracking-widest text-ink-3">
+          <label className="text-micro font-black uppercase tracking-widest text-ink-3">
             Start
             <input type="time" value={d.time} onChange={(e) => setD({ ...d, time: e.target.value })} className="field mt-1 w-full" />
           </label>
-          <label className="text-[10px] font-black uppercase tracking-widest text-ink-3">
+          <label className="text-micro font-black uppercase tracking-widest text-ink-3">
             Minutes
             <Input inputMode="numeric" value={d.duration_min} onChange={(e) => setD({ ...d, duration_min: Number(e.target.value) || 0 })} className="mt-1" />
           </label>
         </div>
         <div>
-          <p className="mb-1 text-[10px] font-black uppercase tracking-widest text-ink-3">Steps (optional)</p>
+          <p className="mb-1 text-micro font-black uppercase tracking-widest text-ink-3">Steps (optional)</p>
           <ul className="mb-2 space-y-1">
             {d.steps.map((s, i) => (
               <li key={i} className="flex items-center gap-2 rounded bg-bg px-3 py-1.5 text-sm">
@@ -292,7 +292,7 @@ function Editor({ draft, onClose }: { draft: Draft | null; onClose: () => void }
             </Button>
           </form>
         </div>
-        <label className="block text-[10px] font-black uppercase tracking-widest text-ink-3">
+        <label className="block text-micro font-black uppercase tracking-widest text-ink-3">
           Counts as habit
           <select value={d.habit_id ?? ''} onChange={(e) => setD({ ...d, habit_id: e.target.value || null })} className="field mt-1 w-full text-sm normal-case tracking-normal">
             <option value="">— none —</option>
@@ -406,7 +406,7 @@ export function RoutinesPage() {
                         const ok = done(r.id, date);
                         return (
                           <div key={date} className="text-center">
-                            <p className="text-[9px] font-bold uppercase text-ink-3">{DAY_LETTERS[wd]}</p>
+                            <p className="text-micro font-bold uppercase text-ink-3">{DAY_LETTERS[wd]}</p>
                             <motion.span initial={false} animate={{ scale: ok ? [1, 1.25, 1] : 1 }} transition={spring} className={cx('mx-auto mt-0.5 grid size-6 place-items-center rounded', !on ? 'bg-transparent' : ok ? 'bg-green text-black' : 'bg-surface-2')}>
                               {ok && <CheckIcon className="size-3.5" />}
                             </motion.span>

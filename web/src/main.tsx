@@ -7,9 +7,11 @@ import { registerSW } from 'virtual:pwa-register';
 import { queryClient } from './lib/api';
 import { ToastProvider } from './components/toast';
 import { App } from './App';
+import { installKeyboard } from './lib/keyboard';
 import './styles.css';
 
 registerSW({ immediate: true });
+installKeyboard();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

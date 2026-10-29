@@ -11,7 +11,7 @@ export { cx };
 // ---------- Layout ----------
 export function Page({ children }: { children: ReactNode }) {
   return (
-    <motion.div variants={stagger} initial="hidden" animate="show" className="mx-auto w-full max-w-6xl px-4 pb-36 pt-6 sm:px-8 sm:pt-10 lg:pb-16">
+    <motion.div variants={stagger} initial="hidden" animate="show" className="mx-auto w-full max-w-6xl px-4 pb-36 pt-14 sm:px-8 sm:pt-10 lg:pb-16">
       {children}
     </motion.div>
   );
@@ -26,7 +26,7 @@ export function PageHeader({ eyebrow, title, action }: { eyebrow?: string; title
     <Rise className="mb-6 flex flex-wrap items-end justify-between gap-4 sm:mb-8">
       <div className="min-w-0">
         {eyebrow && (
-          <motion.p initial={{ x: -20, opacity: 0 }} animate={{ x: 0, opacity: 1 }} transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1], delay: 0.2 }} className="slant mb-3 inline-block whitespace-nowrap bg-accent px-3 py-0.5 text-[12px] font-black italic uppercase tracking-[0.12em] text-white">
+          <motion.p initial={{ x: -20, opacity: 0 }} animate={{ x: 0, opacity: 1 }} transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1], delay: 0.2 }} className="slant mb-3 inline-block whitespace-nowrap bg-accent px-3 py-0.5 text-mini font-black italic uppercase tracking-[0.12em] text-white">
             {eyebrow}
           </motion.p>
         )}
@@ -64,7 +64,7 @@ export function Button({ variant = 'primary', size = 'md', className, ...props }
       transition={spring}
       className={cx(
         'inline-flex shrink-0 items-center justify-center gap-2 rounded-lg font-bold uppercase tracking-wide transition-colors disabled:pointer-events-none disabled:opacity-40',
-        size === 'md' ? 'h-11 px-5 text-[13px]' : 'h-9 px-3.5 text-[12px]',
+        size === 'md' ? 'h-11 px-5 text-label' : 'h-9 px-3.5 text-mini',
         variant === 'primary' && 'bg-accent text-accent-ink shadow-[0_8px_24px_-8px_var(--accent)] hover:brightness-110',
         variant === 'soft' && 'bg-accent-soft text-accent hover:bg-accent/25',
         variant === 'ghost' && 'text-ink-2 hover:bg-surface-2 hover:text-ink',
@@ -83,7 +83,7 @@ export function IconButton({ label, className, ...props }: HTMLMotionProps<'butt
       title={label}
       whileTap={{ scale: 0.85 }}
       transition={bouncy}
-      className={cx('grid size-9 shrink-0 place-items-center rounded-full text-ink-2 transition-colors hover:bg-surface-2 hover:text-ink', className)}
+      className={cx('grid size-10 shrink-0 place-items-center rounded-full sm:size-9 text-ink-2 transition-colors hover:bg-surface-2 hover:text-ink', className)}
       {...props}
     />
   );
@@ -112,7 +112,7 @@ export function Segmented<T extends string>({ options, value, onChange, classNam
           role="tab"
           aria-selected={value === o.value}
           onClick={() => (haptic(), onChange(o.value))}
-          className={cx('relative h-8 flex-1 rounded-md px-3.5 text-[12px] font-bold uppercase tracking-wide transition-colors', value === o.value ? 'text-accent-ink' : 'text-ink-2 hover:text-ink')}
+          className={cx('relative h-9 flex-1 rounded-md px-3.5 text-mini sm:h-8 font-bold uppercase tracking-wide transition-colors', value === o.value ? 'text-accent-ink' : 'text-ink-2 hover:text-ink')}
         >
           {value === o.value && <motion.span layoutId={`seg-${id}`} transition={spring} className="absolute inset-0 rounded-md bg-accent" />}
           <span className="relative z-10 whitespace-nowrap">{o.label}</span>
@@ -233,7 +233,7 @@ export function Chip({ active, onClick, children }: { active?: boolean; onClick?
       transition={bouncy}
       onClick={onClick}
       className={cx(
-        'inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border px-3 text-[13px] font-semibold transition-colors',
+        'inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md border px-3 text-label sm:h-8 font-semibold transition-colors',
         active ? 'border-transparent bg-accent text-accent-ink' : 'border-line bg-surface text-ink-2 hover:text-ink',
       )}
     >
@@ -300,7 +300,7 @@ export function Sheet({ open, onClose, title, children }: { open: boolean; onClo
       {open && (
         <motion.div key="sheet" className="fixed inset-0 z-50">
           <motion.div className="absolute inset-0 bg-black/45 backdrop-blur-sm" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} />
-          <div className={cx('pointer-events-none absolute inset-0 flex justify-center', mobile ? 'items-end' : 'items-start pt-[10vh]')}>
+          <div className={cx('pointer-events-none absolute inset-0 flex justify-center', mobile ? 'items-end pb-[var(--kb,0px)] transition-[padding] duration-200' : 'items-start pt-[10vh]')}>
             <motion.div
               role="dialog"
               aria-modal
@@ -315,7 +315,7 @@ export function Sheet({ open, onClose, title, children }: { open: boolean; onClo
               dragElastic={{ top: 0, bottom: 0.7 }}
               onDragEnd={(_, i) => (i.offset.y > 110 || i.velocity.y > 600) && onClose()}
               className={cx(
-                'pointer-events-auto relative max-h-[88dvh] w-full overflow-y-auto border border-line bg-surface-solid shadow-2xl',
+                'pointer-events-auto relative max-h-[min(88dvh,calc(var(--vvh,100dvh)-12px))] w-full overflow-y-auto overscroll-contain border border-line bg-surface-solid shadow-2xl',
                 mobile ? 'rounded-t-[28px] px-5 pb-[calc(env(safe-area-inset-bottom)+20px)] pt-3' : 'max-w-lg rounded-[28px] p-6',
               )}
             >

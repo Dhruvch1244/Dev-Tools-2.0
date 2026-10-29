@@ -37,7 +37,7 @@ function PushSection() {
         <div>
           <p className="flex items-center gap-2 text-sm font-bold uppercase tracking-wide">
             Push reminders
-            {state === 'on' && <span className="slant bg-green px-2 text-[10px] font-black text-black">ON</span>}
+            {state === 'on' && <span className="slant bg-green px-2 text-micro font-black text-black">ON</span>}
           </p>
           <p className="mt-1 text-xs text-ink-3">{state ? PUSH_COPY[state] : 'Checking…'}</p>
         </div>
@@ -80,7 +80,7 @@ function BriefsSection() {
     return (
       <div className="flex flex-wrap items-center gap-2">
         <button onClick={() => set({ [kind]: !on })} className={cx('flex flex-1 items-center gap-2 rounded-md px-3 py-2 text-left text-sm font-semibold', on ? 'bg-accent-soft text-ink' : 'bg-surface-2 text-ink-3')}>
-          {icon} {label} <span className="ml-auto text-[10px] font-black uppercase">{on ? 'On' : 'Off'}</span>
+          {icon} {label} <span className="ml-auto text-micro font-black uppercase">{on ? 'On' : 'Off'}</span>
         </button>
         <input type="time" aria-label={`${label} time`} value={at} disabled={!on} onChange={(e) => set(kind === 'morning' ? { morningAt: e.target.value } : { eveningAt: e.target.value })} className="field h-10 w-28 !py-0" />
         <Button size="sm" variant="ghost" onClick={async () => toast({ message: `Sent to ${(await api<{ sent: number }>(`/briefs/test?which=${kind}`, { method: 'POST' })).sent} device(s)` })}>
@@ -96,7 +96,7 @@ function BriefsSection() {
       {row('morning', 'Morning brief', <Sunrise className="size-4 text-yellow" />, '08:00')}
       {row('evening', 'Evening debrief', <Sunset className="size-4 text-accent-2" />, '21:30')}
       <button onClick={() => set({ water: !(b.water ?? true) })} className={cx('flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm font-semibold', (b.water ?? true) ? 'bg-accent-soft text-ink' : 'bg-surface-2 text-ink-3')}>
-        💧 Water nudges when behind pace (11:00 · 14:00 · 17:00 · 19:30) <span className="ml-auto text-[10px] font-black uppercase">{(b.water ?? true) ? 'On' : 'Off'}</span>
+        💧 Water nudges when behind pace (11:00 · 14:00 · 17:00 · 19:30) <span className="ml-auto text-micro font-black uppercase">{(b.water ?? true) ? 'On' : 'Off'}</span>
       </button>
     </section>
   );
@@ -145,7 +145,7 @@ export function SettingsSheet({ open, onClose }: { open: boolean; onClose: () =>
         </section>
         <section>
           <p className="mb-2 text-sm font-medium text-ink-2">Daily water goal (glasses)</p>
-          <Input type="number" min={1} max={20} value={settings.waterGoal ?? 8} onChange={(e) => save({ waterGoal: Number(e.target.value) || 8 })} className="w-28" />
+          <Input type="number" inputMode="numeric" min={1} max={20} value={settings.waterGoal ?? 8} onChange={(e) => save({ waterGoal: Number(e.target.value) || 8 })} className="w-28" />
         </section>
         {open && <PushSection />}
         {open && <BriefsSection />}

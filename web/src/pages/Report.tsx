@@ -37,7 +37,7 @@ function Section({ title, rows, i }: { title: string; rows: Row[]; i: number }) 
       <SectionTitle>{title}</SectionTitle>
       <table className="w-full text-sm">
         <thead>
-          <tr className="text-left text-[10px] font-black uppercase tracking-widest text-ink-3">
+          <tr className="text-left text-micro font-black uppercase tracking-widest text-ink-3">
             <th className="pb-2 font-black" />
             <th className="pb-2 text-right font-black">This week</th>
             <th className="pb-2 text-right font-black">vs last</th>

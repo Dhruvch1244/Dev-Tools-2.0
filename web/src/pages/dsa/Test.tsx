@@ -130,7 +130,7 @@ export function DsaTestPage() {
                         <button
                           key={o}
                           onClick={() => setOutcome(p, o)}
-                          className={cx('slant px-2.5 py-1 text-[10px] font-black italic uppercase', r === o ? (o === 'solved' ? 'bg-green text-black' : o === 'partial' ? 'bg-yellow text-black' : 'bg-accent text-white') : 'bg-surface-2 text-ink-3 hover:text-ink')}
+                          className={cx('slant px-2.5 py-1 text-micro font-black italic uppercase', r === o ? (o === 'solved' ? 'bg-green text-black' : o === 'partial' ? 'bg-yellow text-black' : 'bg-accent text-white') : 'bg-surface-2 text-ink-3 hover:text-ink')}
                         >
                           {o}
                         </button>

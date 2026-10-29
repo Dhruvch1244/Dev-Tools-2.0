@@ -43,14 +43,14 @@ export function TaskForm({ onDone, autoFocus }: { onDone?: () => void; autoFocus
 
   return (
     <form onSubmit={submit} className="space-y-3">
-      <Input autoFocus={autoFocus} placeholder="What needs doing?" value={title} onChange={(e) => setTitle(e.target.value)} className="h-12 text-base" />
+      <Input autoFocus={autoFocus} enterKeyHint="done" placeholder="What needs doing?" value={title} onChange={(e) => setTitle(e.target.value)} className="h-12 text-base" />
       <div className="no-scrollbar -mx-1 flex gap-2 overflow-x-auto px-1">
         {days.map((d) => (
           <Chip key={d.label} active={day === d.v} onClick={() => setDay(d.v)}>
             {d.label}
           </Chip>
         ))}
-        <input type="date" aria-label="Pick a date" value={day ?? ''} onChange={(e) => setDay(e.target.value || null)} className="field h-8 !rounded-full !py-0 text-[13px]" />
+        <input type="date" aria-label="Pick a date" value={day ?? ''} onChange={(e) => setDay(e.target.value || null)} className="field h-8 !rounded-full !py-0 text-label" />
       </div>
       <div className="flex flex-wrap items-center gap-2">
         <input type="time" aria-label="Remind me at" value={time} onChange={(e) => setTime(e.target.value)} disabled={!day} className="field h-9 w-32 !py-0 text-sm" />

@@ -28,7 +28,7 @@ function CategoryBars({ rows, budgets, currency }: { rows: { category: string; t
                 <span>{emojiFor(r.category)}</span>
                 <span className="font-medium">{r.category}</span>
                 {over && (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-danger/15 px-2 py-0.5 text-[11px] font-semibold text-danger">
+                  <span className="inline-flex items-center gap-1 rounded-full bg-danger/15 px-2 py-0.5 text-tiny font-semibold text-danger">
                     <AlertTriangle className="size-3" /> over by {money(r.total - budget, currency, true)}
                   </span>
                 )}
@@ -94,7 +94,7 @@ function DailyColumns({ month, expenses, currency }: { month: string; expenses: 
           </button>
         ))}
       </div>
-      <div className="mt-1.5 flex justify-between text-[10px] text-ink-3">
+      <div className="mt-1.5 flex justify-between text-micro text-ink-3">
         <span>1</span>
         <span>{Math.ceil(days / 2)}</span>
         <span>{days}</span>

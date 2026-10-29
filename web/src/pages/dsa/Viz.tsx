@@ -24,7 +24,7 @@ export function VizGallery() {
           <motion.div key={a.id} initial={{ opacity: 0, y: 18, skewX: -6 }} animate={{ opacity: 1, y: 0, skewX: 0 }} transition={{ delay: i * 0.04, type: 'spring', stiffness: 300, damping: 24 }}>
             <Link to={`/dsa/viz/${a.id}`} className="group relative block h-full overflow-hidden rounded-lg border border-line bg-surface p-4 transition hover:border-accent">
               <span className="pointer-events-none absolute -right-3 -top-5 text-[90px] font-black italic leading-none text-white/[0.03]">{String(i + 1).padStart(2, '0')}</span>
-              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-accent-2">{a.pattern}</p>
+              <p className="text-micro font-black uppercase tracking-[0.2em] text-accent-2">{a.pattern}</p>
               <p className="mt-1 text-lg font-black italic uppercase leading-tight">{a.title}</p>
               <p className="mt-1.5 text-sm text-ink-2">{a.blurb}</p>
               <span className="mt-3 inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-ink-3 transition group-hover:text-ink">
@@ -84,9 +84,9 @@ export function VizPlayer() {
           }}
         >
           {algo.inputs.map((inp) => (
-            <label key={inp.key} className="min-w-[160px] flex-1 text-[10px] font-black uppercase tracking-[0.15em] text-ink-3">
+            <label key={inp.key} className="min-w-[160px] flex-1 text-micro font-black uppercase tracking-[0.15em] text-ink-3">
               {inp.label}
-              <Input value={inputs[inp.key]} onChange={(e) => setInputs({ ...inputs, [inp.key]: e.target.value })} className="mt-1 font-mono text-[13px] normal-case tracking-normal" />
+              <Input autoCorrect="off" autoCapitalize="off" spellCheck={false} value={inputs[inp.key]} onChange={(e) => setInputs({ ...inputs, [inp.key]: e.target.value })} className="mt-1 font-mono text-label normal-case tracking-normal" />
             </label>
           ))}
           <Button type="submit">
@@ -103,7 +103,7 @@ export function VizPlayer() {
         <Card>
           <SectionTitle action={<Segmented value={lang} onChange={setLang} options={LANGS} />}>Code</SectionTitle>
           <CodeView value={code} lang={lang} readOnly highlightLine={frame?.line ? lines[frame.line] : null} minHeight={200} />
-          <p className="mt-2 text-[11px] text-ink-3">The highlighted line is the one the current frame is executing. Space = play/pause · ← → = step.</p>
+          <p className="mt-2 text-tiny text-ink-3">The highlighted line is the one the current frame is executing. Space = play/pause · ← → = step.</p>
         </Card>
       </div>
     </Page>

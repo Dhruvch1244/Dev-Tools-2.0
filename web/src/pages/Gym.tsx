@@ -46,9 +46,9 @@ function Calendar({ shift, workouts }: { shift: number; workouts: Workout[] }) {
               className={cx('relative overflow-hidden rounded-md border px-2 pb-2 pt-1.5', isToday ? 'border-accent bg-accent-soft' : 'border-line bg-surface', past && !isToday && 'opacity-60')}
             >
               <span className="absolute inset-x-0 top-0 h-[3px]" style={{ background: meta.color }} />
-              <p className="text-[10px] font-bold uppercase tracking-wider text-ink-3">{parseDate(d).toLocaleDateString(undefined, { weekday: 'short' })}</p>
+              <p className="text-micro font-bold uppercase tracking-wider text-ink-3">{parseDate(d).toLocaleDateString(undefined, { weekday: 'short' })}</p>
               <p className="text-lg font-black italic leading-none">{parseDate(d).getDate()}</p>
-              <p className="mt-1 text-[11px] font-black italic uppercase" style={{ color: type === 'rest' ? 'var(--ink-3)' : meta.color }}>
+              <p className="mt-1 text-tiny font-black italic uppercase" style={{ color: type === 'rest' ? 'var(--ink-3)' : meta.color }}>
                 {meta.short}
               </p>
               {done && <Flag className="absolute right-1.5 top-2 size-3.5 fill-current text-ink" aria-label="Trained" />}
@@ -66,7 +66,7 @@ function Stepper({ value, onChange, step, unit, label, decimal }: { value: strin
   const bump = (d: number) => onChange(String(Math.max(0, +((Number(value) || 0) + d).toFixed(2))));
   return (
     <div className="min-w-0 flex-1 sm:max-w-[13rem]">
-    <p className="mb-1 text-[10px] font-black uppercase tracking-[0.18em] text-ink-3">{unit}</p>
+    <p className="mb-1 text-micro font-black uppercase tracking-[0.18em] text-ink-3">{unit}</p>
     <div className="flex h-12 items-stretch overflow-hidden rounded-lg border border-line bg-bg">
       <button type="button" aria-label={`Decrease ${label}`} onClick={() => bump(-step)} className="grid w-11 shrink-0 place-items-center text-ink-2 active:bg-surface-2">
         <Minus className="size-4" />
@@ -115,7 +115,7 @@ function ExerciseCard({ ex, workout, sets, lastSets, priorBest, onLogged, onSwap
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="truncate text-[16px] font-bold">{ex.name}</p>
-          {muscleOf(ex.name) && <p className="text-[10px] font-black uppercase tracking-[0.18em] text-accent-2">{muscleOf(ex.name)}</p>}
+          {muscleOf(ex.name) && <p className="text-micro font-black uppercase tracking-[0.18em] text-accent-2">{muscleOf(ex.name)}</p>}
           <p className="text-xs text-ink-3">
             Target {ex.sets} × {ex.reps}
             {lastSets.length > 0 && <> · last: {lastSets.map((s) => `${kg(s.weight)}×${s.reps}`).join(', ')}</>}
@@ -134,7 +134,7 @@ function ExerciseCard({ ex, workout, sets, lastSets, priorBest, onLogged, onSwap
       </div>
       {coach && sets.length < ex.sets && (
         <p className="mt-2 flex items-center gap-1.5 text-xs font-semibold text-green">
-          <span className="slant bg-green px-1.5 text-[10px] font-black text-black">COACH</span> {coach.why} → {coach.weight} × {coach.reps}
+          <span className="slant bg-green px-1.5 text-micro font-black text-black">COACH</span> {coach.why} → {coach.weight} × {coach.reps}
         </p>
       )}
       {!lastSets.length && sets.length === 0 && <p className="mt-2 text-xs text-ink-3">First time: pick a weight you could do for {ex.reps} with ~2 reps left in the tank.</p>}
@@ -166,7 +166,7 @@ function ExerciseCard({ ex, workout, sets, lastSets, priorBest, onLogged, onSwap
         <span className="pb-3 text-ink-3 max-sm:hidden">×</span>
         <Stepper value={reps} onChange={setReps} step={1} unit="reps" label="Reps" />
         {plates && plates.length > 0 && (
-          <p className="basis-full font-mono text-[11px] text-ink-3">
+          <p className="basis-full font-mono text-tiny text-ink-3">
             Per side on a 20 kg bar: <span className="text-ink">{plates.join(' + ')}</span>
           </p>
         )}
@@ -266,7 +266,7 @@ function Session({ workout, template, sets, allSets, workouts }: { workout: Work
       <Sheet open={finished} onClose={() => setFinished(false)}>
         <div className="flex flex-col items-center text-center">
           <Chequered className="h-24 w-36" />
-          <p className="mt-4 text-[13px] font-black uppercase tracking-[0.25em] text-ink-3">Chequered flag</p>
+          <p className="mt-4 text-label font-black uppercase tracking-[0.25em] text-ink-3">Chequered flag</p>
           <p className="text-4xl font-black italic uppercase">{DAY_META[workout.day_type as DayType]?.label} done</p>
           <div className="mt-5 grid w-full grid-cols-3 gap-2">
             <Telemetry label="Sets" value={sets.length} />
@@ -326,7 +326,7 @@ function TodayPanel({ shift, workouts, sets }: { shift: number; workouts: Workou
     return (
       <Card className="relative overflow-hidden">
         <div className="pointer-events-none absolute -right-10 -top-10 text-[180px] font-black italic leading-none text-white/[0.03]">BOX</div>
-        <p className="slant inline-block bg-ink px-3 py-0.5 text-[12px] font-black italic uppercase tracking-widest text-bg">Pit stop</p>
+        <p className="slant inline-block bg-ink px-3 py-0.5 text-mini font-black italic uppercase tracking-widest text-bg">Pit stop</p>
         <p className="mt-3 text-4xl font-black italic uppercase">Rest day</p>
         <p className="mt-1 max-w-lg text-ink-2">Muscle is built while you recover. Tomorrow is <b className="text-ink">{tomorrow.label}</b> ({tomorrow.focus}).</p>
         <ul className="mt-5 grid gap-2 sm:grid-cols-2">
@@ -355,7 +355,7 @@ function TodayPanel({ shift, workouts, sets }: { shift: number; workouts: Workou
       </div>
       <div className="flex flex-col gap-6 lg:flex-row lg:items-center">
         <div className="flex-1">
-          <p className="slant inline-block px-3 py-0.5 text-[12px] font-black italic uppercase tracking-widest text-black" style={{ background: meta.color }}>
+          <p className="slant inline-block px-3 py-0.5 text-mini font-black italic uppercase tracking-widest text-black" style={{ background: meta.color }}>
             Lights out
           </p>
           <p className="mt-3 text-5xl font-black italic uppercase">{meta.label} day</p>
@@ -471,7 +471,7 @@ function ProgressSheet({ exercise, sets, onClose }: { exercise: string | null; s
               </g>
             ))}
           </svg>
-          <p className="mt-2 text-[11px] text-ink-3">One point per session — your best set, converted with the Epley formula.</p>
+          <p className="mt-2 text-tiny text-ink-3">One point per session — your best set, converted with the Epley formula.</p>
         </div>
       )}
     </Sheet>
@@ -511,7 +511,7 @@ function PrBoard({ sets }: { sets: GymSet[] }) {
           ))}
         </ol>
       )}
-      <p className="mt-2 text-[11px] text-ink-3">Right column: estimated 1-rep max (Epley), kg. Tap a lift for its progress chart.</p>
+      <p className="mt-2 text-tiny text-ink-3">Right column: estimated 1-rep max (Epley), kg. Tap a lift for its progress chart.</p>
       <ProgressSheet exercise={chart} sets={sets} onClose={() => setChart(null)} />
     </Card>
   );
@@ -592,7 +592,7 @@ function TemplateEditor({ open, onClose }: { open: boolean; onClose: () => void 
     <Sheet open={open && !picking} onClose={onClose} title="Session templates">
       <div className="no-scrollbar mb-4 flex gap-1.5 overflow-x-auto">
         {(['push', 'pull', 'legs', 'upper', 'lower'] as const).map((d) => (
-          <button key={d} onClick={() => setDay(d)} className={cx('slant px-4 py-1.5 text-[12px] font-black italic uppercase', day === d ? 'text-black' : 'bg-surface-2 text-ink-2')} style={day === d ? { background: DAY_META[d].color } : undefined}>
+          <button key={d} onClick={() => setDay(d)} className={cx('slant px-4 py-1.5 text-mini font-black italic uppercase', day === d ? 'text-black' : 'bg-surface-2 text-ink-2')} style={day === d ? { background: DAY_META[d].color } : undefined}>
             {DAY_META[d].label}
           </button>
         ))}
@@ -601,7 +601,7 @@ function TemplateEditor({ open, onClose }: { open: boolean; onClose: () => void 
         {list.map((e, i) => (
           <li key={e.name + i} className="flex items-center gap-2 rounded-md bg-bg px-3 py-2 text-sm">
             <span className="flex-1 truncate">{e.name}</span>
-            <input aria-label="Sets" value={e.sets} onChange={(ev) => set(day, list.map((x, j) => (j === i ? { ...x, sets: Number(ev.target.value) || 1 } : x)))} className="field h-8 w-12 !px-2 text-center font-mono" />
+            <input aria-label="Sets" inputMode="numeric" value={e.sets} onChange={(ev) => set(day, list.map((x, j) => (j === i ? { ...x, sets: Number(ev.target.value) || 1 } : x)))} className="field h-8 w-12 !px-2 text-center font-mono" />
             <span className="text-ink-3">×</span>
             <input aria-label="Reps" value={e.reps} onChange={(ev) => set(day, list.map((x, j) => (j === i ? { ...x, reps: ev.target.value } : x)))} className="field h-8 w-16 !px-2 text-center font-mono" />
             <IconButton label={`Remove ${e.name}`} onClick={() => set(day, list.filter((_, j) => j !== i))}>
@@ -640,7 +640,7 @@ export function GymPage() {
           </Button>
         }
       />
-      <Rise className="mb-2 flex items-center justify-between text-[11px] font-bold uppercase tracking-widest text-ink-3">
+      <Rise className="mb-2 flex items-center justify-between text-tiny font-bold uppercase tracking-widest text-ink-3">
         <span>Lap: {lap}</span>
         <span>{sessionsThisMonth} sessions this month</span>
       </Rise>

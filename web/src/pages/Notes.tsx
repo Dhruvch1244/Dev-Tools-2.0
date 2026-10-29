@@ -31,7 +31,7 @@ function NoteCard({ note, onOpen }: { note: Note; onOpen: () => void }) {
         {!!note.pinned && <Pin className="mt-1 size-3.5 shrink-0 fill-current text-accent" />}
       </motion.div>
       {note.body && <motion.p layout="position" className="mt-1.5 line-clamp-[8] whitespace-pre-wrap text-sm leading-relaxed text-ink-2">{note.body}</motion.p>}
-      <motion.p layout="position" className="mt-3 text-[11px] text-ink-3">{timeAgo(note.updated_at)}</motion.p>
+      <motion.p layout="position" className="mt-3 text-tiny text-ink-3">{timeAgo(note.updated_at)}</motion.p>
     </motion.button>
   );
 }
@@ -121,7 +121,7 @@ function NoteEditor({ note, onClose }: { note: Note; onClose: () => void }) {
             placeholder="Start writing…"
             className="mt-3 min-h-0 flex-1 resize-none bg-transparent text-[15px] leading-relaxed text-ink outline-none placeholder:text-ink-3"
           />
-          <p className="pt-2 text-right text-[11px] text-ink-3">Saves automatically</p>
+          <p className="pt-2 text-right text-tiny text-ink-3">Saves automatically</p>
         </motion.div>
       </motion.div>
     </div>,
@@ -159,7 +159,7 @@ export function NotesPage() {
       />
       <Rise className="relative mb-6">
         <Search className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-ink-3" />
-        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search notes" className="field h-12 w-full !rounded-full !pl-11" />
+        <input type="search" enterKeyHint="search" autoCorrect="off" autoCapitalize="off" spellCheck={false} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search notes" className="field h-12 w-full !rounded-full !pl-11" />
       </Rise>
       <LayoutGroup>
         <Rise className="columns-1 gap-3 sm:columns-2 xl:columns-3">

@@ -58,7 +58,7 @@ export function SectorChip({ sector, children }: { sector: Sector; children: Rea
       animate={{ scale: 1, opacity: 1 }}
       transition={{ type: 'spring', stiffness: 500, damping: 20 }}
       title={SECTOR_LABEL[sector]}
-      className="slant inline-flex items-center px-2.5 py-0.5 font-mono text-[12px] font-bold text-black"
+      className="slant inline-flex items-center px-2.5 py-0.5 font-mono text-mini font-bold text-black"
       style={{ background: SECTOR_BG[sector] }}
     >
       {children}
@@ -69,7 +69,7 @@ export function SectorChip({ sector, children }: { sector: Sector; children: Rea
 
 export function SectorLegend() {
   return (
-    <div className="flex flex-wrap gap-3 text-[11px] font-semibold uppercase tracking-wider text-ink-3">
+    <div className="flex flex-wrap gap-3 text-tiny font-semibold uppercase tracking-wider text-ink-3">
       {(['purple', 'green', 'yellow'] as Sector[]).map((s) => (
         <span key={s} className="flex items-center gap-1.5">
           <span className="size-2.5 rounded-sm" style={{ background: SECTOR_BG[s] }} /> {SECTOR_LABEL[s]}
@@ -121,7 +121,7 @@ export function CountdownBar({ seconds, onDone, label }: { seconds: number; onDo
   }, [seconds]);
   return (
     <div>
-      <div className="mb-1.5 flex justify-between text-[11px] font-bold uppercase tracking-widest">
+      <div className="mb-1.5 flex justify-between text-tiny font-bold uppercase tracking-widest">
         <span className="text-green">{label ?? 'Rest'}</span>
         <span className="font-mono tabular-nums">
           {Math.floor(left / 60)}:{String(Math.ceil(left % 60) % 60).padStart(2, '0')}
@@ -138,7 +138,7 @@ export function CountdownBar({ seconds, onDone, label }: { seconds: number; onDo
 export function Telemetry({ label, value, unit, accent }: { label: string; value: ReactNode; unit?: string; accent?: string }) {
   return (
     <div className="relative overflow-hidden border-l-[3px] bg-surface px-4 py-3" style={{ borderColor: accent ?? 'var(--accent)' }}>
-      <p className="text-[10px] font-black uppercase tracking-[0.2em] text-ink-3">{label}</p>
+      <p className="text-micro font-black uppercase tracking-[0.2em] text-ink-3">{label}</p>
       <p className="mt-0.5 text-3xl font-black italic leading-none tabular-nums">
         {value}
         {unit && <span className="ml-1 text-sm font-bold not-italic text-ink-3">{unit}</span>}

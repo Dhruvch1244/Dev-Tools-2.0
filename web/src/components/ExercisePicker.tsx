@@ -28,7 +28,7 @@ export function ExercisePicker({ open, onClose, onPick, muscles, title = 'Add ex
     <Sheet open={open} onClose={onClose} title={title}>
       <div className="relative mb-3">
         <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink-3" />
-        <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search 200+ exercises — e.g. incline db, cable fly" className="field h-12 w-full !pl-9 text-base" />
+        <input autoFocus type="search" enterKeyHint="search" autoCorrect="off" autoCapitalize="off" spellCheck={false} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search 200+ exercises — e.g. incline db, cable fly" className="field h-12 w-full !pl-9 text-base" />
       </div>
       {!q && (
         <div className="no-scrollbar -mx-1 mb-3 flex gap-1.5 overflow-x-auto px-1">
@@ -44,8 +44,8 @@ export function ExercisePicker({ open, onClose, onPick, muscles, title = 'Add ex
           <motion.li key={e.name} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: Math.min(i, 12) * 0.015 }}>
             <button onClick={() => pick(e.name)} className="flex w-full items-center gap-3 rounded-md bg-bg px-3 py-3 text-left active:bg-surface-2">
               <span className="min-w-0 flex-1 truncate text-[15px] font-semibold">{e.name}</span>
-              <span className="text-[11px] font-bold uppercase text-ink-3">{e.muscle}</span>
-              <span className={cx('slant px-2 text-[10px] font-black uppercase', 'bg-surface-2 text-ink-2')}>{e.equipment}</span>
+              <span className="text-tiny font-bold uppercase text-ink-3">{e.muscle}</span>
+              <span className={cx('slant px-2 text-micro font-black uppercase', 'bg-surface-2 text-ink-2')}>{e.equipment}</span>
             </button>
           </motion.li>
         ))}

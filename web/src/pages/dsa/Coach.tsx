@@ -72,10 +72,10 @@ export function CoachPanel({ slug, title, lang, code, judge, locked, onSaveToNot
           {msgs.map((m, i) => (
             <motion.div key={i} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className={cx(m.role === 'user' ? 'ml-8 text-right' : 'mr-2')}>
               {m.role === 'user' ? (
-                <span className="slant inline-block bg-surface-2 px-3 py-1 text-[12px] font-bold">{m.label ?? m.text}</span>
+                <span className="slant inline-block bg-surface-2 px-3 py-1 text-mini font-bold">{m.label ?? m.text}</span>
               ) : (
                 <div className={cx('rounded-lg border-l-[3px] bg-bg px-3 py-2', m.error ? 'border-warn' : 'border-accent')}>
-                  <p className="mb-1 flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-accent-2">
+                  <p className="mb-1 flex items-center gap-1.5 text-micro font-black uppercase tracking-widest text-accent-2">
                     <Radio className={cx('size-3', busy && i === msgs.length - 1 && 'animate-pulse')} /> Pit radio
                   </p>
                   {m.text ? <div className="prose-f1 text-[14px]" dangerouslySetInnerHTML={{ __html: md(m.text) }} /> : <span className="cursor-blink inline-block h-4 w-2 bg-accent" />}
@@ -100,7 +100,7 @@ export function CoachPanel({ slug, title, lang, code, judge, locked, onSaveToNot
           setInput('');
         }}
       >
-        <input value={input} onChange={(e) => setInput(e.target.value)} placeholder="Ask anything about this problem…" className="field min-w-0 flex-1" />
+        <input enterKeyHint="send" value={input} onChange={(e) => setInput(e.target.value)} placeholder="Ask anything about this problem…" className="field min-w-0 flex-1" />
         {busy ? (
           <Button type="button" variant="danger" onClick={() => ctl.current?.abort()}>
             <Square className="size-4 fill-current" />
@@ -111,7 +111,7 @@ export function CoachPanel({ slug, title, lang, code, judge, locked, onSaveToNot
           </Button>
         )}
       </form>
-      <p className="mt-2 text-[10px] text-ink-3">Runs on this laptop through your Claude Code login (no API key) · tools disabled — it only reads what's shown here.</p>
+      <p className="mt-2 text-micro text-ink-3">Runs on this laptop through your Claude Code login (no API key) · tools disabled — it only reads what's shown here.</p>
     </div>
   );
 }

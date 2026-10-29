@@ -78,7 +78,7 @@ function Radar({ data }: { data: ReturnType<typeof mastery> }) {
             <p className="text-ink-3">Solve a few problems and the radar fills in — each spoke is a round, scored from solves, confidence and qualifying results.</p>
           ) : (
             <>
-              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-ink-3">Needs work</p>
+              <p className="text-micro font-black uppercase tracking-[0.2em] text-ink-3">Needs work</p>
               {weakest.map((d) => (
                 <Link key={d.week.n} to={`/dsa/week/${d.week.n}`} className="flex items-center gap-2 rounded-md bg-bg px-3 py-2 hover:bg-surface-2">
                   <span className="font-mono text-xs font-bold text-ink-3">R{d.week.n}</span>
@@ -126,7 +126,7 @@ function Contests() {
           const soon = Date.parse(c.start) - now < 24 * 3600_000;
           return (
             <motion.li key={c.url + c.start} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }} className="group flex items-center gap-3 rounded-md bg-bg px-3 py-2">
-              <span className="slant w-9 text-center text-[10px] font-black text-black" style={{ background: pf.color }}>
+              <span className="slant w-9 text-center text-micro font-black text-black" style={{ background: pf.color }}>
                 {pf.label}
               </span>
               <a href={c.url} target="_blank" rel="noreferrer" className="min-w-0 flex-1 truncate text-sm font-semibold hover:text-accent-2">
@@ -141,7 +141,7 @@ function Contests() {
           );
         })}
       </ul>
-      {data && Object.keys(data.errors).length > 0 && <p className="mt-2 text-[11px] text-warn">Unavailable right now: {Object.keys(data.errors).join(', ')}</p>}
+      {data && Object.keys(data.errors).length > 0 && <p className="mt-2 text-tiny text-warn">Unavailable right now: {Object.keys(data.errors).join(', ')}</p>}
     </Card>
   );
 }
@@ -200,8 +200,8 @@ function Ratings() {
           save({ handles: { ...h, codeforces: cf.trim() || undefined, leetcode: lc.trim() || undefined } });
         }}
       >
-        <Input placeholder="Codeforces handle" value={cf} onChange={(e) => setCf(e.target.value)} className="min-w-0 flex-1" />
-        <Input placeholder="LeetCode username" value={lc} onChange={(e) => setLc(e.target.value)} className="min-w-0 flex-1" />
+        <Input autoCorrect="off" autoCapitalize="off" spellCheck={false} placeholder="Codeforces handle" value={cf} onChange={(e) => setCf(e.target.value)} className="min-w-0 flex-1" />
+        <Input autoCorrect="off" autoCapitalize="off" spellCheck={false} placeholder="LeetCode username" value={lc} onChange={(e) => setLc(e.target.value)} className="min-w-0 flex-1" />
         <Button type="submit" variant="soft">
           Sync
         </Button>
@@ -211,7 +211,7 @@ function Ratings() {
       <div className="grid gap-3 sm:grid-cols-2">
         {data?.codeforces && (
           <div className="rounded-md border-l-[3px] border-[#4fb3ff] bg-bg p-3">
-            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-ink-3">Codeforces</p>
+            <p className="text-micro font-black uppercase tracking-[0.2em] text-ink-3">Codeforces</p>
             {data.codeforces.error ? (
               <p className="text-sm text-warn">{data.codeforces.error}</p>
             ) : (
@@ -227,7 +227,7 @@ function Ratings() {
         )}
         {data?.leetcode && (
           <div className="rounded-md border-l-[3px] border-[#ffa116] bg-bg p-3">
-            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-ink-3">LeetCode</p>
+            <p className="text-micro font-black uppercase tracking-[0.2em] text-ink-3">LeetCode</p>
             {data.leetcode.error ? (
               <p className="text-sm text-warn">{data.leetcode.error}</p>
             ) : (
@@ -315,7 +315,7 @@ export function DsaHq() {
         {wk === 0 ? (
           <Card className="relative overflow-hidden">
             <div className="pointer-events-none absolute -right-4 -top-10 text-[160px] font-black italic leading-none text-white/[0.03]">R01</div>
-            <p className="slant inline-block bg-accent px-3 py-0.5 text-[12px] font-black italic uppercase tracking-widest text-white">Pre-season</p>
+            <p className="slant inline-block bg-accent px-3 py-0.5 text-mini font-black italic uppercase tracking-widest text-white">Pre-season</p>
             <p className="mt-3 text-5xl font-black italic uppercase">Lights out in {daysBetween(t, start)} day{daysBetween(t, start) === 1 ? '' : 's'}</p>
             <p className="mt-1 text-ink-2">
               Round 1 — {WEEKS[0].gp} GP · {WEEKS[0].topic} — starts {parseDate(start).toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })}.
@@ -344,7 +344,7 @@ export function DsaHq() {
                 <span className="text-2xl font-black italic">R{week.n}</span>
               </ProgressRing>
               <div className="flex-1">
-                <p className="slant inline-block bg-accent px-3 py-0.5 text-[12px] font-black italic uppercase tracking-widest text-white">Round {week.n} of 13</p>
+                <p className="slant inline-block bg-accent px-3 py-0.5 text-mini font-black italic uppercase tracking-widest text-white">Round {week.n} of 13</p>
                 <p className="mt-2 text-4xl font-black italic uppercase leading-none">{week.gp} GP</p>
                 <p className="mt-1 text-ink-2">{week.topic}</p>
                 <p className="mt-1 text-xs font-semibold uppercase tracking-wider text-ink-3">Qualifying (weekly test) {countdown(weekDates(start, week.n).testDay + 'T10:00:00')} away</p>
@@ -438,12 +438,12 @@ export function DsaHq() {
                     <motion.span className="block h-full bg-accent" initial={{ width: 0 }} animate={{ width: `${(done / w.problems.length) * 100}%` }} transition={{ type: 'spring', stiffness: 60, damping: 16, delay: 0.3 + i * 0.03 }} />
                   </span>
                   <div className="flex items-start justify-between">
-                    <span className="font-mono text-[11px] font-bold text-ink-3">R{String(w.n).padStart(2, '0')}</span>
-                    <span className="text-[10px] font-semibold uppercase text-ink-3">{parseDate(dates.start).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}</span>
+                    <span className="font-mono text-tiny font-bold text-ink-3">R{String(w.n).padStart(2, '0')}</span>
+                    <span className="text-micro font-semibold uppercase text-ink-3">{parseDate(dates.start).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}</span>
                   </div>
                   <p className="mt-1 text-lg font-black italic uppercase leading-tight group-hover:text-accent-2">{w.gp}</p>
                   <p className="line-clamp-1 text-xs text-ink-2">{w.topic}</p>
-                  <div className="mt-2 flex items-center gap-2 text-[11px] font-bold">
+                  <div className="mt-2 flex items-center gap-2 text-tiny font-bold">
                     <span className="font-mono text-ink-2">
                       {done}/{w.problems.length}
                     </span>
@@ -461,7 +461,7 @@ export function DsaHq() {
             );
           })}
         </div>
-        <p className="mt-2 text-[11px] text-ink-3">
+        <p className="mt-2 text-tiny text-ink-3">
           Grand Prix mega tests: {MEGAS.map((m) => `${m.title.split(' — ')[0]} (${parseDate(megaDate(start, m)).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })})`).join(' · ')}
         </p>
       </Rise>

@@ -51,7 +51,7 @@ function Logo() {
       </motion.div>
       <div className="leading-none">
         <p className="text-[17px] font-black italic uppercase tracking-tight">Dev Tools</p>
-        <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.2em] text-ink-3">Season 26</p>
+        <p className="mt-1 text-micro font-bold uppercase tracking-[0.2em] text-ink-3">Season 26</p>
       </div>
     </div>
   );
@@ -62,7 +62,7 @@ function Pending() {
   const n = useOutbox();
   if (!n) return null;
   return (
-    <button onClick={() => void flushOutbox()} className="slant bg-yellow px-2 py-0.5 text-[10px] font-black uppercase text-black" title="Saved on this device — syncs when the laptop is reachable. Tap to retry.">
+    <button onClick={() => void flushOutbox()} className="slant bg-yellow px-2 py-0.5 text-micro font-black uppercase text-black" title="Saved on this device — syncs when the laptop is reachable. Tap to retry.">
       {n} pending
     </button>
   );
@@ -99,13 +99,13 @@ function Hud() {
   const meta = DAY_META[day];
   return (
     <div className="pointer-events-none sticky top-0 z-30 hidden items-center justify-between px-8 pt-5 lg:flex">
-      <NavLink to="/gym" className="pointer-events-auto flex items-center gap-2.5 text-[13px] font-black italic uppercase tracking-wider">
+      <NavLink to="/gym" className="pointer-events-auto flex items-center gap-2.5 text-label font-black italic uppercase tracking-wider">
         <span className="slant px-3 py-1 text-white" style={{ background: meta.color === '#6a7080' ? 'var(--line-strong)' : meta.color, color: day === 'legs' ? '#111' : undefined }}>
           {meta.short}
         </span>
         <span>{day === 'rest' ? 'Rest day · pit stop' : `${meta.label} day`}</span>
       </NavLink>
-      <div className="flex items-stretch font-mono text-[13px]">
+      <div className="flex items-stretch font-mono text-label">
         <span className="bg-ink px-2.5 py-1 font-bold text-bg">{now.toLocaleDateString(undefined, { weekday: 'short' }).toUpperCase()}</span>
         <span className="border border-l-0 border-line bg-surface-2 px-3 py-1 tabular-nums text-ink-2">
           {now.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}
@@ -183,7 +183,7 @@ function QuickAdd({ open, onClose, kind, setKind }: { open: boolean; onClose: ()
                 >
                   <span className="absolute inset-x-0 top-0 h-[3px]" style={{ background: t.color }} />
                   <t.icon className="size-7" style={{ color: t.color }} />
-                  <span className="text-[12px] font-black uppercase italic tracking-wide">{t.label}</span>
+                  <span className="text-mini font-black uppercase italic tracking-wide">{t.label}</span>
                 </motion.button>
               ))}
             </div>
@@ -301,15 +301,15 @@ export function Shell({ children }: { children: ReactNode }) {
           whileTap={{ scale: 0.97 }}
           transition={spring}
           onClick={openQuick}
-          className="mx-5 mt-7 flex h-10 items-center gap-2 bg-accent px-4 text-[13px] font-black italic uppercase tracking-wide text-white shadow-[0_10px_30px_-10px_var(--accent)]"
+          className="mx-5 mt-7 flex h-10 items-center gap-2 bg-accent px-4 text-label font-black italic uppercase tracking-wide text-white shadow-[0_10px_30px_-10px_var(--accent)]"
         >
           <Plus className="size-4" strokeWidth={3} /> Quick add
-          <kbd className="ml-auto rounded bg-black/25 px-1.5 py-0.5 font-mono text-[10px] not-italic">⌘K</kbd>
+          <kbd className="ml-auto rounded bg-black/25 px-1.5 py-0.5 font-mono text-micro not-italic">⌘K</kbd>
         </motion.button>
         <nav className="mt-6 flex-1 space-y-5 overflow-y-auto no-scrollbar">
           {NAV_GROUPS.map((g) => (
             <div key={g.label}>
-              <p className="mb-1.5 px-5 text-[10px] font-black uppercase tracking-[0.25em] text-ink-3">{g.label}</p>
+              <p className="mb-1.5 px-5 text-micro font-black uppercase tracking-[0.25em] text-ink-3">{g.label}</p>
               {g.items.map((it) => (
                 <RailLink key={it.to} {...it} />
               ))}
@@ -330,7 +330,7 @@ export function Shell({ children }: { children: ReactNode }) {
       <Hud />
 
       {/* Mobile top-right status */}
-      <div className="fixed right-3 top-[calc(env(safe-area-inset-top)+10px)] z-30 flex items-center gap-2 lg:hidden">
+      <div className="kb-hide fixed right-3 top-[calc(env(safe-area-inset-top)+10px)] z-30 flex items-center gap-2 lg:hidden">
         <Pending />
         <button onClick={() => setSettings(true)} className="glass-bar flex h-9 items-center gap-2 rounded-full px-3 text-ink-2" aria-label="Settings">
           <LiveDot online={online} />
@@ -359,25 +359,25 @@ export function Shell({ children }: { children: ReactNode }) {
         onClick={openQuick}
         whileTap={{ scale: 0.88, rotate: 90 }}
         transition={bouncy}
-        className="fixed bottom-[calc(env(safe-area-inset-bottom)+84px)] right-4 z-40 grid size-14 place-items-center rounded-2xl bg-accent text-white shadow-[0_14px_34px_-8px_var(--accent)] lg:hidden"
+        className="kb-hide fixed bottom-[calc(env(safe-area-inset-bottom)+84px)] right-4 z-40 grid size-14 place-items-center rounded-2xl bg-accent text-white shadow-[0_14px_34px_-8px_var(--accent)] lg:hidden"
       >
         <Plus className="size-6" strokeWidth={2.5} />
       </motion.button>
-      <nav className="glass-bar fixed inset-x-3 bottom-[calc(env(safe-area-inset-bottom)+10px)] z-40 flex h-[64px] items-stretch rounded-2xl px-1.5 lg:hidden">
+      <nav className="kb-hide glass-bar fixed inset-x-3 bottom-[calc(env(safe-area-inset-bottom)+10px)] z-40 flex h-[64px] items-stretch rounded-2xl px-1.5 lg:hidden">
         {NAV.filter((n) => MOBILE_TABS.includes(n.to)).map(({ to, label, icon: Icon }) => (
           <NavLink key={to} to={to} end={to === '/'} onClick={() => haptic()} className="relative flex flex-1 flex-col items-center justify-center gap-0.5">
             {({ isActive }) => (
               <>
                 {isActive && <motion.span layoutId="tab-pill" transition={spring} className="absolute inset-x-1 inset-y-1.5 rounded-xl bg-accent-soft" />}
                 <Icon className={cx('relative size-[21px]', isActive ? 'text-accent' : 'text-ink-3')} strokeWidth={isActive ? 2.4 : 2} />
-                <span className={cx('relative text-[10px] font-bold uppercase', isActive ? 'text-accent' : 'text-ink-3')}>{label.split(' ')[0]}</span>
+                <span className={cx('relative text-micro font-bold uppercase', isActive ? 'text-accent' : 'text-ink-3')}>{label.split(' ')[0]}</span>
               </>
             )}
           </NavLink>
         ))}
         <button onClick={() => setMore(true)} className="relative flex flex-1 flex-col items-center justify-center gap-0.5 text-ink-3">
           <LayoutGrid className="size-[21px]" />
-          <span className="text-[10px] font-bold uppercase">More</span>
+          <span className="text-micro font-bold uppercase">More</span>
         </button>
       </nav>
       <Sheet open={more} onClose={() => setMore(false)} title="Everything">

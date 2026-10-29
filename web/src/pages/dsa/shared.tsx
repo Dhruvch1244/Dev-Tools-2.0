@@ -13,7 +13,7 @@ export const DIFF_META: Record<Diff, { label: string; color: string }> = {
 
 export function DiffChip({ d }: { d: Diff }) {
   return (
-    <span className="slant inline-block w-12 text-center text-[10px] font-black italic uppercase text-black" style={{ background: DIFF_META[d].color }}>
+    <span className="slant inline-block w-12 text-center text-micro font-black italic uppercase text-black" style={{ background: DIFF_META[d].color }}>
       {DIFF_META[d].label}
     </span>
   );

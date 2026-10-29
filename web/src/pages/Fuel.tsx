@@ -44,7 +44,7 @@ function MacroBar({ label, value, target, color }: { label: string; value: numbe
   const pct = target ? Math.min(1, value / target) : 0;
   return (
     <div>
-      <div className="mb-1 flex items-baseline justify-between text-[12px] font-bold uppercase tracking-wider">
+      <div className="mb-1 flex items-baseline justify-between text-mini font-bold uppercase tracking-wider">
         <span className="text-ink-2">{label}</span>
         <span className="font-mono tabular-nums">
           {Math.round(value)}
@@ -115,7 +115,7 @@ export function FoodSearch({ date, meal, onMealChange }: { date: string; meal: s
       {onMealChange && (
         <div className="mb-3 grid grid-cols-4 gap-1">
           {MEALS.map((m) => (
-            <button key={m.id} onClick={() => onMealChange(m.id)} className={cx('h-9 rounded-md text-[12px] font-bold uppercase', meal === m.id ? 'bg-accent text-white' : 'bg-surface-2 text-ink-2')}>
+            <button key={m.id} onClick={() => onMealChange(m.id)} className={cx('h-9 rounded-md text-mini font-bold uppercase', meal === m.id ? 'bg-accent text-white' : 'bg-surface-2 text-ink-2')}>
               {m.label}
             </button>
           ))}
@@ -137,10 +137,10 @@ export function FoodSearch({ date, meal, onMealChange }: { date: string; meal: s
       <>
       {usual.length > 0 && !q && (
         <div className="mb-3">
-          <p className="mb-1.5 text-[10px] font-black uppercase tracking-[0.18em] text-ink-3">Your usual · one tap</p>
+          <p className="mb-1.5 text-micro font-black uppercase tracking-[0.18em] text-ink-3">Your usual · one tap</p>
           <div className="flex flex-wrap gap-1.5">
             {usual.map(({ food, qty: n }) => (
-              <motion.button key={food.id} whileTap={{ scale: 0.92 }} onClick={() => void add(food, n)} className={cx('slant px-3 py-1.5 text-[12px] font-bold', added[food.id] ? 'bg-green text-black' : 'bg-surface-2 text-ink')}>
+              <motion.button key={food.id} whileTap={{ scale: 0.92 }} onClick={() => void add(food, n)} className={cx('slant px-3 py-1.5 text-mini font-bold', added[food.id] ? 'bg-green text-black' : 'bg-surface-2 text-ink')}>
                 {added[food.id] ? '✓ ' : '+ '}
                 {n !== 1 ? `${n}× ` : ''}
                 {food.name}
@@ -151,7 +151,7 @@ export function FoodSearch({ date, meal, onMealChange }: { date: string; meal: s
       )}
       <div className="relative mb-3">
         <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink-3" />
-        <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search roti, dal, paneer…" className="field h-11 w-full !pl-9" />
+        <input autoFocus type="search" enterKeyHint="search" autoCorrect="off" autoCapitalize="off" spellCheck={false} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search roti, dal, paneer…" className="field h-11 w-full !pl-9" />
       </div>
       {!q && (
         <div className="no-scrollbar -mx-1 mb-3 flex gap-1.5 overflow-x-auto px-1">
@@ -169,7 +169,7 @@ export function FoodSearch({ date, meal, onMealChange }: { date: string; meal: s
             <li key={f.id} className="flex items-center gap-2 rounded-md bg-bg px-3 py-2">
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-semibold">{f.name}</p>
-                <p className="truncate text-[11px] text-ink-3">
+                <p className="truncate text-tiny text-ink-3">
                   {f.serving} · {Math.round(f.kcal)} kcal · P{r1(f.protein)} C{r1(f.carbs)} F{r1(f.fat)}
                 </p>
               </div>
@@ -248,6 +248,7 @@ function TypeIt({ date, meal, foods, recentIds }: { date: string; meal: string; 
     <div className="space-y-3">
       <textarea
         autoFocus
+        autoCapitalize="off"
         rows={2}
         value={text}
         onChange={(e) => (setText(e.target.value), setPicks({}))}
@@ -276,7 +277,7 @@ function TypeIt({ date, meal, foods, recentIds }: { date: string; meal: string; 
       <Button className="h-12 w-full" disabled={!ok.length} onClick={() => void logAll()}>
         <Zap className="size-4" /> Log {ok.length || ''} to {MEALS.find((m) => m.id === meal)?.label} {ok.length ? `· ${Math.round(total)} kcal` : ''}
       </Button>
-      <p className="text-[11px] text-ink-3">Understands numbers, “ek/do/half”, katori/plate/glass and Hinglish names (chawal, dahi, anda, chapati…).</p>
+      <p className="text-tiny text-ink-3">Understands numbers, “ek/do/half”, katori/plate/glass and Hinglish names (chawal, dahi, anda, chapati…).</p>
     </div>
   );
 }
@@ -342,7 +343,7 @@ function MealCoach({ open, onClose, remaining, usual, diet }: { open: boolean; o
       </p>
       {err ? <p className="text-sm text-warn">{err}</p> : text ? <div className="prose-f1 text-[14px]" dangerouslySetInnerHTML={{ __html: md(text) }} /> : <span className="cursor-blink inline-block h-4 w-2 bg-accent" />}
       {busy && text && <span className="cursor-blink ml-1 inline-block h-4 w-2 bg-accent" />}
-      <p className="mt-3 text-[10px] text-ink-3">From your local Claude Code login · log what you pick with Type it.</p>
+      <p className="mt-3 text-micro text-ink-3">From your local Claude Code login · log what you pick with Type it.</p>
     </Sheet>
   );
 }
@@ -360,9 +361,9 @@ function DietPicker() {
   const diet: Diet = settings.diet ?? 'veg';
   return (
     <div>
-      <p className="mb-1 text-[10px] font-black uppercase tracking-widest text-ink-3">Diet</p>
+      <p className="mb-1 text-micro font-black uppercase tracking-widest text-ink-3">Diet</p>
       <Segmented className="w-full" value={diet} onChange={(d) => save({ diet: d })} options={DIETS.map((d) => ({ value: d.value, label: d.label }))} />
-      <p className="mt-1 text-[11px] text-ink-3">{DIETS.find((d) => d.value === diet)?.hint} — food search, suggestions and the meal coach follow this.</p>
+      <p className="mt-1 text-tiny text-ink-3">{DIETS.find((d) => d.value === diet)?.hint} — food search, suggestions and the meal coach follow this.</p>
     </div>
   );
 }
@@ -379,15 +380,15 @@ function ProfileSheet({ open, onClose, profile }: { open: boolean; onClose: () =
         <div className="grid grid-cols-3 gap-2">
           <label className="text-xs font-bold uppercase tracking-wider text-ink-3">
             Age
-            <Input type="number" value={p.age} onChange={num('age')} className="mt-1" />
+            <Input type="number" inputMode="decimal" value={p.age} onChange={num('age')} className="mt-1" />
           </label>
           <label className="text-xs font-bold uppercase tracking-wider text-ink-3">
             Height cm
-            <Input type="number" value={p.height} onChange={num('height')} className="mt-1" />
+            <Input type="number" inputMode="decimal" value={p.height} onChange={num('height')} className="mt-1" />
           </label>
           <label className="text-xs font-bold uppercase tracking-wider text-ink-3">
             Weight kg
-            <Input type="number" value={p.weight} onChange={num('weight')} className="mt-1" />
+            <Input type="number" inputMode="decimal" value={p.weight} onChange={num('weight')} className="mt-1" />
           </label>
         </div>
         <div className="space-y-1.5">
@@ -431,7 +432,7 @@ function WeekChart({ logs, target }: { logs: FoodLog[]; target: number }) {
       </p>
       <div className="relative flex h-32 items-end gap-2" onMouseLeave={() => setHover(null)}>
         <div className="pointer-events-none absolute inset-x-0 border-t border-dashed border-ink-3" style={{ bottom: `${(target / max) * 100}%` }}>
-          <span className="absolute -top-4 right-0 text-[10px] font-bold uppercase text-ink-3">target</span>
+          <span className="absolute -top-4 right-0 text-micro font-bold uppercase text-ink-3">target</span>
         </div>
         {totals.map((t, i) => (
           <button key={t.d} className="flex h-full flex-1 flex-col items-center justify-end gap-1" onMouseEnter={() => setHover(i)} aria-label={`${t.d}: ${Math.round(t.v)} kcal`}>
@@ -442,11 +443,11 @@ function WeekChart({ logs, target }: { logs: FoodLog[]; target: number }) {
               animate={{ height: t.v ? `${(t.v / max) * 100}%` : '2px' }}
               transition={{ type: 'spring', stiffness: 80, damping: 16, delay: i * 0.05 }}
             />
-            <span className="text-[10px] font-bold uppercase text-ink-3">{parseDate(t.d).toLocaleDateString(undefined, { weekday: 'narrow' })}</span>
+            <span className="text-micro font-bold uppercase text-ink-3">{parseDate(t.d).toLocaleDateString(undefined, { weekday: 'narrow' })}</span>
           </button>
         ))}
       </div>
-      <p className="mt-2 text-[11px] text-ink-3">Purple bars: more than 5% over target.</p>
+      <p className="mt-2 text-tiny text-ink-3">Purple bars: more than 5% over target.</p>
     </Card>
   );
 }
@@ -512,13 +513,13 @@ function DayPlan({ day, remaining, usualIds, diet }: { day: FoodLog[]; remaining
               onClick={() => (setFocus(p.meal), setAlt(0))}
               className={cx('relative flex flex-col items-center rounded-lg px-1 pb-2 pt-1 text-center transition', selected && 'bg-surface-2', selectable && 'hover:bg-surface-2')}
             >
-              <span className={cx('relative z-10 grid size-9 place-items-center rounded-full border-2 text-[11px] font-black', p.status === 'done' ? 'border-green bg-green text-black' : p.status === 'now' || p.status === 'late' ? 'border-accent bg-accent text-white' : 'border-line-strong bg-bg text-ink-2')}>
+              <span className={cx('relative z-10 grid size-9 place-items-center rounded-full border-2 text-tiny font-black', p.status === 'done' ? 'border-green bg-green text-black' : p.status === 'now' || p.status === 'late' ? 'border-accent bg-accent text-white' : 'border-line-strong bg-bg text-ink-2')}>
                 {p.status === 'done' ? '✓' : i + 1}
                 {(p.status === 'now' || p.status === 'late') && <span className="absolute inset-0 animate-ping rounded-full border-2 border-accent opacity-50" />}
               </span>
-              <span className="mt-1.5 text-[12px] font-black italic uppercase leading-tight">{MEALS.find((m) => m.id === p.meal)?.label}</span>
-              <span className="font-mono text-[10px] text-ink-3">{hm12(p.at)}</span>
-              <span className={cx('slant mt-1 px-1.5 text-[9px] font-black uppercase', chip.cls)}>{p.status === 'done' ? `${Math.round(p.logged.kcal)} kcal` : chip.label}</span>
+              <span className="mt-1.5 text-mini font-black italic uppercase leading-tight">{MEALS.find((m) => m.id === p.meal)?.label}</span>
+              <span className="font-mono text-micro text-ink-3">{hm12(p.at)}</span>
+              <span className={cx('slant mt-1 px-1.5 text-micro font-black uppercase', chip.cls)}>{p.status === 'done' ? `${Math.round(p.logged.kcal)} kcal` : chip.label}</span>
             </motion.button>
           );
         })}
@@ -644,7 +645,7 @@ export function FuelPage() {
       <Card className="mb-4">
         <div className="mb-4 grid gap-6 sm:grid-cols-[1fr_auto] sm:items-end">
           <div>
-            <p className="text-[11px] font-black uppercase tracking-[0.25em] text-ink-3">{left >= 0 ? 'Fuel remaining' : 'Over target'}</p>
+            <p className="text-tiny font-black uppercase tracking-[0.25em] text-ink-3">{left >= 0 ? 'Fuel remaining' : 'Over target'}</p>
             <p className={cx('text-6xl font-black italic leading-none tabular-nums', left < 0 && 'text-purple')}>
               <AnimatedNumber value={Math.abs(left)} />
               <span className="ml-2 text-lg not-italic text-ink-3">kcal</span>
@@ -652,15 +653,15 @@ export function FuelPage() {
           </div>
           <div className="grid grid-cols-3 gap-4 text-right font-mono text-sm">
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-ink-3">Eaten</p>
+              <p className="text-micro font-bold uppercase tracking-widest text-ink-3">Eaten</p>
               <p className="text-xl font-bold">{Math.round(total.kcal)}</p>
             </div>
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-ink-3">Target</p>
+              <p className="text-micro font-bold uppercase tracking-widest text-ink-3">Target</p>
               <p className="text-xl font-bold">{t.kcal}</p>
             </div>
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-ink-3">TDEE</p>
+              <p className="text-micro font-bold uppercase tracking-widest text-ink-3">TDEE</p>
               <p className="text-xl font-bold text-ink-2">{t.tdee}</p>
             </div>
           </div>
@@ -697,7 +698,7 @@ export function FuelPage() {
               {fixes.map((x) => (
                 <motion.button key={x.food.id} whileTap={{ scale: 0.94 }} onClick={() => void quickAdd(x.food, x.qty)} className="rounded-md border border-line bg-bg px-3 py-2 text-left text-sm">
                   <span className="font-bold">{x.qty !== 1 ? `${x.qty}× ` : ''}{x.food.name}</span>
-                  <span className="block font-mono text-[11px] text-ink-3">+{x.protein} g · {x.kcal} kcal</span>
+                  <span className="block font-mono text-tiny text-ink-3">+{x.protein} g · {x.kcal} kcal</span>
                 </motion.button>
               ))}
             </div>
@@ -713,7 +714,7 @@ export function FuelPage() {
             <Card key={m.id}>
               <div className="mb-3 flex items-center justify-between">
                 <div>
-                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-ink-3">{m.hint}</p>
+                  <p className="text-micro font-black uppercase tracking-[0.2em] text-ink-3">{m.hint}</p>
                   <p className="text-xl font-black italic uppercase">{m.label}</p>
                 </div>
                 <div className="flex items-center gap-1">
@@ -737,7 +738,7 @@ export function FuelPage() {
                       <span className="min-w-0 flex-1 truncate">
                         <b className="font-semibold">{l.qty !== 1 ? `${l.qty} × ` : ''}</b>
                         {l.name}
-                        <span className="ml-1.5 text-[11px] text-ink-3">P{r1(l.protein)}</span>
+                        <span className="ml-1.5 text-tiny text-ink-3">P{r1(l.protein)}</span>
                       </span>
                       <span className="font-mono text-ink-2">{Math.round(l.kcal)}</span>
                       <button aria-label={`Remove ${l.name}`} onClick={() => del(l)} className="text-ink-3 opacity-0 transition group-hover:opacity-100 hover:text-danger max-sm:opacity-100">

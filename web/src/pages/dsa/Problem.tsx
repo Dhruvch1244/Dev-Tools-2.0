@@ -91,8 +91,8 @@ export function RunPanel({ lang, code }: { lang: Lang; code: string }) {
   return (
     <div className="space-y-3">
       <div className="grid gap-2 sm:grid-cols-2">
-        <Textarea rows={3} placeholder="stdin" value={stdin} onChange={(e) => setStdin(e.target.value)} className="font-mono text-[13px]" />
-        <Textarea rows={3} placeholder="expected output (optional — checked on run)" value={expected} onChange={(e) => setExpected(e.target.value)} className="font-mono text-[13px]" />
+        <Textarea autoCorrect="off" autoCapitalize="off" spellCheck={false} rows={3} placeholder="stdin" value={stdin} onChange={(e) => setStdin(e.target.value)} className="font-mono text-label" />
+        <Textarea autoCorrect="off" autoCapitalize="off" spellCheck={false} rows={3} placeholder="expected output (optional — checked on run)" value={expected} onChange={(e) => setExpected(e.target.value)} className="font-mono text-label" />
       </div>
       <div className="flex items-center gap-3">
         <Button onClick={() => void run()} disabled={running || !code.trim()}>
@@ -103,7 +103,7 @@ export function RunPanel({ lang, code }: { lang: Lang; code: string }) {
       <AnimatePresence>
         {res && (
           <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-3">
-            <div className="flex flex-wrap items-center gap-2 text-[12px] font-bold uppercase">
+            <div className="flex flex-wrap items-center gap-2 text-mini font-bold uppercase">
               <span className={cx('slant px-2.5 py-0.5 text-black', res.ok ? 'bg-green' : res.timedOut ? 'bg-yellow' : 'bg-accent text-white')}>
                 {res.phase === 'compile' ? 'Compile error' : res.timedOut ? 'Time limit' : res.ok ? 'Finished' : `Exit ${res.exitCode}`}
               </span>
@@ -112,7 +112,7 @@ export function RunPanel({ lang, code }: { lang: Lang; code: string }) {
               {frames.length > 0 && <span className="font-mono text-ink-3">{frames.length} viz frames</span>}
             </div>
             {(res.stdout || res.stderr) && (
-              <pre className="max-h-64 overflow-auto rounded-md border border-line bg-bg p-3 font-mono text-[12.5px] leading-relaxed">
+              <pre className="max-h-64 overflow-auto rounded-md border border-line bg-bg p-3 font-mono text-label leading-relaxed">
                 {res.stdout}
                 {res.stderr && <span className="text-accent-2">{(res.stdout ? '\n' : '') + res.stderr}</span>}
               </pre>
@@ -166,7 +166,7 @@ function Statement({ q, error }: { q?: LcQuestion; error?: Error | null }) {
     <div>
       <div className="mb-3 flex flex-wrap gap-1.5">
         {q.tags.map((t) => (
-          <span key={t} className="rounded bg-surface-2 px-2 py-0.5 text-[11px] font-semibold text-ink-2">
+          <span key={t} className="rounded bg-surface-2 px-2 py-0.5 text-tiny font-semibold text-ink-2">
             {t}
           </span>
         ))}
@@ -250,9 +250,9 @@ function JudgePanel({ slug, lang, code, q, onAllPass, onResult }: { slug: string
         <label className="flex items-center gap-1.5 text-xs font-semibold uppercase text-ink-3" title="For problems that accept the answer in any order">
           <input type="checkbox" checked={anyOrder} onChange={(e) => setAnyOrder(e.target.checked)} className="accent-[var(--accent)]" /> Any order
         </label>
-        <span className="text-[11px] text-ink-3 max-sm:hidden">Ctrl/⌘ + Enter</span>
+        <span className="text-tiny text-ink-3 max-sm:hidden">Ctrl/⌘ + Enter</span>
       </div>
-      {customOn && <Textarea rows={4} value={custom} onChange={(e) => setCustom(e.target.value)} className="font-mono text-[12.5px]" placeholder="One argument per line, LeetCode format" />}
+      {customOn && <Textarea autoCorrect="off" autoCapitalize="off" spellCheck={false} rows={4} value={custom} onChange={(e) => setCustom(e.target.value)} className="font-mono text-label" placeholder="One argument per line, LeetCode format" />}
       {err && <p className="text-sm text-warn">{err}</p>}
       <AnimatePresence>
         {res && (
@@ -260,7 +260,7 @@ function JudgePanel({ slug, lang, code, q, onAllPass, onResult }: { slug: string
             {res.phase === 'compile' ? (
               <div className="rounded-md border border-accent/50 bg-bg p-3">
                 <p className="mb-2 text-xs font-black uppercase tracking-widest text-accent-2">Compile error</p>
-                <pre className="max-h-64 overflow-auto font-mono text-[12px] leading-relaxed text-ink-2">{res.stderr}</pre>
+                <pre className="max-h-64 overflow-auto font-mono text-mini leading-relaxed text-ink-2">{res.stderr}</pre>
               </div>
             ) : (
               <>
@@ -279,36 +279,36 @@ function JudgePanel({ slug, lang, code, q, onAllPass, onResult }: { slug: string
                       animate={{ scale: 1, opacity: 1 }}
                       transition={{ delay: i * 0.06, type: 'spring', stiffness: 500, damping: 22 }}
                       onClick={() => setOpen(open === i ? null : i)}
-                      className={cx('slant px-3 py-1 text-[12px] font-black italic', r.pass === true ? 'bg-green text-black' : r.pass === false ? 'bg-accent text-white' : r.output === undefined ? 'bg-yellow text-black' : 'bg-surface-2 text-ink', open === i && 'ring-2 ring-ink')}
+                      className={cx('slant px-3 py-1 text-mini font-black italic', r.pass === true ? 'bg-green text-black' : r.pass === false ? 'bg-accent text-white' : r.output === undefined ? 'bg-yellow text-black' : 'bg-surface-2 text-ink', open === i && 'ring-2 ring-ink')}
                     >
                       Case {i + 1}
                     </motion.button>
                   ))}
                 </div>
                 {open !== null && res.results[open] && (
-                  <div className="space-y-2 rounded-md border border-line bg-bg p-3 font-mono text-[12.5px]">
+                  <div className="space-y-2 rounded-md border border-line bg-bg p-3 font-mono text-label">
                     <div>
-                      <p className="mb-0.5 text-[10px] font-black uppercase tracking-widest text-ink-3">Input</p>
+                      <p className="mb-0.5 text-micro font-black uppercase tracking-widest text-ink-3">Input</p>
                       {res.results[open].input.map((l, i) => (
                         <p key={i} className="break-all text-ink-2">{l}</p>
                       ))}
                     </div>
                     {res.results[open].expected !== undefined && (
                       <div>
-                        <p className="mb-0.5 text-[10px] font-black uppercase tracking-widest text-ink-3">Expected</p>
+                        <p className="mb-0.5 text-micro font-black uppercase tracking-widest text-ink-3">Expected</p>
                         <p className="break-all text-green">{res.results[open].expected}</p>
                       </div>
                     )}
                     <div>
-                      <p className="mb-0.5 text-[10px] font-black uppercase tracking-widest text-ink-3">Your output</p>
+                      <p className="mb-0.5 text-micro font-black uppercase tracking-widest text-ink-3">Your output</p>
                       <p className={cx('break-all', res.results[open].pass === false ? 'text-accent-2' : 'text-ink')}>{res.results[open].output ?? '— no output (crashed or timed out before this case)'}</p>
                     </div>
                   </div>
                 )}
                 {(res.stdout || res.stderr) && (
                   <details className="rounded-md border border-line bg-bg p-3" open={!!res.stderr && !res.ok}>
-                    <summary className="cursor-pointer text-[11px] font-black uppercase tracking-widest text-ink-3">Console</summary>
-                    <pre className="mt-2 max-h-56 overflow-auto font-mono text-[12px] leading-relaxed">
+                    <summary className="cursor-pointer text-tiny font-black uppercase tracking-widest text-ink-3">Console</summary>
+                    <pre className="mt-2 max-h-56 overflow-auto font-mono text-mini leading-relaxed">
                       {res.stdout}
                       {res.stderr && <span className="text-accent-2">{(res.stdout ? '\n' : '') + res.stderr}</span>}
                     </pre>
@@ -353,7 +353,7 @@ function TestBanner({ test }: { test: NonNullable<ReturnType<typeof useLiveTest>
   return (
     <div className="sticky top-2 z-30 mb-4 flex items-center gap-3 rounded-lg border border-accent bg-bg/95 px-4 py-2.5 backdrop-blur">
       <span className="size-2 animate-pulse rounded-full bg-accent" />
-      <span className="text-[12px] font-black uppercase italic tracking-wider">Test running</span>
+      <span className="text-mini font-black uppercase italic tracking-wider">Test running</span>
       <span className="font-mono text-sm font-bold tabular-nums">
         {Math.floor(left / 3600)}:{String(Math.floor((left % 3600) / 60)).padStart(2, '0')}:{String(Math.floor(left % 60)).padStart(2, '0')}
       </span>
@@ -442,10 +442,10 @@ export function DsaProblem() {
             persist({ notes: e.target.value });
           }}
           placeholder={'## Approach\nWhat pattern? Why does it work?\n\n## Complexity\n| | |\n|---|---|\n| Time | O(n) |\n| Space | O(n) |\n\n## Mistakes I made'}
-          className="font-mono text-[13px] leading-relaxed"
+          className="font-mono text-label leading-relaxed"
         />
       )}
-      <p className="mt-2 text-[11px] text-ink-3">Markdown + tables. Saved automatically.</p>
+      <p className="mt-2 text-tiny text-ink-3">Markdown + tables. Saved automatically.</p>
     </>
   );
 
@@ -502,7 +502,7 @@ export function DsaProblem() {
         <JudgePanel slug={id} lang={lang} code={code} q={q} onAllPass={() => setCelebrate(true)} onResult={setJudge} />
       </div>
       <details className="mt-4 rounded-md border border-line p-3">
-        <summary className="flex cursor-pointer items-center gap-1 text-[11px] font-black uppercase tracking-widest text-ink-3">
+        <summary className="flex cursor-pointer items-center gap-1 text-tiny font-black uppercase tracking-widest text-ink-3">
           <ChevronDown className="size-3.5" /> Raw run (full program + stdin)
         </summary>
         <div className="mt-3">
@@ -543,7 +543,7 @@ export function DsaProblem() {
             <button
               key={s.value}
               onClick={() => (s.value === 'solved' ? markSolved() : save({ problem: id, status: s.value }))}
-              className={cx('slant px-3 py-1 text-[11px] font-black italic uppercase transition', (prog?.status ?? 'todo') === s.value ? 'text-black' : 'bg-surface-2 text-ink-3 hover:text-ink')}
+              className={cx('slant px-3 py-1 text-tiny font-black italic uppercase transition', (prog?.status ?? 'todo') === s.value ? 'text-black' : 'bg-surface-2 text-ink-3 hover:text-ink')}
               style={(prog?.status ?? 'todo') === s.value ? { background: s.color } : undefined}
             >
               {s.label}

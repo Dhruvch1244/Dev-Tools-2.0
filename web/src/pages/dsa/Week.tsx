@@ -56,7 +56,7 @@ export function DsaWeek() {
             <div className="space-y-4">
               {days.map((d, di) => (
                 <div key={d.iso}>
-                  <p className="mb-1.5 text-[11px] font-black uppercase tracking-[0.18em] text-ink-3">{d.label}</p>
+                  <p className="mb-1.5 text-tiny font-black uppercase tracking-[0.18em] text-ink-3">{d.label}</p>
                   <ul className="space-y-1.5">
                     {d.problems.map((p, i) => {
                       const prog = get(p.id);
@@ -71,7 +71,7 @@ export function DsaWeek() {
                               aria-label={`Status of ${p.title}`}
                               value={prog?.status ?? 'todo'}
                               onChange={(e) => save({ problem: p.id, status: e.target.value as never, ...(e.target.value === 'solved' && !prog?.solved_at ? { solved_at: new Date().toISOString() } : {}) })}
-                              className="rounded border border-line bg-surface-2 px-1.5 py-1 text-[11px] font-bold uppercase"
+                              className="rounded border border-line bg-surface-2 px-1.5 py-1 text-tiny font-bold uppercase"
                             >
                               {STATUS.map((s) => (
                                 <option key={s.value} value={s.value}>
@@ -91,7 +91,7 @@ export function DsaWeek() {
 
           <Card className="relative overflow-hidden">
             <div className="pointer-events-none absolute -right-2 -top-6 text-[110px] font-black italic leading-none text-white/[0.03]">Q</div>
-            <p className="slant inline-block bg-green px-3 py-0.5 text-[12px] font-black italic uppercase tracking-widest text-black">Qualifying · Sunday</p>
+            <p className="slant inline-block bg-green px-3 py-0.5 text-mini font-black italic uppercase tracking-widest text-black">Qualifying · Sunday</p>
             <p className="mt-2 text-2xl font-black italic uppercase">Weekly test · 90 min</p>
             <p className="text-sm text-ink-2">3 unseen problems on this round's patterns. Timed — no peeking at your notes.</p>
             {weeklyDone.length > 0 && <p className="mt-2 text-sm font-semibold text-green">Best score: {Math.max(...weeklyDone.map((t) => t.score ?? 0))} pts ({weeklyDone.length} attempt{weeklyDone.length > 1 ? 's' : ''})</p>}
@@ -104,7 +104,7 @@ export function DsaWeek() {
 
           {mega && (
             <Card className="relative overflow-hidden border-purple/40">
-              <p className="slant inline-block bg-purple px-3 py-0.5 text-[12px] font-black italic uppercase tracking-widest text-black">Grand Prix · mega test</p>
+              <p className="slant inline-block bg-purple px-3 py-0.5 text-mini font-black italic uppercase tracking-widest text-black">Grand Prix · mega test</p>
               <p className="mt-2 text-2xl font-black italic uppercase">{mega.title}</p>
               <p className="text-sm text-ink-2">
                 {mega.problems.length} problems · {mega.durationMin / 60} h · covers rounds {mega.covers.join(', ')}.

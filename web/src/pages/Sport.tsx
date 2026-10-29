@@ -206,7 +206,7 @@ function LiveTracker({ draft, onExit }: { draft: Draft; onExit: () => void }) {
   return createPortal(
     <motion.div initial={{ opacity: 0, y: 40 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 40 }} className="fixed inset-0 z-[80] flex flex-col bg-bg-outer px-5 pb-[calc(env(safe-area-inset-bottom)+16px)] pt-[calc(env(safe-area-inset-top)+16px)]">
       <div className="flex items-center justify-between">
-        <span className="slant bg-accent px-3 py-0.5 text-[12px] font-black italic uppercase tracking-widest text-white">
+        <span className="slant bg-accent px-3 py-0.5 text-mini font-black italic uppercase tracking-widest text-white">
           {SPORTS[d.type].emoji} {SPORTS[d.type].label} · {d.status === 'running' ? 'Live' : 'Paused'}
         </span>
         <span className={cx('flex items-center gap-1 font-mono text-xs', acc === null ? 'text-ink-3' : acc <= 15 ? 'text-green' : acc <= 30 ? 'text-yellow' : 'text-danger')}>
@@ -214,7 +214,7 @@ function LiveTracker({ draft, onExit }: { draft: Draft; onExit: () => void }) {
         </span>
       </div>
       <div className="mt-4 text-center">
-        <p className="text-[11px] font-black uppercase tracking-[0.3em] text-ink-3">Moving time</p>
+        <p className="text-tiny font-black uppercase tracking-[0.3em] text-ink-3">Moving time</p>
         <p className="font-mono text-6xl font-bold tabular-nums">{fmtDuration(moving / 60000)}</p>
       </div>
       <div className="mt-4 grid grid-cols-3 gap-2">
@@ -230,14 +230,14 @@ function LiveTracker({ draft, onExit }: { draft: Draft; onExit: () => void }) {
             <TrackMap pts={d.pts} mode="live" height="min(46vh, 420px)" fallback={<CircuitMap pts={d.pts} live className="h-full max-h-[40vh]" />} />
           </Suspense>
         )}
-        <button onClick={() => setSimple(!simple)} className="absolute right-2 top-2 z-10 rounded-md bg-bg/80 px-2 py-1 text-[10px] font-black uppercase tracking-widest text-ink-2 backdrop-blur">
+        <button onClick={() => setSimple(!simple)} className="absolute right-2 top-2 z-10 rounded-md bg-bg/80 px-2 py-1 text-micro font-black uppercase tracking-widest text-ink-2 backdrop-blur">
           {simple ? '3D map' : 'Simple · saves battery'}
         </button>
       </div>
       {sp.length > 0 && (
         <div className="no-scrollbar mb-3 flex gap-1.5 overflow-x-auto">
           {sp.map((m, i) => (
-            <span key={i} className="slant shrink-0 bg-surface-2 px-2.5 py-0.5 font-mono text-[11px] font-bold">
+            <span key={i} className="slant shrink-0 bg-surface-2 px-2.5 py-0.5 font-mono text-tiny font-bold">
               KM{i + 1} {fmtDuration(m)}
             </span>
           ))}
@@ -252,7 +252,7 @@ function LiveTracker({ draft, onExit }: { draft: Draft; onExit: () => void }) {
           <Square className="size-5 fill-current" /> Finish
         </Button>
       </div>
-      <p className="mt-2 text-center text-[11px] text-ink-3">Keep the screen on — browsers pause GPS when the phone sleeps.</p>
+      <p className="mt-2 text-center text-tiny text-ink-3">Keep the screen on — browsers pause GPS when the phone sleeps.</p>
     </motion.div>,
     document.body,
   );
@@ -289,17 +289,17 @@ function LogSheet({ open, onClose, initialType }: { open: boolean; onClose: () =
           ))}
         </div>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-          <label className="text-[10px] font-black uppercase tracking-widest text-ink-3">
+          <label className="text-micro font-black uppercase tracking-widest text-ink-3">
             Minutes
             <Input inputMode="numeric" value={mins} onChange={(e) => setMins(e.target.value.replace(/[^\d.]/g, ''))} className="mt-1 font-mono text-base" />
           </label>
           {SPORTS[type].distance && (
-            <label className="text-[10px] font-black uppercase tracking-widest text-ink-3">
+            <label className="text-micro font-black uppercase tracking-widest text-ink-3">
               Distance km
               <Input inputMode="decimal" value={km} onChange={(e) => setKm(e.target.value.replace(/[^\d.]/g, ''))} className="mt-1 font-mono text-base" placeholder="5.0" />
             </label>
           )}
-          <label className="text-[10px] font-black uppercase tracking-widest text-ink-3">
+          <label className="text-micro font-black uppercase tracking-widest text-ink-3">
             Date
             <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="field mt-1 w-full" />
           </label>
@@ -311,15 +311,15 @@ function LogSheet({ open, onClose, initialType }: { open: boolean; onClose: () =
               <Segmented value={bd.level} onChange={(level) => setBd({ ...bd, level })} options={[{ value: 'casual', label: 'Casual' }, { value: 'competitive', label: 'Match' }]} />
             </div>
             <div className="grid grid-cols-3 gap-2">
-              <label className="text-[10px] font-black uppercase tracking-widest text-ink-3">
+              <label className="text-micro font-black uppercase tracking-widest text-ink-3">
                 Games
                 <Input inputMode="numeric" value={bd.games} onChange={(e) => setBd({ ...bd, games: Number(e.target.value) || 0 })} className="mt-1 font-mono" />
               </label>
-              <label className="text-[10px] font-black uppercase tracking-widest text-ink-3">
+              <label className="text-micro font-black uppercase tracking-widest text-ink-3">
                 Won
                 <Input inputMode="numeric" value={bd.won} onChange={(e) => setBd({ ...bd, won: Math.min(bd.games, Number(e.target.value) || 0) })} className="mt-1 font-mono" />
               </label>
-              <label className="text-[10px] font-black uppercase tracking-widest text-ink-3">
+              <label className="text-micro font-black uppercase tracking-widest text-ink-3">
                 Partner
                 <Input value={bd.partner} onChange={(e) => setBd({ ...bd, partner: e.target.value })} className="mt-1" placeholder="optional" />
               </label>
@@ -327,7 +327,7 @@ function LogSheet({ open, onClose, initialType }: { open: boolean; onClose: () =
           </div>
         )}
         <div>
-          <p className="mb-1 flex justify-between text-[10px] font-black uppercase tracking-widest text-ink-3">
+          <p className="mb-1 flex justify-between text-micro font-black uppercase tracking-widest text-ink-3">
             <span>Effort (RPE)</span>
             <span className="font-mono text-ink">{rpe}/10</span>
           </p>
@@ -365,7 +365,7 @@ function ElevationProfile({ profile, climbM }: { profile: number[]; climbM: { up
   const pts = profile.map((e, i) => `${(i / (profile.length - 1)) * 100},${38 - ((e - lo) / span) * 32}`).join(' ');
   return (
     <div>
-      <p className="mb-1 flex justify-between text-[10px] font-black uppercase tracking-widest text-ink-3">
+      <p className="mb-1 flex justify-between text-micro font-black uppercase tracking-widest text-ink-3">
         <span>Elevation</span>
         <span className="font-mono normal-case tracking-normal">
           ▲ {climbM.up} m · ▼ {climbM.down} m · {Math.round(lo)}–{Math.round(hi)} m
@@ -409,10 +409,10 @@ function Detail({ a, onClose }: { a: Activity | null; onClose: () => void }) {
               {mapInfo.profile && mapInfo.climb && <ElevationProfile profile={mapInfo.profile} climbM={mapInfo.climb} />}
               {mapInfo.landmarks && mapInfo.landmarks.length > 0 && (
                 <div>
-                  <p className="mb-1.5 text-[10px] font-black uppercase tracking-widest text-ink-3">You passed</p>
+                  <p className="mb-1.5 text-micro font-black uppercase tracking-widest text-ink-3">You passed</p>
                   <div className="flex flex-wrap gap-1.5">
                     {mapInfo.landmarks.map((n) => (
-                      <span key={n} className="slant bg-surface-2 px-2.5 py-0.5 text-[11px] font-bold">
+                      <span key={n} className="slant bg-surface-2 px-2.5 py-0.5 text-tiny font-bold">
                         📍 {n}
                       </span>
                     ))}
@@ -429,7 +429,7 @@ function Detail({ a, onClose }: { a: Activity | null; onClose: () => void }) {
           {a.distance_km ? <p className="text-sm text-ink-2">Average pace <b className="font-mono text-ink">{pace(a.duration_min, a.distance_km)} /km</b></p> : null}
           {det.splits?.length > 0 && (
             <div>
-              <p className="mb-1.5 text-[10px] font-black uppercase tracking-widest text-ink-3">Splits</p>
+              <p className="mb-1.5 text-micro font-black uppercase tracking-widest text-ink-3">Splits</p>
               <div className="space-y-1">
                 {(det.splits as number[]).map((m, i, arr) => {
                   const best = Math.min(...arr);
@@ -515,7 +515,7 @@ export function SportPage() {
             className="group relative overflow-hidden rounded-xl border border-line bg-surface p-4 text-left transition hover:border-accent"
           >
             <span className="pointer-events-none absolute -right-2 -top-3 text-6xl opacity-20 transition group-hover:scale-110 group-hover:opacity-40">{SPORTS[x.t].emoji}</span>
-            {x.live && <span className="mb-2 inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-accent-2"><span className="size-1.5 animate-pulse rounded-full bg-accent" /> GPS</span>}
+            {x.live && <span className="mb-2 inline-flex items-center gap-1 text-micro font-black uppercase tracking-widest text-accent-2"><span className="size-1.5 animate-pulse rounded-full bg-accent" /> GPS</span>}
             <p className="text-xl font-black italic uppercase leading-tight">{x.label}</p>
             <p className="text-xs text-ink-3">{x.sub}</p>
           </motion.button>
@@ -536,9 +536,9 @@ export function SportPage() {
           <div className="flex h-40 items-end gap-2">
             {weeks.map((w, i) => (
               <div key={i} className="flex h-full flex-1 flex-col items-center justify-end gap-1" title={`${w.label}: ${Math.round(w.v)} min`}>
-                <span className="font-mono text-[10px] text-ink-3">{w.v ? Math.round(w.v) : ''}</span>
+                <span className="font-mono text-micro text-ink-3">{w.v ? Math.round(w.v) : ''}</span>
                 <motion.span className="w-full rounded-t-[4px]" style={{ background: i === weeks.length - 1 ? 'var(--accent)' : 'var(--line-strong)' }} initial={{ height: 0 }} animate={{ height: w.v ? `${(w.v / max) * 100}%` : '2px' }} transition={{ type: 'spring', stiffness: 80, damping: 16, delay: i * 0.04 }} />
-                <span className="text-[9px] font-bold uppercase text-ink-3">{w.label}</span>
+                <span className="text-micro font-bold uppercase text-ink-3">{w.label}</span>
               </div>
             ))}
           </div>
@@ -580,7 +580,7 @@ export function SportPage() {
       <LogSheet open={!!logType} onClose={() => setLogType(null)} initialType={logType ?? 'badminton'} />
       <Detail a={detail} onClose={() => setDetail(null)} />
       <AnimatePresence>{draft && <LiveTracker key={draft.startedAt} draft={draft} onExit={() => setDraft(null)} />}</AnimatePresence>
-      <Rise className="mt-4 flex items-center justify-center gap-2 text-[11px] text-ink-3">
+      <Rise className="mt-4 flex items-center justify-center gap-2 text-tiny text-ink-3">
         <Flag className="size-3.5" /> Calories burned are shown on Fuel for reference — your target stays the same.
       </Rise>
     </Page>

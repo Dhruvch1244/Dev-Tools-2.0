@@ -49,7 +49,7 @@ function Habits() {
   return (
     <Card className="lg:col-span-3">
       <SectionTitle action={<Link to="/routines" className="text-xs font-bold uppercase text-accent hover:underline">Routines →</Link>}>Habits</SectionTitle>
-      <div className="mb-3 hidden grid-cols-[1fr_repeat(7,32px)_40px] items-center gap-1.5 pr-1 text-center text-[10px] font-semibold uppercase tracking-wider text-ink-3 sm:grid">
+      <div className="mb-3 hidden grid-cols-[1fr_repeat(7,32px)_40px] items-center gap-1.5 pr-1 text-center text-micro font-semibold uppercase tracking-wider text-ink-3 sm:grid">
         <span />
         {week.map((d) => (
           <span key={d} className={cx(d === today() && 'text-accent')}>
@@ -217,6 +217,7 @@ function HealthToday() {
           <Scale className="size-4 shrink-0 text-ink-3" />
           <input
             inputMode="decimal"
+            enterKeyHint="done"
             aria-label="Weight in kg"
             placeholder="Weight (kg)"
             value={w}

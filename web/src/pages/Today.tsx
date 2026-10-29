@@ -134,7 +134,7 @@ function RaceWeekend() {
         <motion.div key={x.k} initial={{ opacity: 0, x: -30, skewX: -10 }} animate={{ opacity: 1, x: 0, skewX: 0 }} transition={{ delay: 0.35 + i * 0.08, type: 'spring', stiffness: 260, damping: 24 }}>
           <Link to={x.to} className="group relative block overflow-hidden rounded-xl border border-line bg-surface p-4 transition hover:border-accent">
             <span className="absolute inset-y-0 left-0 w-[3px]" style={{ background: x.c }} />
-            <p className="text-[10px] font-black uppercase tracking-[0.25em] text-ink-3">{x.k}</p>
+            <p className="text-micro font-black uppercase tracking-[0.25em] text-ink-3">{x.k}</p>
             <p className="text-2xl font-black italic uppercase leading-tight">{x.v}</p>
             <p className="truncate text-xs text-ink-3">{x.s}</p>
             <ArrowRight className="absolute right-4 top-1/2 size-5 -translate-y-1/2 text-ink-3 opacity-0 transition group-hover:translate-x-1 group-hover:opacity-100" />
