@@ -6,7 +6,8 @@
 
 export type Shift = { id: string; label: string; login: string; logout: string };
 export type WorkMode = 'office' | 'wfh' | 'off' | 'leave';
-export type WorkOverride = { mode?: WorkMode; shift?: string };
+/** Per-day change: mode/shift, and the real login/logout times once you've clocked them. */
+export type WorkOverride = { mode?: WorkMode; shift?: string; in?: string; out?: string };
 export type WorkConfig = {
   /** Monday (YYYY-MM-DD) of any connect week. */
   anchor: string;
@@ -26,7 +27,7 @@ export type WorkConfig = {
 };
 
 export const DEFAULT_WORK: WorkConfig = {
-  anchor: '2026-10-26',
+  anchor: '2026-11-09',
   on: 2,
   off: 2,
   days: [1, 2, 3, 4, 5],
@@ -49,6 +50,7 @@ export const addMin = (hm: string, n: number) => {
   const t = (((Number(hm.slice(0, 2)) * 60 + Number(hm.slice(3, 5)) + n) % 1440) + 1440) % 1440;
   return `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`;
 };
+const toMin = (hm: string) => Number(hm.slice(0, 2)) * 60 + Number(hm.slice(3, 5));
 export const dow = (d: string) => new Date(utc(d)).getUTCDay();
 /** Monday of the week containing `d`. */
 export const mondayOf = (d: string) => iso(utc(d) - ((dow(d) + 6) % 7) * DAY);
@@ -64,8 +66,10 @@ export type WorkDay = {
   date: string;
   mode: WorkMode;
   connect: boolean;
-  /** Set on office and WFH days. */
+  /** Set on office and WFH days. Times follow the real login when one is logged. */
   shift: Shift | null;
+  /** Clocked times for the day, if logged. */
+  actual: { in?: string; out?: string };
   /** Office days only: when to walk out of the door, and when you're home. */
   leaveBy: string | null;
   homeBy: string | null;
@@ -77,14 +81,18 @@ export function workDay(date: string, cfg: WorkConfig, overrides: Record<string,
   const o = overrides[date];
   const workday = cfg.days.includes(dow(date));
   const mode: WorkMode = o?.mode ?? (!workday ? 'off' : connect ? 'office' : 'wfh');
-  const shift = mode === 'office' || mode === 'wfh' ? (cfg.shifts.find((s) => s.id === (o?.shift ?? cfg.defaultShift)) ?? cfg.shifts[0]) : null;
+  const planned = mode === 'office' || mode === 'wfh' ? (cfg.shifts.find((s) => s.id === (o?.shift ?? cfg.defaultShift)) ?? cfg.shifts[0]) : null;
+  // A logged login moves the logout by the shift's length (logged in 10:10 on a 8.5 h shift → 18:40).
+  const length = planned ? ((toMin(planned.logout) - toMin(planned.login)) % 1440 + 1440) % 1440 : 0;
+  const shift = planned && (o?.in || o?.out) ? { ...planned, login: o.in ?? planned.login, logout: o.out ?? addMin(o.in ?? planned.login, length) } : planned;
   const office = mode === 'office' && shift;
   return {
     date,
     mode,
     connect,
     shift,
-    leaveBy: office ? addMin(shift.login, -cfg.commute) : null,
+    actual: { in: o?.in, out: o?.out },
+    leaveBy: office ? addMin(planned!.login, -cfg.commute) : null,
     homeBy: office ? addMin(shift.logout, cfg.commute) : null,
     overridden: !!o,
   };
@@ -124,11 +132,12 @@ export function workPings(date: string, cfg: WorkConfig, overrides: Record<strin
   const out: WorkPing[] = [];
   if (w.mode === 'office' && w.shift && w.leaveBy) {
     const pack = [...cfg.pack, ...(gymDay ? ['Gym bag'] : [])];
-    out.push({ id: 'pack', at: addMin(w.leaveBy, -20), title: `🎒 Out-lap in 20 min — leave by ${w.leaveBy}`, body: pack.length ? `Pack: ${pack.join(' · ')}` : `Login ${w.shift.login}` });
-    out.push({ id: 'leave', at: w.leaveBy, title: `🏎️ Lights out — leave now`, body: `${cfg.commute} min to the office · login ${w.shift.login}` });
+    // Already clocked in: no point telling you to leave.
+    if (!w.actual.in) out.push({ id: 'pack', at: addMin(w.leaveBy, -20), title: `🎒 Out-lap in 20 min — leave by ${w.leaveBy}`, body: pack.length ? `Pack: ${pack.join(' · ')}` : `Login ${w.shift.login}` });
+    if (!w.actual.in) out.push({ id: 'leave', at: w.leaveBy, title: `🏎️ Lights out — leave now`, body: `${cfg.commute} min to the office · login ${w.shift.login}` });
     out.push({ id: 'logout', at: w.shift.logout, title: `🏁 Chequered flag — log out`, body: `Home by ${w.homeBy}${gymDay ? ` · ${gymDay} at the gym after` : ''}` });
   } else if (w.mode === 'wfh' && w.shift) {
-    out.push({ id: 'login', at: addMin(w.shift.login, -5), title: `💻 WFH login at ${w.shift.login}`, body: 'Home week — no commute today' });
+    if (!w.actual.in) out.push({ id: 'login', at: addMin(w.shift.login, -5), title: `💻 WFH login at ${w.shift.login}`, body: 'Home week — no commute today' });
     out.push({ id: 'logout', at: w.shift.logout, title: `🏁 Log out — day done`, body: gymDay ? `${gymDay} next` : 'Go move a bit' });
   }
   // Evening before a connect block's first office day.

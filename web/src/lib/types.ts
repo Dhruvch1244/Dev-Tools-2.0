@@ -1,5 +1,6 @@
 import type { Repeat } from '../core/tasks';
 import type { WorkConfig, WorkOverride } from '../core/work';
+import type { CookConfig } from '../core/cook';
 
 type Stamped = { id: string; created_at: string; updated_at: string };
 
@@ -31,6 +32,9 @@ export type Settings = {
   work?: Partial<WorkConfig>;
   /** Per-day office overrides (leave, WFH swap, other shift), keyed by date. */
   workOverrides?: Record<string, WorkOverride>;
+  cook?: Partial<CookConfig>;
+  /** Swapped cook-plan dishes by date. */
+  cookPicks?: Record<string, { breakfast?: string; dinner?: string }>;
 };
 export type Workout = Stamped & { date: string; day_type: string; notes: string | null; started_at: string | null; finished_at: string | null };
 export type GymSet = Stamped & { workout_id: string; date: string; exercise: string; set_no: number; weight: number; reps: number };
@@ -41,5 +45,6 @@ export type DsaTest = Stamped & { kind: 'weekly' | 'mega' | 'mock'; ref: string;
 export type Activity = Stamped & { date: string; type: string; started_at: string | null; duration_min: number; distance_km: number | null; kcal: number | null; rpe: number | null; notes: string | null; details: string | null; route: string | null };
 export type Routine = Stamped & { name: string; emoji: string | null; days: string; time: string; duration_min: number; steps: string | null; habit_id: string | null; remind: number; gcal_event_id: string | null; active: number };
 export type RoutineLog = { routine_id: string; date: string; steps: string | null };
+export type ShopRow = Stamped & { name: string; qty: string | null; done: number; source: string | null };
 export type SavedMeal = Stamped & { name: string; meal: string | null; items: string };
 export type Briefs = { morning?: boolean; evening?: boolean; morningAt?: string; eveningAt?: string; water?: boolean };

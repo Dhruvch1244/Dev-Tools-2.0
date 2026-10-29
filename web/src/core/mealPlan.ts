@@ -17,7 +17,7 @@ const ORDER: MealId[] = ['breakfast', 'lunch', 'snacks', 'dinner'];
 
 type Item = [id: string, qty: number];
 /** Home-style vegetarian combos per meal. Quantities are a starting point; they get scaled to fit. */
-const COMBOS: Record<MealId, { name: string; items: Item[] }[]> = {
+export const COMBOS: Record<MealId, { name: string; items: Item[] }[]> = {
   breakfast: [
     { name: 'Poha & chai', items: [['poha', 1], ['chai', 1]] },
     { name: 'Besan chilla & curd', items: [['besan-chilla', 2], ['curd', 1]] },
@@ -74,10 +74,10 @@ const totals = (items: PlanItem[]) => ({
   protein: Math.round(items.reduce((a, i) => a + i.food.protein * i.qty, 0)),
 });
 /** Whole numbers for countable things (roti, idli, chilla, pieces); half steps otherwise. */
-const roundQty = (f: Food, q: number) => (/piece|^\d+ (medium|large)|^1 (roti|idli)/i.test(f.serving) || ['roti', 'idli', 'besan-chilla', 'moong-chilla'].includes(f.id) ? Math.max(1, Math.round(q)) : Math.max(0.5, Math.round(q * 2) / 2));
+const roundQty = (f: Food, q: number) => (/piece|^\d+ (medium|large)|^1 (roti|idli)/i.test(f.serving) || ['roti', 'idli', 'besan-chilla', 'moong-chilla', 'thepla', 'paneer-paratha', 'bread-brown', 'handvo'].includes(f.id) ? Math.max(1, Math.round(q)) : Math.max(0.5, Math.round(q * 2) / 2));
 
 /** Size a combo toward a kcal target (0.75×–1.5×) and score fit: calories close, protein not short. */
-function fit(combo: { name: string; items: Item[] }, target: { kcal: number; protein: number }, usual: Set<string>, diet: Diet): (Suggestion & { score: number }) | null {
+export function fit(combo: { name: string; items: Item[] }, target: { kcal: number; protein: number }, usual: Set<string>, diet: Diet): (Suggestion & { score: number }) | null {
   const base = combo.items.map(([id, qty]) => ({ food: byId.get(id), qty }));
   if (base.some((b) => !b.food || !allowedFor(diet, b.food.id))) return null;
   let best: (Suggestion & { score: number }) | null = null;

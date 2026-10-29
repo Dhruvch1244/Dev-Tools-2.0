@@ -12,6 +12,7 @@ import { DEFAULT_START, problemsForDay } from '../web/src/core/dsa/plan.ts';
 import { DEFAULT_PROFILE, targets } from '../web/src/core/fuel.ts';
 import { nextSwitch, weekLabel, workConfig, workDay, workPings, workWeek } from '../web/src/core/work.ts';
 import { ACTIONS_GUIDE } from '../web/src/core/aiActions.ts';
+import { cookBrief, cookConfig, planCookDay } from '../web/src/core/cook.ts';
 
 const q = <T>(sql: string, ...a: (string | number)[]) => db.prepare(sql).all(...a) as T[];
 const one = <T>(sql: string, ...a: (string | number)[]) => db.prepare(sql).get(...a) as T | undefined;
@@ -56,7 +57,7 @@ export async function lifeContext() {
   return [
     `NOW: ${now.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}, ${stamp.slice(11)} (${day})`,
     s.name ? `Name: ${s.name}` : null,
-    `WORK today: ${w.mode}${w.shift ? ` · shift ${w.shift.id} login ${w.shift.login} logout ${w.shift.logout}` : ''}${w.leaveBy ? ` · leave home ${w.leaveBy}, home by ${w.homeBy} (commute ${wc.commute} min each way)` : ''} · ${weekLabel(day, wc)}${next ? ` · ${next.connect ? 'connect (office)' : 'home'} block starts ${next.date}` : ''}`,
+    `WORK today: ${w.mode}${w.shift ? ` · shift ${w.shift.id} login ${w.shift.login} logout ${w.shift.logout}${w.actual.in ? ` (actually logged in ${w.actual.in}${w.actual.out ? `, out ${w.actual.out}` : ''})` : ''}` : ''}${w.leaveBy ? ` · leave home ${w.leaveBy}, home by ${w.homeBy} (commute ${wc.commute} min each way)` : ''} · ${weekLabel(day, wc)}${next ? ` · ${next.connect ? 'connect (office)' : 'home'} block starts ${next.date}` : ''}`,
     `Shifts: ${shifts}. Next 7 days: ${week.join('; ')}`,
     `GYM today: ${gym === 'rest' ? 'Rest' : `${DAY_META[gym].label} (${DAY_META[gym].focus})`}; tomorrow ${DAY_META[dayTypeOn(localStamp(new Date(now.getTime() + 86_400_000)).slice(0, 10), s.gymShift ?? 0)].label}. Finished sessions last 7 days: ${sessions}`,
     `FUEL: target ${tg.kcal} kcal / ${tg.protein} g protein; eaten ${Math.round(food.k)} kcal / ${Math.round(food.p)} g. ${meals.map((m) => `${m.meal}: ${m.names}`).join(' | ') || 'Nothing logged yet.'} Water ${water}/${s.waterGoal ?? 8} glasses.`,
@@ -104,4 +105,25 @@ export async function workRemindersTick() {
     const claimed = db.prepare('INSERT OR IGNORE INTO push_sent (task_id, due, sent_at) VALUES (?, ?, ?)').run(`work:${p.id}`, `${day}T${p.at}`, new Date().toISOString());
     if (claimed.changes) await pushAll({ tag: `work-${p.id}`, title: p.title, body: p.body, url: '/' });
   }
+}
+
+/** Push the cook brief (tonight's dinner + tomorrow's make-ahead breakfast) 15 min before the cook comes. */
+export async function cookTick() {
+  const s = settings() as ReturnType<typeof settings> & { cook?: Parameters<typeof cookConfig>[0]; cookPicks?: Record<string, { breakfast?: string; dinner?: string }> };
+  const cfg = cookConfig(s.cook);
+  if (!cfg.remind) return;
+  const now = new Date();
+  const [day, hm] = localStamp(now).split('T');
+  const [h, m] = cfg.at.split(':').map(Number);
+  const late = Number(hm.slice(0, 2)) * 60 + Number(hm.slice(3)) - (h * 60 + m - 15);
+  if (late < 0 || late > 30) return;
+  const tomorrow = localStamp(new Date(now.getTime() + 86_400_000)).slice(0, 10);
+  const wc = workConfig(s.work);
+  const target = targets(s.fuel ?? DEFAULT_PROFILE);
+  const plan = (d: string) => planCookDay(d, { target, office: workDay(d, wc, s.workOverrides).mode === 'office', cfg, diet: s.diet ?? 'veg', picks: s.cookPicks?.[d] });
+  const claimed = db.prepare('INSERT OR IGNORE INTO push_sent (task_id, due, sent_at) VALUES (?, ?, ?)').run('cook', day, now.toISOString());
+  if (!claimed.changes) return;
+  const tonight = plan(day);
+  const tm = plan(tomorrow);
+  await pushAll({ tag: 'cook', title: `🍳 Cook at ${cfg.at} — dinner ${tonight?.dinner.name ?? ''}`, body: `Breakfast for tomorrow: ${tm?.breakfast.name ?? '—'}. Tap to send the brief.`, url: '/fuel', brief: cookBrief(tonight, tm) });
 }

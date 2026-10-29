@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
-import { Briefcase, Home, Plus, Settings2, Trash2 } from 'lucide-react';
+import { Briefcase, Home, LogIn, LogOut, Plus, Settings2, Trash2 } from 'lucide-react';
 import { useSettings } from '../lib/api';
-import { addDays, today } from '../lib/format';
-import { addMin, isConnectWeek, weekLabel, workConfig, workDay, workWeek, nextSwitch, type WorkConfig, type WorkMode } from '../core/work';
+import { addDays, haptic, today } from '../lib/format';
+import { addMin, isConnectWeek, weekLabel, workConfig, workDay, workWeek, nextSwitch, type WorkConfig, type WorkMode, type WorkOverride } from '../core/work';
 import { Button, Input, Sheet, cx } from './ui';
 
 const MODES: { id: WorkMode; label: string; color: string }[] = [
@@ -53,12 +53,12 @@ export function WorkCard() {
   const span = stops.length ? [mins(stops[0].at), mins(stops.at(-1)!.at)] : [0, 1];
   const progress = isToday && stops.length ? Math.max(0, Math.min(1, (nowMin - span[0]) / (span[1] - span[0] || 1))) : 0;
 
-  const override = (patch: { mode?: WorkMode; shift?: string } | null) => {
+  const override = (patch: WorkOverride | null) => {
     const { [sel]: _, ...rest } = overrides;
     // Setting a day back to what the schedule says anyway clears the override.
     const base = workDay(sel, cfg, {});
     const merged = patch && { ...overrides[sel], ...patch };
-    const same = merged && (merged.mode ?? base.mode) === base.mode && (merged.shift ?? cfg.defaultShift) === cfg.defaultShift;
+    const same = merged && !merged.in && !merged.out && (merged.mode ?? base.mode) === base.mode && (merged.shift ?? cfg.defaultShift) === cfg.defaultShift;
     save({ workOverrides: !merged || same ? rest : { ...rest, [sel]: merged } });
   };
 
@@ -73,7 +73,7 @@ export function WorkCard() {
           </p>
           <p className="mt-1 flex items-center gap-2 text-2xl font-black uppercase italic leading-tight">
             {day.mode === 'office' ? <Briefcase className="size-5 text-accent" /> : day.mode === 'wfh' ? <Home className="size-5 text-sky" /> : null}
-            {day.mode === 'office' ? 'Office' : day.mode === 'wfh' ? 'Work from home' : day.mode === 'leave' ? 'On leave 🌴' : 'Day off'}
+            {day.mode === 'office' ? 'Office' : day.mode === 'wfh' ? 'WFH' : day.mode === 'leave' ? 'On leave 🌴' : 'Day off'}
             {day.shift && <span className="text-sm font-bold normal-case not-italic text-ink-3">{day.shift.label} shift</span>}
           </p>
           <p className="text-xs text-ink-3">
@@ -116,6 +116,8 @@ export function WorkCard() {
           </div>
         </div>
       )}
+
+      {isToday && day.shift && <Clock day={day} onSet={(p) => override(p)} />}
 
       {/* Week strip: tap a day to view or change it */}
       <div className="mt-4 grid grid-cols-7 gap-1">
@@ -259,5 +261,39 @@ function WorkSettings({ open, onClose, cfg, onSave }: { open: boolean; onClose: 
         </Button>
       </div>
     </Sheet>
+  );
+}
+
+const hmNow = () => {
+  const d = new Date();
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+};
+
+/** Clock in/out for today: the real login time re-times the logout, home ETA and the day's reminders. */
+function Clock({ day, onSet }: { day: ReturnType<typeof workDay>; onSet: (p: WorkOverride) => void }) {
+  const { in: tin, out } = day.actual;
+  const field = (v: string | undefined, k: 'in' | 'out', label: string) => (
+    <label className="flex items-center gap-1.5 text-micro font-bold uppercase text-ink-3">
+      {label}
+      <input type="time" value={v ?? ''} onChange={(e) => onSet({ [k]: e.target.value || undefined })} className="field h-9 w-[6.5rem] !py-0 text-sm" />
+    </label>
+  );
+  return (
+    <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg bg-bg p-2">
+      {!tin ? (
+        <Button size="sm" onClick={() => (haptic(12), onSet({ in: hmNow() }))}>
+          <LogIn className="size-4" /> Logged in now
+        </Button>
+      ) : (
+        field(tin, 'in', 'In')
+      )}
+      {tin && !out && (
+        <Button size="sm" variant="soft" onClick={() => (haptic(12), onSet({ out: hmNow() }))}>
+          <LogOut className="size-4" /> Log out now
+        </Button>
+      )}
+      {out && field(out, 'out', 'Out')}
+      <span className="ml-auto text-tiny text-ink-3">{tin ? (out ? 'Day clocked' : `Logout ~${day.shift!.logout}`) : 'Plans shift to your real login'}</span>
+    </div>
   );
 }

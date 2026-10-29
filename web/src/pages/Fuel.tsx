@@ -10,6 +10,7 @@ import { parseFoodText, proteinFixes } from '../core/foodParse';
 import { planDay, planHeadline, type MealId, type MealPlan } from '../core/mealPlan';
 import { streamCoach } from '../lib/coach';
 import { MICRO_META, microReport, microTargets, sumMicros } from '../core/micros';
+import { CookCard } from '../components/CookCard';
 import { AiSnap } from '../components/AiSnap';
 import { md } from '../lib/dsa';
 import type { Activity, CustomFood, FoodLog, Health, SavedMeal } from '../lib/types';
@@ -754,6 +755,7 @@ export function FuelPage() {
         )}
       </Card>
 
+      {date === today() && <CookCard target={t} logs={logs} />}
       {date === today() && <DayPlan day={day} remaining={{ kcal: left, protein: t.protein - total.protein }} usualIds={recentIds} diet={diet} />}
       <Rise className="-mt-1 mb-4 flex flex-wrap justify-end gap-2">
         {date === today() && left > 150 && (
@@ -793,13 +795,13 @@ export function FuelPage() {
           const mt = sumMacros(items);
           return (
             <Card key={m.id}>
-              <div className="mb-3 flex items-center justify-between">
-                <div>
+              <div className="mb-3 flex items-center justify-between gap-2">
+                <div className="min-w-0">
                   <p className="text-micro font-black uppercase tracking-[0.2em] text-ink-3">{m.hint}</p>
-                  <p className="text-xl font-black italic uppercase">{m.label}</p>
+                  <p className="text-xl font-black italic uppercase leading-tight">{m.label}</p>
+                  <p className="font-mono text-mini font-bold text-ink-2">{Math.round(mt.kcal)} kcal</p>
                 </div>
-                <div className="flex items-center gap-1">
-                  <span className="mr-2 font-mono text-sm font-bold">{Math.round(mt.kcal)} kcal</span>
+                <div className="flex shrink-0 items-center gap-1">
                   <IconButton label={`Save ${m.label} as a meal`} onClick={() => void saveMeal(m.id, m.label)}>
                     <Bookmark className="size-4" />
                   </IconButton>

@@ -19,7 +19,7 @@ import * as google from './google.ts';
 import { briefsTick, eveningRecap, morningBrief } from './briefs.ts';
 import { syncLeetCode } from './lcsync.ts';
 import { DSA_SYSTEM, FUEL_SYSTEM, ask, dsaPrompt, type DsaAsk, type Prompt } from './coach.ts';
-import { CAPTURE_SYSTEM, CHAT_SYSTEM, chatPrompt, lifeContext, workRemindersTick, type ChatTurn } from './assistant.ts';
+import { CAPTURE_SYSTEM, CHAT_SYSTEM, chatPrompt, lifeContext, workRemindersTick, cookTick, type ChatTurn } from './assistant.ts';
 import { normaliseActions, splitActions } from '../web/src/core/aiActions.ts';
 import { AI_FOOD_SYSTEM, aiUserText, extractJson, normaliseAi } from '../web/src/core/aiFood.ts';
 
@@ -467,6 +467,7 @@ schedule({ name: 'routine-reminders', every: 20_000, run: routineReminders });
 schedule({ name: 'briefs', every: 20_000, run: briefsTick });
 schedule({ name: 'water-nudges', every: 20_000, run: waterNudge });
 schedule({ name: 'work-reminders', every: 20_000, run: workRemindersTick });
+schedule({ name: 'cook-brief', every: 20_000, run: cookTick });
 schedule({ name: 'leetcode-sync', every: 30 * 60_000, run: async () => (await syncLeetCode())?.marked.length && emit('dsa') });
 // If the laptop was off at 03:00, back up on the first start of the day instead.
 schedule({ name: 'backup-catchup', at: '00:00', run: async () => (await listBackups())[0] !== new Date().toISOString().slice(0, 10) && runBackup() });

@@ -7,37 +7,49 @@ import { normaliseActions, splitActions } from '../web/src/core/aiActions.ts';
 
 const cfg = workConfig({});
 
-test('connect weeks: this week and next in the office, then two at home, repeating', () => {
-  assert.equal(isConnectWeek('2026-10-29', cfg), true); // Thu, week of 26 Oct
-  assert.equal(isConnectWeek('2026-11-06', cfg), true); // next week
-  assert.equal(isConnectWeek('2026-11-09', cfg), false);
-  assert.equal(isConnectWeek('2026-11-22', cfg), false); // Sunday of the 2nd home week
-  assert.equal(isConnectWeek('2026-11-23', cfg), true);
-  assert.equal(isConnectWeek('2026-10-19', cfg), false); // before the anchor too
-  assert.equal(weekLabel('2026-11-03', cfg), 'Connect week 2 of 2');
-  assert.equal(weekLabel('2026-11-10', cfg), 'Home week 1 of 2');
-  assert.deepEqual(nextSwitch('2026-10-29', cfg), { date: '2026-11-09', connect: false });
+// The default matches the user's real rota: home until Fri 6 Nov 2026, then two connect weeks.
+const officeCfg = workConfig({ anchor: '2026-10-26' });
+
+test('connect weeks: home this week and next, then two in the office, repeating', () => {
+  assert.equal(isConnectWeek('2026-10-29', cfg), false);
+  assert.equal(isConnectWeek('2026-11-06', cfg), false);
+  assert.equal(isConnectWeek('2026-11-09', cfg), true);
+  assert.equal(isConnectWeek('2026-11-22', cfg), true); // Sunday of the 2nd connect week
+  assert.equal(isConnectWeek('2026-11-23', cfg), false);
+  assert.equal(isConnectWeek('2026-10-12', cfg), true); // before the anchor too
+  assert.equal(weekLabel('2026-11-03', cfg), 'Home week 2 of 2');
+  assert.equal(weekLabel('2026-11-10', cfg), 'Connect week 1 of 2');
+  assert.deepEqual(nextSwitch('2026-10-29', cfg), { date: '2026-11-09', connect: true });
+});
+
+test('a logged login moves the logout by the shift length', () => {
+  const d = workDay('2026-10-29', cfg, { '2026-10-29': { in: '10:10' } });
+  assert.equal(d.mode, 'wfh');
+  assert.deepEqual([d.shift?.login, d.shift?.logout], ['10:10', '18:40']);
+  const o = workDay('2026-11-10', cfg, { '2026-11-10': { in: '09:50' } });
+  assert.deepEqual([o.leaveBy, o.shift?.logout, o.homeBy], ['08:50', '18:20', '19:00']);
+  assert.equal(workDay('2026-11-10', cfg, { '2026-11-10': { in: '09:50', out: '19:30' } }).homeBy, '20:10');
 });
 
 test('office day: leave = login − commute, home = logout + commute; overrides win', () => {
-  const d = workDay('2026-10-29', cfg);
+  const d = workDay('2026-10-29', officeCfg);
   assert.equal(d.mode, 'office');
   assert.equal(d.leaveBy, '08:50');
   assert.equal(d.homeBy, '18:40');
-  const late = workDay('2026-10-29', cfg, { '2026-10-29': { shift: 'late' } });
+  const late = workDay('2026-10-29', officeCfg, { '2026-10-29': { shift: 'late' } });
   assert.equal(late.leaveBy, '10:20');
   assert.equal(late.homeBy, '20:40');
-  assert.equal(workDay('2026-10-31', cfg).mode, 'off'); // Saturday
-  assert.equal(workDay('2026-11-10', cfg).mode, 'wfh');
-  assert.equal(workDay('2026-11-10', cfg).leaveBy, null);
-  assert.equal(workDay('2026-10-30', cfg, { '2026-10-30': { mode: 'leave' } }).shift, null);
+  assert.equal(workDay('2026-10-31', officeCfg).mode, 'off'); // Saturday
+  assert.equal(workDay('2026-11-10', officeCfg).mode, 'wfh');
+  assert.equal(workDay('2026-11-10', officeCfg).leaveBy, null);
+  assert.equal(workDay('2026-10-30', officeCfg, { '2026-10-30': { mode: 'leave' } }).shift, null);
 });
 
 test('pings: pack, leave and logout on office days; heads-up the evening before a connect block', () => {
-  const office = workPings('2026-10-29', cfg, {}, 'Push');
+  const office = workPings('2026-10-29', officeCfg, {}, 'Push');
   assert.deepEqual(office.map((p) => [p.id, p.at]), [['pack', '08:30'], ['leave', '08:50'], ['logout', '18:00']]);
   assert.match(office[0].body, /Gym bag/);
-  const sunday = workPings('2026-11-22', cfg);
+  const sunday = workPings('2026-11-22', officeCfg);
   assert.deepEqual(sunday.map((p) => p.id), ['eve']);
   assert.match(sunday[0].title, /Connect week starts tomorrow/);
   assert.equal(workPings('2026-10-29', { ...DEFAULT_WORK, remind: false }).length, 0);

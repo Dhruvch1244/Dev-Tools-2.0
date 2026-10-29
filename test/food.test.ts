@@ -55,3 +55,22 @@ test('rescaling an AI item keeps everything proportional', () => {
   assert.equal(four.kcal, 416);
   assert.equal(four.micros.iron, 5.6);
 });
+
+import { DEFAULT_COOK, MAKE_AHEAD, cookBrief, planCookDay, shoppingList } from '../web/src/core/cook.ts';
+
+test('cook plan: make-ahead breakfast + dinner around the rice bowl, near target, stable per date', () => {
+  const target = { kcal: 2200, protein: 144 };
+  const d = planCookDay('2026-11-10', { target, office: true, cfg: DEFAULT_COOK, diet: 'veg' })!;
+  assert.ok(MAKE_AHEAD.some((m) => m.name === d.breakfast.name));
+  assert.equal(d.lunch?.kcal, 550);
+  assert.ok(Math.abs(d.total.kcal - target.kcal) < 450, `total ${d.total.kcal}`);
+  assert.deepEqual(planCookDay('2026-11-10', { target, office: true, cfg: DEFAULT_COOK, diet: 'veg' })!.breakfast.name, d.breakfast.name);
+  const swapped = planCookDay('2026-11-10', { target, office: true, cfg: DEFAULT_COOK, diet: 'veg', picks: { breakfast: d.breakfastOptions.find((n) => n !== d.breakfast.name) } })!;
+  assert.notEqual(swapped.breakfast.name, d.breakfast.name);
+  const brief = cookBrief(d, d);
+  assert.match(brief, /Breakfast for tomorrow/);
+  assert.doesNotMatch(brief.split('\n').slice(0, -1).join('\n'), /\b(egg|chicken|fish)\b/i);
+  const list = shoppingList([d, d], DEFAULT_COOK);
+  assert.ok(list.some((i) => i.name === 'Rice'));
+  assert.ok(list.every((i) => i.qty));
+});

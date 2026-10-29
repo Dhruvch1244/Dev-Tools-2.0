@@ -102,6 +102,10 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS saved_meals (
     id TEXT PRIMARY KEY, name TEXT NOT NULL, meal TEXT, items TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
   );
+  -- Shopping list: built from the cook plan (source 'plan') or added by hand.
+  CREATE TABLE IF NOT EXISTS shopping (
+    id TEXT PRIMARY KEY, name TEXT NOT NULL, qty TEXT, done INTEGER NOT NULL DEFAULT 0, source TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+  );
   CREATE TABLE IF NOT EXISTS dsa_tests (
     id TEXT PRIMARY KEY, kind TEXT NOT NULL, ref TEXT NOT NULL, started_at TEXT NOT NULL, finished_at TEXT,
     duration_min INTEGER NOT NULL, results TEXT, score REAL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
@@ -138,6 +142,7 @@ export const RESOURCES: Record<string, Resource> = {
   activities: { cols: ['date', 'type', 'started_at', 'duration_min', 'distance_km', 'kcal', 'rpe', 'notes', 'details', 'route'], order: 'date DESC, started_at DESC', dateCol: 'date' },
   routines: { cols: ['name', 'emoji', 'days', 'time', 'duration_min', 'steps', 'habit_id', 'remind', 'gcal_event_id', 'active'], order: 'time ASC' },
   saved_meals: { cols: ['name', 'meal', 'items'], order: 'name ASC' },
+  shopping: { cols: ['name', 'qty', 'done', 'source'], order: 'done ASC, name ASC' },
   dsa_tests: { cols: ['kind', 'ref', 'started_at', 'finished_at', 'duration_min', 'results', 'score'], order: 'started_at DESC' },
 };
 
