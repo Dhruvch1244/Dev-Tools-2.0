@@ -22,7 +22,7 @@ Write Markdown, max ~280 words, exactly these sections:
 ## 🏆 Podium
 Three concrete wins from the data (numbers!).
 ## 📻 Box box
-Two or three things that slipped, each with ONE specific fix for next week that fits their schedule (office vs home week, cook makes dinner + next-day breakfast, rice-bowl lunch).
+Two or three things that slipped, each with ONE specific fix for next week that fits their schedule (office vs home week, cook makes dinner + next-day breakfast, lunch varies and is logged, 2.5 scoops whey daily from Nov).
 ## 📊 Telemetry
 A small table: metric | this week | target/last week.
 ## 🏁 Next race

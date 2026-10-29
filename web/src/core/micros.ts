@@ -547,3 +547,33 @@ export function microReport(total: Record<MicroKey, number>, targets: Record<Mic
     return { key, value, target, pct, status, tip: status === 'ok' ? undefined : VEG_TIPS[key] };
   });
 }
+
+/**
+ * Nutrients you've been short on: the 7-day average (days with food logged, ending `date`) under
+ * 70 % of target. Needs 2+ logged days so one odd day doesn't steer the plan.
+ */
+export function weekGaps(logs: (Loggable & { kcal: number; date: string })[], date: string, sex: 'male' | 'female', kcal: number) {
+  const from = new Date(`${date}T12:00:00Z`);
+  from.setUTCDate(from.getUTCDate() - 6);
+  const f = from.toISOString().slice(0, 10);
+  const window = logs.filter((l) => l.date >= f && l.date <= date);
+  const days = new Set(window.map((l) => l.date)).size;
+  if (days < 2) return [];
+  const targets = microTargets(sex, kcal);
+  return microReport(sumMicros(window).total, targets, days)
+    .filter((r) => r.status === 'low' && MICRO_META[r.key].kind === 'goal')
+    .sort((a, b) => a.pct - b.pct)
+    .map((r) => ({ key: r.key, target: r.target, pct: r.pct }));
+}
+
+/** Everyday veg dishes richest in one nutrient per serving (share of the daily target). */
+export function richIn(key: MicroKey, foods: { id: string; name: string; serving: string; kcal: number; cat: string }[], target: number, n = 4) {
+  const skip = /Raw|Non-veg|Sweets|Restaurant|Packaged|Drinks$/;
+  return foods
+    .filter((f) => !skip.test(f.cat) && T[f.id] && !/egg|chicken|mutton|fish|prawn|pork|keema/.test(f.id))
+    .map((f) => ({ food: f, share: (microsOf(f.id)![key] ?? 0) / target }))
+    .filter((x) => x.share >= 0.1)
+    .sort((a, b) => b.share - a.share)
+    .slice(0, n);
+}
+

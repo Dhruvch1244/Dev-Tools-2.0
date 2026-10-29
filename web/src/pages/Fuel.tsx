@@ -9,7 +9,7 @@ import { ACTIVITY, DEFAULT_PROFILE, MEALS, mealForNow, sumMacros, targets, type 
 import { parseFoodText, proteinFixes } from '../core/foodParse';
 import { planDay, planHeadline, type MealId, type MealPlan } from '../core/mealPlan';
 import { streamCoach } from '../lib/coach';
-import { MICRO_META, microReport, microTargets, sumMicros } from '../core/micros';
+import { MICRO_META, microReport, microTargets, richIn, sumMicros } from '../core/micros';
 import { CookCard } from '../components/CookCard';
 import { portionText } from '../core/portion';
 import { AiSnap } from '../components/AiSnap';
@@ -625,12 +625,23 @@ function MicrosCard({ logs, date, profile, kcalTarget }: { logs: FoodLog[]; date
           {gaps.length > 0 && (
             <div className="mt-3 space-y-2 border-t border-line pt-3">
               {gaps.slice(0, 3).map((g) => (
-                <p key={g.key} className="text-sm">
-                  <span className={cx('slant mr-2 inline-block px-2 text-micro font-black uppercase', g.status === 'over' ? 'bg-accent text-white' : 'bg-yellow text-black')}>
-                    {MICRO_META[g.key].label} {g.status === 'over' ? 'high' : `${Math.round(g.pct * 100)}%`}
-                  </span>
-                  <span className="text-ink-2">{g.tip}</span>
-                </p>
+                <div key={g.key} className="text-sm">
+                  <p>
+                    <span className={cx('slant mr-2 inline-block px-2 text-micro font-black uppercase', g.status === 'over' ? 'bg-accent text-white' : 'bg-yellow text-black')}>
+                      {MICRO_META[g.key].label} {g.status === 'over' ? 'high' : `${Math.round(g.pct * 100)}%`}
+                    </span>
+                    <span className="text-ink-2">{g.tip}</span>
+                  </p>
+                  {g.status === 'low' && (
+                    <div className="mt-1.5 flex flex-wrap gap-1.5">
+                      {richIn(g.key, FOODS, g.target).map(({ food, share }) => (
+                        <span key={food.id} className="rounded-md bg-bg px-2 py-1 text-tiny text-ink-2">
+                          {food.name} <b className="font-mono text-green">{Math.round(share * 100)}%</b>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
               ))}
             </div>
           )}
@@ -755,7 +766,7 @@ export function FuelPage() {
         )}
       </Card>
 
-      {date === today() && <CookCard target={t} logs={logs} />}
+      {date === today() && <CookCard target={t} logs={logs} profile={profile} />}
       {date === today() && <DayPlan day={day} remaining={{ kcal: left, protein: t.protein - total.protein }} usualIds={recentIds} diet={diet} />}
       <Rise className="-mt-1 mb-4 flex flex-wrap justify-end gap-2">
         {date === today() && left > 150 && (

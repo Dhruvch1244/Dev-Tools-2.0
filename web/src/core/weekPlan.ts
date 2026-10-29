@@ -83,9 +83,9 @@ export function planWeek(input: PlanInput): DayPlan[] {
     // Fixed: work (and the commute either side), routines, calendar events.
     if (w.shift && w.mode === 'office') {
       put({ kind: 'commute', title: 'Commute', start: w.leaveBy!, end: w.shift.login, fixed: true });
-      put({ kind: 'work', title: `Office · ${w.shift.label}`, start: w.shift.login, end: w.shift.logout, fixed: true, note: 'Rice bowl lunch at desk' });
+      put({ kind: 'work', title: `Office · ${w.shift.label}`, start: w.shift.login, end: w.shift.logout, fixed: true, note: 'Lunch at the desk — log what you eat' });
       put({ kind: 'commute', title: 'Commute home', start: w.shift.logout, end: w.homeBy!, fixed: true });
-    } else if (w.shift && w.mode === 'wfh') put({ kind: 'work', title: `WFH · ${w.shift.label}`, start: w.shift.login, end: w.shift.logout, fixed: true, note: `Rice bowl lunch ~13:30${input.cookAt ? ` · brief the cook at ${input.cookAt}` : ''}` });
+    } else if (w.shift && w.mode === 'wfh') put({ kind: 'work', title: `WFH · ${w.shift.label}`, start: w.shift.login, end: w.shift.logout, fixed: true, note: `Lunch ~13:30, log it${input.cookAt ? ` · brief the cook at ${input.cookAt}` : ''}` });
     // Your own gym / wind-down routines ARE those blocks: don't schedule a second one beside them.
     let gymRoutine: { time: string; duration_min: number } | null = null;
     let windRoutine = false;

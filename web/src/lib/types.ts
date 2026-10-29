@@ -37,6 +37,10 @@ export type Settings = {
   /** Per-day office overrides (leave, WFH swap, other shift), keyed by date. */
   workOverrides?: Record<string, WorkOverride>;
   cook?: Partial<CookConfig>;
+  /** Daily whey goal (core/cook WheyPlan). */
+  whey?: { scoops: number; from: string };
+  /** Shopping days: big weekly shop and the mid-week top-up (0 = Sunday). */
+  shops?: { major: number; minor: number };
   /** Daily supplements/medicines with a reminder time. */
   /** UPI id shown in 'please pay' messages. */
   upi?: string;
@@ -60,6 +64,6 @@ export type RoutineLog = { routine_id: string; date: string; steps: string | nul
 export type PersonRow = Stamped & Person;
 export type SplitRow = Stamped & { expense_id: string | null; person_id: string; amount: number; note: string | null; date: string; settled_at: string | null; items?: string | null };
 export type ContactRow = Stamped & { name: string; phone: string | null; birthday: string | null };
-export type ShopRow = Stamped & { name: string; qty: string | null; done: number; source: string | null };
+export type ShopRow = Stamped & { name: string; qty: string | null; done: number; source: string | null; trip?: 'major' | 'minor' | null };
 export type SavedMeal = Stamped & { name: string; meal: string | null; items: string };
 export type Briefs = { morning?: boolean; evening?: boolean; morningAt?: string; eveningAt?: string; water?: boolean };

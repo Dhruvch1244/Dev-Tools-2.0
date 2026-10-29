@@ -148,6 +148,8 @@ addColumn('drops', 'pinned', 'INTEGER NOT NULL DEFAULT 0');
 // Plans (going out: place, length, a Google Calendar event) and bills (an amount that lands in
 // Money when ticked) are tasks with a kind, so they share reminders, repeats and push actions.
 addColumn('tasks', 'kind', 'TEXT');
+// Which shopping trip an item belongs to: the big weekly shop or the mid-week top-up.
+addColumn('shopping', 'trip', 'TEXT');
 addColumn('tasks', 'place', 'TEXT');
 addColumn('tasks', 'amount', 'REAL');
 addColumn('tasks', 'duration_min', 'INTEGER');
@@ -181,7 +183,7 @@ export const RESOURCES: Record<string, Resource> = {
   people: { cols: ['name', 'emoji', 'phone', 'birthday', 'every_days', 'weekday', 'call_at', 'last_contact', 'notes'], order: 'name ASC' },
   splits: { cols: ['expense_id', 'person_id', 'amount', 'note', 'date', 'settled_at', 'items'], order: 'date DESC, created_at DESC', dateCol: 'date' },
   contacts: { cols: ['name', 'phone', 'birthday'], order: 'name COLLATE NOCASE ASC' },
-  shopping: { cols: ['name', 'qty', 'done', 'source'], order: 'done ASC, name ASC' },
+  shopping: { cols: ['name', 'qty', 'done', 'source', 'trip'], order: 'done ASC, name ASC' },
   learn: { cols: ['module', 'stars', 'xp', 'attempts', 'done_at'], order: 'updated_at DESC' },
   dsa_tests: { cols: ['kind', 'ref', 'started_at', 'finished_at', 'duration_min', 'results', 'score'], order: 'started_at DESC' },
 };

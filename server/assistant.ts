@@ -16,7 +16,7 @@ import { nextBirthday, nextContact, peoplePings, type Person } from '../web/src/
 import { REMIND_KINDS, type DayPlan } from '../web/src/core/weekPlan.ts';
 import { questionsFor, type Answer, type DayFacts } from '../web/src/core/journal.ts';
 import { claimToday } from './scheduler.ts';
-import { cookBrief, cookConfig, planCookDay } from '../web/src/core/cook.ts';
+import { cookBrief, cookConfig, cookContext, planCookDay, wheyPlan } from '../web/src/core/cook.ts';
 
 const q = <T>(sql: string, ...a: (string | number)[]) => db.prepare(sql).all(...a) as T[];
 const one = <T>(sql: string, ...a: (string | number)[]) => db.prepare(sql).get(...a) as T | undefined;
@@ -69,7 +69,7 @@ export async function lifeContext() {
     `WORK today: ${w.mode}${w.shift ? ` · shift ${w.shift.id} login ${w.shift.login} logout ${w.shift.logout}${w.actual.in ? ` (actually logged in ${w.actual.in}${w.actual.out ? `, out ${w.actual.out}` : ''})` : ''}` : ''}${w.leaveBy ? ` · leave home ${w.leaveBy}, home by ${w.homeBy} (commute ${wc.commute} min each way)` : ''} · ${weekLabel(day, wc)}${next ? ` · ${next.connect ? 'connect (office)' : 'home'} block starts ${next.date}` : ''}`,
     `Shifts: ${shifts}. Next 7 days: ${week.join('; ')}`,
     `GYM today: ${gym === 'rest' ? 'Rest' : `${DAY_META[gym].label} (${DAY_META[gym].focus})`}; tomorrow ${DAY_META[dayTypeOn(localStamp(new Date(now.getTime() + 86_400_000)).slice(0, 10), s.gymShift ?? 0)].label}. Finished sessions last 7 days: ${sessions}`,
-    `FUEL: target ${tg.kcal} kcal / ${tg.protein} g protein; eaten ${Math.round(food.k)} kcal / ${Math.round(food.p)} g. ${meals.map((m) => `${m.meal}: ${m.names}`).join(' | ') || 'Nothing logged yet.'} Water ${water}/${s.waterGoal ?? 8} glasses.`,
+    `FUEL: target ${tg.kcal} kcal / ${tg.protein} g protein; eaten ${Math.round(food.k)} kcal / ${Math.round(food.p)} g. ${meals.map((m) => `${m.meal}: ${m.names}`).join(' | ') || 'Nothing logged yet.'} Water ${water}/${s.waterGoal ?? 8} glasses. Whey goal ${wheyPlan((s as { whey?: Parameters<typeof wheyPlan>[0] }).whey).scoops} scoops/day from ${wheyPlan((s as { whey?: Parameters<typeof wheyPlan>[0] }).whey).from}. Lunch is not fixed — whatever they log.`,
     recent.length ? `HEALTH last 7 days: ${recent.map((r) => `${r.date.slice(5)} ${r.kind} ${r.value}`).join(', ')}` : null,
     `DSA today: ${laps.length ? `${solved}/${laps.length} solved — ${laps.map((p) => p.title).join(', ')}` : 'no problems scheduled'}`,
     `ROUTINES: ${routines.map((r) => `${r.time} ${r.name} (${(JSON.parse(r.days) as number[]).includes(dow) ? 'today' : (JSON.parse(r.days) as number[]).map((d) => DOW[d]).join('/')})`).join('; ') || 'none'}`,
@@ -155,14 +155,31 @@ export async function cookTick() {
   const late = Number(hm.slice(0, 2)) * 60 + Number(hm.slice(3)) - (h * 60 + m - 15);
   if (late < 0 || late > 30) return;
   const tomorrow = localStamp(new Date(now.getTime() + 86_400_000)).slice(0, 10);
-  const wc = workConfig(s.work);
-  const target = targets(s.fuel ?? DEFAULT_PROFILE);
-  const plan = (d: string) => planCookDay(d, { target, office: workDay(d, wc, s.workOverrides).mode === 'office', cfg, diet: s.diet ?? 'veg', picks: s.cookPicks?.[d] });
+  const profile = s.fuel ?? DEFAULT_PROFILE;
+  const target = targets(profile);
+  const logs = q<{ date: string; meal: string; kcal: number; protein: number; food_id: string | null; qty: number; micros: string | null }>("SELECT date, meal, kcal, protein, food_id, qty, micros FROM food_logs WHERE date >= date(?, '-15 days')", day);
+  const ctx = cookContext(logs, day, target, profile.sex);
+  const plan = (d: string) => planCookDay(d, { target, cfg, diet: s.diet ?? 'veg', picks: s.cookPicks?.[d], whey: wheyPlan((s as { whey?: Parameters<typeof wheyPlan>[0] }).whey), ...ctx });
   const claimed = db.prepare('INSERT OR IGNORE INTO push_sent (task_id, due, sent_at) VALUES (?, ?, ?)').run('cook', day, now.toISOString());
   if (!claimed.changes) return;
   const tonight = plan(day);
   const tm = plan(tomorrow);
   await pushAll({ tag: 'cook', title: `🍳 Cook at ${cfg.at} — dinner ${tonight?.dinner.name ?? ''}`, body: `Breakfast for tomorrow: ${tm?.breakfast.name ?? '—'}. Tap to send the brief.`, url: '/fuel', brief: cookBrief(tonight, tm) });
+}
+
+/** Shop days (big weekly shop / mid-week top-up): one push at 10:00 with what's on that trip. */
+export async function shopTick() {
+  const s = settings() as ReturnType<typeof settings> & { shops?: { major: number; minor: number } };
+  const shops = s.shops ?? { major: 0, minor: 3 };
+  const now = new Date();
+  const [day, hm] = localStamp(now).split('T');
+  if (hm < '10:00' || hm > '10:30') return;
+  const trip = now.getDay() === shops.major ? 'major' : now.getDay() === shops.minor ? 'minor' : null;
+  if (!trip) return;
+  const items = q<{ name: string }>("SELECT name FROM shopping WHERE done = 0 AND coalesce(trip, 'major') = ?", trip);
+  if (!items.length) return;
+  if (!db.prepare('INSERT OR IGNORE INTO push_sent (task_id, due, sent_at) VALUES (?, ?, ?)').run(`shop:${trip}`, day, now.toISOString()).changes) return;
+  await pushAll({ tag: 'shop', title: `🛒 ${trip === 'major' ? 'Big shop' : 'Top-up'} today — ${items.length} item${items.length > 1 ? 's' : ''}`, body: items.slice(0, 6).map((i) => i.name).join(', ') + (items.length > 6 ? '…' : ''), url: '/fuel' });
 }
 
 export type Supplement = { id: string; name: string; at: string; dose?: string };
