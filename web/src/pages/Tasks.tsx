@@ -1,11 +1,12 @@
 import { useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { CalendarClock, Flag, ListTodo, Trash2 } from 'lucide-react';
+import { Bell, CalendarClock, Flag, ListTodo, Repeat as RepeatIcon, Trash2 } from 'lucide-react';
 import { useList, useResource } from '../lib/api';
 import { listItem } from '../lib/motion';
 import { dueLabel, today } from '../lib/format';
 import type { Task } from '../lib/types';
-import { TaskForm, priorityColor } from '../components/forms';
+import { nextDue } from '../core/tasks';
+import { RepeatRemind, TaskForm, priorityColor } from '../components/forms';
 import { useToast } from '../components/toast';
 import { Button, Card, Check, Empty, IconButton, Input, Page, PageHeader, Rise, Segmented, Sheet, SwipeRow, Textarea, cx } from '../components/ui';
 
@@ -17,6 +18,7 @@ type Filter = 'today' | 'upcoming' | 'someday' | 'done';
  */
 export function useTaskToggle() {
   const { update } = useResource<Task>('tasks');
+  const toast = useToast();
   const [pending, setPending] = useState<Record<string, boolean>>({});
   const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const isDone = (t: Task) => pending[t.id] ?? !!t.done;
@@ -26,6 +28,8 @@ export function useTaskToggle() {
     clearTimeout(timers.current[t.id]);
     timers.current[t.id] = setTimeout(() => {
       update({ id: t.id, done: next ? 1 : 0, done_at: next ? new Date().toISOString() : null });
+      // The server rolls a repeating task forward instead of closing it.
+      if (next && t.repeat && t.due) toast({ message: `Done · next ${dueLabel(nextDue(t.due, t.repeat, today()))}` });
       setPending(({ [t.id]: _, ...rest }) => rest);
     }, 650);
   };
@@ -59,6 +63,8 @@ export function TaskRow({ task, done, onToggle, onOpen, onDelete }: { task: Task
                     <CalendarClock className="size-3" />
                     {overdue ? 'Overdue · ' : ''}
                     {dueLabel(task.due)}
+                    {task.repeat && <RepeatIcon className="size-3" aria-label={`Repeats ${task.repeat}`} />}
+                    {!!task.remind_before && <Bell className="size-3" aria-label="Early reminder" />}
                   </span>
                 )}
                 {task.notes && <span className="truncate">{task.notes}</span>}
@@ -90,7 +96,7 @@ function EditTask({ task, onClose }: { task: Task | null; onClose: () => void })
           className="space-y-3"
           onSubmit={(e) => {
             e.preventDefault();
-            update({ id: draft.id, title: draft.title, notes: draft.notes, due: draft.due, priority: draft.priority });
+            update({ id: draft.id, title: draft.title, notes: draft.notes, due: draft.due, priority: draft.priority, repeat: draft.due ? (draft.repeat ?? null) : null, remind_before: draft.due?.includes('T') ? draft.remind_before || null : null });
             onClose();
           }}
         >
@@ -100,6 +106,7 @@ function EditTask({ task, onClose }: { task: Task | null; onClose: () => void })
             <input type="date" aria-label="Due date" value={day} onChange={(e) => setDue(e.target.value, time)} className="field flex-1" />
             <input type="time" aria-label="Due time" value={time} disabled={!day} onChange={(e) => setDue(day, e.target.value)} className="field w-32" />
           </div>
+          {day && <RepeatRemind repeat={draft.repeat ?? null} lead={draft.remind_before ?? 0} timed={!!time} onRepeat={(repeat) => setDraft({ ...draft, repeat })} onLead={(remind_before) => setDraft({ ...draft, remind_before })} />}
           <Segmented
             className="w-full"
             value={String(draft.priority)}

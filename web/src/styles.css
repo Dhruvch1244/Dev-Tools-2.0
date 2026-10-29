@@ -542,3 +542,16 @@ input[type='time']::-webkit-date-and-time-value {
     animation: none;
   }
 }
+
+/* Pit Wall composer: sits above the floating tab bar, and on the keyboard while typing. */
+.chat-dock {
+  bottom: calc(env(safe-area-inset-bottom) + 84px);
+}
+html[data-kb] .chat-dock {
+  bottom: calc(var(--kb, 0px) + 8px);
+}
+@media (min-width: 1024px) {
+  .chat-dock {
+    bottom: 24px;
+  }
+}

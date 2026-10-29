@@ -12,13 +12,15 @@ import { profiles, upcomingContests } from './contests.ts';
 import { run, type Lang } from './runner.ts';
 import { getQuestion } from './leetcode.ts';
 import { judge, support } from './judge.ts';
-import { localStamp, publicKey, pushAll, remindersTick, subscribe, subscriptions, taskAction, unsubscribe } from './push.ts';
+import { completeTask, localStamp, publicKey, pushAll, remindersTick, subscribe, subscriptions, taskAction, unsubscribe } from './push.ts';
 import { claimToday, nowHM, schedule, startScheduler } from './scheduler.ts';
 import { listBackups, runBackup } from './backup.ts';
 import * as google from './google.ts';
 import { briefsTick, eveningRecap, morningBrief } from './briefs.ts';
 import { syncLeetCode } from './lcsync.ts';
 import { DSA_SYSTEM, FUEL_SYSTEM, ask, dsaPrompt, type DsaAsk, type Prompt } from './coach.ts';
+import { CAPTURE_SYSTEM, CHAT_SYSTEM, chatPrompt, lifeContext, workRemindersTick, type ChatTurn } from './assistant.ts';
+import { normaliseActions, splitActions } from '../web/src/core/aiActions.ts';
 import { AI_FOOD_SYSTEM, aiUserText, extractJson, normaliseAi } from '../web/src/core/aiFood.ts';
 
 const PORT = Number(process.env.PORT ?? 4300);
@@ -93,6 +95,8 @@ app.patch('/api/r/:res/:id', async (c) => {
   const patch = { ...pickColumns(res, await c.req.json()), updated_at: now() };
   const keys = Object.keys(patch);
   db.prepare(`UPDATE ${name} SET ${keys.map((k) => `${k} = ?`).join(', ')} WHERE id = ?`).run(...Object.values(patch), c.req.param('id'));
+  // Ticking off a repeating task rolls it to the next due date instead of closing it.
+  if (name === 'tasks' && (patch as Record<string, unknown>).done === 1) completeTask(c.req.param('id'));
   emit(name);
   if (name === 'routines' && !('gcal_event_id' in patch)) void google.syncRoutine(c.req.param('id')).then(() => emit('routines'));
   return c.json(db.prepare(`SELECT * FROM ${name} WHERE id = ?`).get(c.req.param('id')) ?? null);
@@ -355,6 +359,7 @@ app.get('/api/google/events', async (c) => {
 });
 
 app.get('/api/briefs/preview', (c) => c.json({ morning: morningBrief(), evening: eveningRecap() }));
+app.get('/api/ai/context', async (c) => c.text(await lifeContext()));
 app.post('/api/briefs/test', async (c) => {
   const which = c.req.query('which') === 'evening' ? eveningRecap() : morningBrief();
   return c.json(await pushAll({ tag: 'brief-test', ...which }));
@@ -391,6 +396,24 @@ app.post('/api/coach/fuel', async (c) => {
   const dietLine = { veg: 'I am strictly vegetarian: no meat, no fish, no eggs (dairy like paneer, curd, milk and whey is fine). Never suggest any of those.', egg: 'I am eggetarian: no meat or fish, eggs and dairy are fine.', nonveg: 'I eat everything.' }[diet];
   const prompt = `Plan my ${meal} so I finish the day on target.\nRemaining today: ${Math.round(remaining.kcal)} kcal, ${Math.round(remaining.protein)} g protein, ${Math.round(remaining.carbs)} g carbs, ${Math.round(remaining.fat)} g fat.\nFoods I eat often: ${usual.slice(0, 20).join(', ') || 'typical North Indian home food'}.\n${dietLine}`;
   return coachStream(c, FUEL_SYSTEM, prompt);
+});
+
+// ---- Pit Wall: general assistant that sees today's snapshot, and one-shot quick capture ----
+app.post('/api/coach/chat', async (c) => {
+  const { message, history = [] } = await c.req.json<{ message: string; history?: ChatTurn[] }>();
+  if (!message?.trim()) return c.json({ error: 'Say something' }, 400);
+  return coachStream(c, CHAT_SYSTEM, await chatPrompt(Array.isArray(history) ? history : [], message));
+});
+app.post('/api/ai/capture', async (c) => {
+  const { text } = await c.req.json<{ text: string }>();
+  if (!text?.trim()) return c.json({ error: 'Type something to capture' }, 400);
+  try {
+    const reply = await ask(CAPTURE_SYSTEM, `# Snapshot\n${await lifeContext()}\n\n# Note\n${text.slice(0, 1000)}`, { onDelta: () => {}, signal: c.req.raw.signal });
+    const raw = splitActions(reply).raw ?? reply.slice(reply.indexOf('['), reply.lastIndexOf(']') + 1);
+    return c.json({ actions: normaliseActions(raw) });
+  } catch (e) {
+    return c.json({ error: (e as Error).message }, 502);
+  }
 });
 
 // ---- AI meal logging: photo and/or description → items to review, then log ----
@@ -443,6 +466,7 @@ schedule({ name: 'backup', at: '03:00', run: runBackup });
 schedule({ name: 'routine-reminders', every: 20_000, run: routineReminders });
 schedule({ name: 'briefs', every: 20_000, run: briefsTick });
 schedule({ name: 'water-nudges', every: 20_000, run: waterNudge });
+schedule({ name: 'work-reminders', every: 20_000, run: workRemindersTick });
 schedule({ name: 'leetcode-sync', every: 30 * 60_000, run: async () => (await syncLeetCode())?.marked.length && emit('dsa') });
 // If the laptop was off at 03:00, back up on the first start of the day instead.
 schedule({ name: 'backup-catchup', at: '00:00', run: async () => (await listBackups())[0] !== new Date().toISOString().slice(0, 10) && runBackup() });

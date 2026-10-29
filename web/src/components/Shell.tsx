@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router';
 import { AnimatePresence, motion } from 'motion/react';
-import { Activity, Camera, Trophy, Binary, CalendarClock, ChevronLeft, Droplets, Dumbbell, HeartPulse, House, LayoutGrid, ListTodo, Plus, Send, Settings as SettingsIcon, StickyNote, Utensils, Wallet } from 'lucide-react';
+import { Activity, Camera, Radio, Trophy, Binary, CalendarClock, ChevronLeft, Droplets, Dumbbell, HeartPulse, House, LayoutGrid, ListTodo, Plus, Send, Settings as SettingsIcon, StickyNote, Utensils, Wallet } from 'lucide-react';
 import { mealForNow } from '../core/fuel';
 import { FoodSearch } from '../pages/Fuel';
 import { useHealthToday } from '../pages/Life';
@@ -24,6 +24,7 @@ export const NAV_GROUPS = [
     label: 'Paddock',
     items: [
       { to: '/', label: 'Today', icon: House },
+      { to: '/pitwall', label: 'Pit Wall', icon: Radio },
       { to: '/report', label: 'Race report', icon: Trophy },
       { to: '/routines', label: 'Routines', icon: CalendarClock },
       { to: '/tasks', label: 'Tasks', icon: ListTodo },
@@ -44,7 +45,7 @@ export const NAV_GROUPS = [
   { label: 'Mind', items: [{ to: '/dsa', label: 'DSA Season', icon: Binary }] },
 ];
 const NAV = NAV_GROUPS.flatMap((g) => g.items);
-const MOBILE_TABS = ['/', '/gym', '/fuel', '/dsa'];
+const MOBILE_TABS = ['/', '/pitwall', '/gym', '/fuel', '/dsa'];
 
 /** Writes made while the laptop was unreachable; they sync automatically — tap to retry now. */
 function Pending() {
@@ -356,7 +357,7 @@ export function Shell({ children }: { children: ReactNode }) {
         onClick={openQuick}
         whileTap={{ scale: 0.88, rotate: 90 }}
         transition={bouncy}
-        className="kb-hide fixed bottom-[calc(env(safe-area-inset-bottom)+84px)] right-4 z-40 grid size-14 place-items-center rounded-2xl bg-accent text-white shadow-[0_14px_34px_-8px_var(--accent)] lg:hidden"
+        className={cx('kb-hide fixed bottom-[calc(env(safe-area-inset-bottom)+84px)] right-4 z-40 grid size-14 place-items-center rounded-2xl bg-accent text-white shadow-[0_14px_34px_-8px_var(--accent)] lg:hidden', location.pathname === '/pitwall' && 'hidden')}
       >
         <Plus className="size-6" strokeWidth={2.5} />
       </motion.button>

@@ -115,12 +115,15 @@ function addColumn(table: string, col: string, type: string) {
 }
 // Micronutrient snapshot (JSON) for rows whose food isn't in the catalogue — AI photo estimates, custom foods.
 addColumn('food_logs', 'micros', 'TEXT');
+// Repeating tasks roll their due date forward when ticked; remind_before = minutes of early warning.
+addColumn('tasks', 'repeat', 'TEXT');
+addColumn('tasks', 'remind_before', 'INTEGER');
 
 type Resource = { cols: string[]; order: string; dateCol?: string };
 
 /** Tables exposed through the generic CRUD API, with the columns clients may write. */
 export const RESOURCES: Record<string, Resource> = {
-  tasks: { cols: ['title', 'notes', 'due', 'priority', 'done', 'done_at'], order: 'done ASC, due IS NULL, due ASC, created_at DESC' },
+  tasks: { cols: ['title', 'notes', 'due', 'priority', 'done', 'done_at', 'repeat', 'remind_before'], order: 'done ASC, due IS NULL, due ASC, created_at DESC' },
   notes: { cols: ['title', 'body', 'pinned', 'color'], order: 'pinned DESC, updated_at DESC' },
   expenses: { cols: ['amount', 'kind', 'category', 'note', 'date'], order: 'date DESC, created_at DESC', dateCol: 'date' },
   budgets: { cols: ['category', 'amount'], order: 'category ASC' },

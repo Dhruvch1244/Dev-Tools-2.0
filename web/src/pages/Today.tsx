@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import { AnimatePresence, motion } from 'motion/react';
-import { ArrowRight, CheckCircle2, Droplets, Flame, ListTodo, Repeat, Send, Wallet } from 'lucide-react';
+import { ArrowRight, CheckCircle2, Radio, Droplets, Flame, ListTodo, Repeat, Send, Wallet } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { api, useList, useResource, useSettings } from '../lib/api';
 import { bouncy, easeOut } from '../lib/motion';
@@ -17,6 +17,34 @@ import { useDsa, useSeason } from '../lib/dsa';
 import type { Activity, FoodLog } from '../lib/types';
 import { useHabits, useHealthToday } from './Life';
 import { TodaySchedule } from './Routines';
+import { WorkCard } from '../components/WorkCard';
+
+/** One-line entry to the AI assistant; the question opens Pit Wall and is asked straight away. */
+function AskPitWall() {
+  const nav = useNavigate();
+  const [q, setQ] = useState('');
+  const go = (text: string) => text.trim() && nav(`/pitwall?q=${encodeURIComponent(text.trim())}`);
+  return (
+    <div className="flex h-full flex-col rounded-xl border border-line bg-surface p-4">
+      <p className="flex items-center gap-2 text-micro font-black uppercase tracking-[0.25em] text-ink-3">
+        <Radio className="size-3.5 text-accent" /> Pit Wall · AI
+      </p>
+      <form onSubmit={(e) => (e.preventDefault(), go(q))} className="mt-2 flex gap-2">
+        <input value={q} onChange={(e) => setQ(e.target.value)} enterKeyHint="send" placeholder="Ask or “remind me…”" className="field min-w-0 flex-1 text-base" />
+        <button type="submit" aria-label="Ask" className="grid size-11 shrink-0 place-items-center rounded-md bg-accent text-white">
+          <ArrowRight className="size-5" />
+        </button>
+      </form>
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        {['Plan the rest of my day', 'What should I eat next?', 'How is my week going?'].map((x) => (
+          <button key={x} onClick={() => go(x)} className="rounded-md bg-surface-2 px-2.5 py-1.5 text-tiny text-ink-2">
+            {x}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 function Headline({ name }: { name?: string }) {
   const text = `${greeting()}${name ? `, ${name}` : ''}.`;
@@ -201,6 +229,15 @@ export function TodayPage() {
       </div>
 
       <RaceWeekend />
+
+      <div className="mt-3 grid gap-3 lg:grid-cols-5">
+        <div className="lg:col-span-3">
+          <WorkCard />
+        </div>
+        <div className="lg:col-span-2">
+          <AskPitWall />
+        </div>
+      </div>
 
       <div className="mt-4 grid gap-4 lg:grid-cols-5">
         <Card className="lg:col-span-3">

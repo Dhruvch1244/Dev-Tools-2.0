@@ -117,3 +117,24 @@ test('unknown resources are 404, not SQL errors', async () => {
   assert.equal((await call('/r/sqlite_master')).status, 404);
   assert.equal((await call('/r/nope', { method: 'POST', json: {} })).status, 404);
 });
+
+test('ticking a repeating task rolls it forward instead of closing it', async () => {
+  const id = randomUUID();
+  await call('/r/tasks', { method: 'POST', json: { id, title: 'Pay rent', due: '2020-01-05T10:00', repeat: 'monthly', remind_before: 1440, done: 0 } });
+  const r = await call(`/r/tasks/${id}`, { method: 'PATCH', json: { done: 1, done_at: new Date().toISOString() } });
+  assert.equal(r.body.done, 0);
+  assert.match(r.body.due, /^\d{4}-\d{2}-05T10:00$/);
+  assert.ok(r.body.due > new Date().toISOString().slice(0, 10), 'lands in the future');
+  assert.equal(r.body.remind_before, 1440);
+  const plain = randomUUID();
+  await call('/r/tasks', { method: 'POST', json: { id: plain, title: 'One-off', due: '2020-01-05', done: 0 } });
+  assert.equal((await call(`/r/tasks/${plain}`, { method: 'PATCH', json: { done: 1 } })).body.done, 1);
+});
+
+test('AI endpoints validate input before calling the model', async () => {
+  assert.equal((await call('/coach/chat', { method: 'POST', json: { message: ' ' } })).status, 400);
+  assert.equal((await call('/ai/capture', { method: 'POST', json: { text: '' } })).status, 400);
+  const ctx = await fetch(`${base}/ai/context`).then((r) => r.text());
+  assert.match(ctx, /WORK today:/);
+  assert.ok(!ctx.includes('TOP-SECRET'));
+});

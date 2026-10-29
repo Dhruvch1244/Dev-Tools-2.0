@@ -7,9 +7,10 @@ import { DAY_META, dayTypeOn } from '../web/src/core/gym.ts';
 import { DEFAULT_START, problemsForDay } from '../web/src/core/dsa/plan.ts';
 import { DEFAULT_PROFILE, targets } from '../web/src/core/fuel.ts';
 import { planDay } from '../web/src/core/mealPlan.ts';
+import { weekLabel, workConfig, workDay, type WorkConfig, type WorkOverride } from '../web/src/core/work.ts';
 
-type Settings = { diet?: 'veg' | 'egg' | 'nonveg'; gymShift?: number; dsaStart?: string; fuel?: typeof DEFAULT_PROFILE; waterGoal?: number; briefs?: { morning?: boolean; evening?: boolean; morningAt?: string; eveningAt?: string } };
-function settings(): Settings {
+export type Settings = { diet?: 'veg' | 'egg' | 'nonveg'; gymShift?: number; dsaStart?: string; fuel?: typeof DEFAULT_PROFILE; waterGoal?: number; briefs?: { morning?: boolean; evening?: boolean; morningAt?: string; eveningAt?: string }; name?: string; work?: Partial<WorkConfig>; workOverrides?: Record<string, WorkOverride> };
+export function settings(): Settings {
   const rows = db.prepare('SELECT key, value FROM settings WHERE key NOT LIKE ?').all('job:%') as { key: string; value: string }[];
   return Object.fromEntries(rows.map((r) => [r.key, JSON.parse(r.value)]));
 }
@@ -35,7 +36,11 @@ export function morningBrief(day = localStamp(new Date()).slice(0, 10)) {
   const due = one<{ n: number }>("SELECT count(*) n FROM tasks WHERE done = 0 AND substr(due, 1, 10) <= ?", day)?.n ?? 0;
   const dow = new Date(`${day}T12:00:00`).getDay();
   const routines = q<{ name: string; time: string; days: string; emoji: string | null }>('SELECT name, time, days, emoji FROM routines WHERE active = 1 ORDER BY time').filter((r) => JSON.parse(r.days).includes(dow));
+  const wc = workConfig(s.work);
+  const w = workDay(day, wc, s.workOverrides);
+  const work = w.mode === 'office' ? `🏢 Office (${weekLabel(day, wc)}) — leave ${w.leaveBy}, login ${w.shift!.login}, logout ${w.shift!.logout}, home ${w.homeBy}` : w.mode === 'wfh' ? `🏠 WFH — login ${w.shift!.login}, logout ${w.shift!.logout}` : w.mode === 'leave' ? '🌴 On leave today' : null;
   const lines = [
+    work,
     type === 'rest' ? '🛞 Rest day — walk, stretch, recover' : `🏋️ ${DAY_META[type].label} day — ${DAY_META[type].focus}`,
     laps.length ? `💻 DSA: ${laps.map((p) => p.title).join(' · ')}` : null,
     `🍽️ Target ${t.kcal} kcal · ${t.protein} g protein`,

@@ -10,6 +10,7 @@ import webpush, { WebPushError, type PushSubscription } from 'web-push';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { db, DATA_DIR } from './db.ts';
+import { isRepeat, nextDue, remindAt } from '../web/src/core/tasks.ts';
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS push_subs (
@@ -70,31 +71,44 @@ const STALE_MS = 6 * 3600_000;
 
 async function tick() {
   const now = Date.now();
-  const tasks = db.prepare("SELECT id, title, notes, due FROM tasks WHERE done = 0 AND due LIKE '%T%'").all() as { id: string; title: string; notes: string | null; due: string }[];
+  const tasks = db.prepare("SELECT id, title, notes, due, remind_before, updated_at FROM tasks WHERE done = 0 AND due LIKE '%T%'").all() as { id: string; title: string; notes: string | null; due: string; remind_before: number | null; updated_at: string }[];
   for (const t of tasks) {
-    const at = new Date(t.due).getTime(); // no offset ⇒ parsed as laptop-local time
-    if (Number.isNaN(at) || at > now || now - at > STALE_MS) continue;
-    const claimed = db.prepare('INSERT OR IGNORE INTO push_sent (task_id, due, sent_at) VALUES (?, ?, ?)').run(t.id, t.due, new Date().toISOString());
-    if (claimed.changes === 0) continue;
-    const r = await pushAll({
-      tag: t.id,
-      title: `⏰ ${t.title}`,
-      body: t.notes?.startsWith('http') ? 'Starting now — tap to open' : t.notes || 'Due now',
-      url: t.notes?.startsWith('http') ? t.notes : '/tasks',
-      taskId: t.id,
-    });
-    // Every device failed (laptop offline, push service hiccup): release the claim so the next
-    // tick retries, until the reminder goes stale.
-    if (r.devices > 0 && r.sent === 0) db.prepare('DELETE FROM push_sent WHERE task_id = ? AND due = ?').run(t.id, t.due);
+    // An early warning (remind_before) and the at-time ping are separate sends, keyed apart. The
+    // early one is skipped if the task was edited/snoozed after its time — you've just seen it.
+    const early = remindAt(t.due, t.remind_before);
+    const lead = early != null && early >= Date.parse(t.updated_at) ? (t.remind_before ?? 0) : 0;
+    for (const [at, key, body] of [
+      ...(lead > 0 ? [[remindAt(t.due, lead), `${t.due}@-${lead}`, `In ${lead >= 1440 ? `${lead / 1440} day` : lead >= 60 ? `${lead / 60} h` : `${lead} min`} · ${t.due.slice(11, 16)}`] as const] : []),
+      [remindAt(t.due, 0), t.due, t.notes?.startsWith('http') ? 'Starting now — tap to open' : t.notes || 'Due now'] as const,
+    ]) {
+      if (at == null || at > now || now - at > STALE_MS) continue;
+      const claimed = db.prepare('INSERT OR IGNORE INTO push_sent (task_id, due, sent_at) VALUES (?, ?, ?)').run(t.id, key, new Date().toISOString());
+      if (claimed.changes === 0) continue;
+      const r = await pushAll({ tag: t.id, title: `⏰ ${t.title}`, body, url: t.notes?.startsWith('http') ? t.notes : '/tasks', taskId: t.id });
+      // Every device failed (laptop offline, push service hiccup): release the claim so the next
+      // tick retries, until the reminder goes stale.
+      if (r.devices > 0 && r.sent === 0) db.prepare('DELETE FROM push_sent WHERE task_id = ? AND due = ?').run(t.id, key);
+    }
   }
 }
 
 /** Called by the app scheduler (scheduler.ts) every tick. */
 export const remindersTick = tick;
 
-/** Notification button actions, handled without opening the app. */
-export function taskAction(taskId: string, action: 'done' | 'snooze') {
-  if (action === 'done') db.prepare('UPDATE tasks SET done = 1, done_at = ?, updated_at = ? WHERE id = ?').run(new Date().toISOString(), new Date().toISOString(), taskId);
-  else db.prepare('UPDATE tasks SET due = ?, updated_at = ? WHERE id = ?').run(localStamp(new Date(Date.now() + 10 * 60_000)), new Date().toISOString(), taskId);
+/** Tick off a task; a repeating one rolls to its next due date instead of closing. True if it rolled. */
+export function completeTask(taskId: string) {
+  const t = db.prepare('SELECT due, repeat FROM tasks WHERE id = ?').get(taskId) as { due: string | null; repeat: string | null } | undefined;
+  const stamp = new Date().toISOString();
+  if (t?.due && isRepeat(t.repeat)) {
+    db.prepare('UPDATE tasks SET due = ?, done = 0, done_at = NULL, updated_at = ? WHERE id = ?').run(nextDue(t.due, t.repeat, localStamp(new Date()).slice(0, 10)), stamp, taskId);
+    return true;
+  }
+  db.prepare('UPDATE tasks SET done = 1, done_at = ?, updated_at = ? WHERE id = ?').run(stamp, stamp, taskId);
+  return false;
 }
 
+/** Notification button actions, handled without opening the app. */
+export function taskAction(taskId: string, action: 'done' | 'snooze') {
+  if (action === 'done') completeTask(taskId);
+  else db.prepare('UPDATE tasks SET due = ?, updated_at = ? WHERE id = ?').run(localStamp(new Date(Date.now() + 10 * 60_000)), new Date().toISOString(), taskId);
+}

@@ -1,6 +1,9 @@
+import type { Repeat } from '../core/tasks';
+import type { WorkConfig, WorkOverride } from '../core/work';
+
 type Stamped = { id: string; created_at: string; updated_at: string };
 
-export type Task = Stamped & { title: string; notes: string | null; due: string | null; priority: number; done: number; done_at: string | null };
+export type Task = Stamped & { title: string; notes: string | null; due: string | null; priority: number; done: number; done_at: string | null; repeat?: Repeat | null; remind_before?: number | null };
 export type Note = Stamped & { title: string | null; body: string | null; pinned: number; color: string | null };
 export type Expense = Stamped & { amount: number; kind: 'expense' | 'income'; category: string; note: string | null; date: string };
 export type Budget = Stamped & { category: string; amount: number };
@@ -24,6 +27,10 @@ export type Settings = {
   briefs?: Briefs;
   /** Default 'veg' (no meat, fish or eggs). */
   diet?: 'veg' | 'egg' | 'nonveg';
+  /** Office schedule: connect/home weeks, shifts, commute. */
+  work?: Partial<WorkConfig>;
+  /** Per-day office overrides (leave, WFH swap, other shift), keyed by date. */
+  workOverrides?: Record<string, WorkOverride>;
 };
 export type Workout = Stamped & { date: string; day_type: string; notes: string | null; started_at: string | null; finished_at: string | null };
 export type GymSet = Stamped & { workout_id: string; date: string; exercise: string; set_no: number; weight: number; reps: number };
