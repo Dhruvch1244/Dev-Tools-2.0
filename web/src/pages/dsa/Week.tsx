@@ -1,14 +1,25 @@
 import { Link, useParams } from 'react-router';
 import { motion } from 'motion/react';
-import { ArrowLeft, GraduationCap, ChevronLeft, ChevronRight, Play, Timer, Trophy } from 'lucide-react';
+import { ArrowLeft, BookOpen, GraduationCap, ChevronLeft, ChevronRight, Play, MonitorPlay, Star, Timer, Trophy } from 'lucide-react';
 import { useList } from '../../lib/api';
 import { md, useDsa, useSeason } from '../../lib/dsa';
 import { parseDate } from '../../lib/format';
 import { MEGAS, WEEKS, problemsForDay, weekDates } from '../../core/dsa/plan';
 import { algoById } from '../../core/dsa/viz';
-import type { DsaTest } from '../../lib/types';
+import { courseFor } from '../../core/dsa/course';
+import type { DsaTest, LearnRow } from '../../lib/types';
 import { Button, Card, Page, PageHeader, Rise, SectionTitle } from '../../components/ui';
 import { ProblemRow, STATUS } from './shared';
+
+/** Outside reading for a round's topic: video lectures, an article search, and the NeetCode roadmap. */
+const studyLinks = (topic: string) => {
+  const q = encodeURIComponent(topic);
+  return [
+    { emoji: '🎥', label: 'Video lectures', hint: 'Striver (takeUforward) and NeetCode on this pattern', url: `https://www.youtube.com/results?search_query=${q}+striver+neetcode` },
+    { emoji: '📘', label: 'Read it properly', hint: 'cp-algorithms / GeeksforGeeks articles', url: `https://www.google.com/search?q=${q}+site%3Acp-algorithms.com+OR+site%3Ageeksforgeeks.org` },
+    { emoji: '🗺️', label: 'NeetCode roadmap', hint: 'Where this pattern sits, with more problems to drill', url: 'https://neetcode.io/roadmap' },
+  ];
+};
 
 export function DsaWeek() {
   const n = Number(useParams().n) || 1;
@@ -16,6 +27,9 @@ export function DsaWeek() {
   const { start } = useSeason();
   const { get, save } = useDsa();
   const { data: tests = [] } = useList<DsaTest>('dsa_tests');
+  const { data: learn = [] } = useList<LearnRow>('learn');
+  const course = courseFor(w.n);
+  const stars = (id: string) => learn.find((l) => l.module === id)?.stars ?? 0;
   const dates = weekDates(start, w.n);
   const mega = MEGAS.find((m) => m.afterWeek === w.n);
   const weeklyDone = tests.filter((t) => t.kind === 'weekly' && t.ref === String(w.n) && t.finished_at);
@@ -46,7 +60,7 @@ export function DsaWeek() {
           )}
         </div>
       </Rise>
-      <PageHeader eyebrow={`Round ${w.n} · ${parseDate(dates.start).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })} – ${parseDate(dates.end).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}`} title={`${w.gp} GP`} action={w.n <= 4 ? <Link to="/dsa/learn"><Button><GraduationCap className="size-4" /> Learn this week</Button></Link> : undefined} />
+      <PageHeader eyebrow={`Round ${w.n} · ${parseDate(dates.start).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })} – ${parseDate(dates.end).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}`} title={`${w.gp} GP`} />
       <Rise className="-mt-4 mb-6 text-lg text-ink-2">{w.topic}</Rise>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
@@ -67,18 +81,23 @@ export function DsaWeek() {
                           prog={prog}
                           i={di * 2 + i}
                           extra={
-                            <select
-                              aria-label={`Status of ${p.title}`}
-                              value={prog?.status ?? 'todo'}
-                              onChange={(e) => save({ problem: p.id, status: e.target.value as never, ...(e.target.value === 'solved' && !prog?.solved_at ? { solved_at: new Date().toISOString() } : {}) })}
-                              className="rounded border border-line bg-surface-2 px-1.5 py-1 text-tiny font-bold uppercase"
-                            >
-                              {STATUS.map((s) => (
-                                <option key={s.value} value={s.value}>
-                                  {s.label}
-                                </option>
-                              ))}
-                            </select>
+                            <>
+                              <a href={`https://www.youtube.com/results?search_query=${encodeURIComponent(`${p.title} leetcode neetcode`)}`} target="_blank" rel="noreferrer" aria-label={`Video walkthrough: ${p.title}`} className="text-ink-3 transition hover:text-accent">
+                                <MonitorPlay className="size-4" />
+                              </a>
+                              <select
+                                aria-label={`Status of ${p.title}`}
+                                value={prog?.status ?? 'todo'}
+                                onChange={(e) => save({ problem: p.id, status: e.target.value as never, ...(e.target.value === 'solved' && !prog?.solved_at ? { solved_at: new Date().toISOString() } : {}) })}
+                                className="rounded border border-line bg-surface-2 px-1.5 py-1 text-tiny font-bold uppercase"
+                              >
+                                {STATUS.map((s) => (
+                                  <option key={s.value} value={s.value}>
+                                    {s.label}
+                                  </option>
+                                ))}
+                              </select>
+                            </>
                           }
                         />
                       );
@@ -120,6 +139,35 @@ export function DsaWeek() {
         </div>
 
         <div className="space-y-4">
+          {course && (
+            <Card>
+              <SectionTitle action={<Link to="/dsa/learn" className="text-mini font-bold uppercase text-accent">All rounds →</Link>}>
+                <span className="flex items-center gap-2">
+                  <GraduationCap className="size-4 text-accent" /> Learn this round
+                </span>
+              </SectionTitle>
+              <p className="-mt-1 mb-3 text-sm text-ink-2">{course.tagline}</p>
+              <ol className="space-y-1.5">
+                {course.modules.map((m, i) => (
+                  <li key={m.id}>
+                    <Link to={`/dsa/learn/${m.id}`} className="flex items-center gap-3 rounded-md bg-bg px-3 py-2.5 transition hover:bg-surface-2">
+                      <span className={`slant grid h-7 w-10 shrink-0 place-items-center text-micro font-black italic ${stars(m.id) ? 'bg-green text-black' : m.boss ? 'bg-purple text-black' : 'bg-surface-2 text-ink-2'}`}>{m.corner}</span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-bold">{m.title}</span>
+                        <span className="block truncate text-tiny text-ink-3">{m.blurb}</span>
+                      </span>
+                      <span className="flex shrink-0 gap-0.5" aria-label={`${stars(m.id)} of 3 stars`}>
+                        {[1, 2, 3].map((k) => (
+                          <Star key={k} className={`size-3 ${k <= stars(m.id) ? 'fill-yellow text-yellow' : 'text-line-strong'}`} />
+                        ))}
+                      </span>
+                    </Link>
+                    {i === 0 && !stars(m.id) && <p className="mt-1 pl-1 text-micro text-ink-3">Start here — 10 minutes before the first problem.</p>}
+                  </li>
+                ))}
+              </ol>
+            </Card>
+          )}
           {w.viz.length > 0 && (
             <Card>
               <SectionTitle>Watch it run</SectionTitle>
@@ -146,6 +194,26 @@ export function DsaWeek() {
           <Card>
             <SectionTitle>Briefing</SectionTitle>
             <div className="prose-f1" dangerouslySetInnerHTML={{ __html: md(w.concepts) }} />
+          </Card>
+          <Card>
+            <SectionTitle>
+              <span className="flex items-center gap-2">
+                <BookOpen className="size-4 text-sky" /> Go deeper
+              </span>
+            </SectionTitle>
+            <ul className="space-y-1.5 text-sm">
+              {studyLinks(w.topic).map((l) => (
+                <li key={l.url}>
+                  <a href={l.url} target="_blank" rel="noreferrer" className="flex items-center gap-3 rounded-md bg-bg px-3 py-2.5 transition hover:bg-surface-2">
+                    <span className="text-lg">{l.emoji}</span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate font-bold">{l.label}</span>
+                      <span className="block truncate text-tiny text-ink-3">{l.hint}</span>
+                    </span>
+                  </a>
+                </li>
+              ))}
+            </ul>
           </Card>
         </div>
       </div>
