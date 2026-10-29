@@ -1,4 +1,4 @@
-// Mark season problems solved when the user gets them Accepted on LeetCode. Uses the public
+// Mark season problems solved when the user gets them Accepted on LeetCode (on/after the season start). Uses the public
 // recentAcSubmissionList query (no login) — it returns the last ~20 ACs, so polling every 30 min
 // never misses a normal day's work.
 import { db } from './db.ts';
@@ -17,9 +17,12 @@ export async function syncLeetCode(): Promise<{ checked: number; marked: string[
     signal: AbortSignal.timeout(15_000),
   });
   const list: { titleSlug: string; timestamp: string }[] = (await res.json()).data?.recentAcSubmissionList ?? [];
+  // Only accepts from the season onwards count — an old solve from months ago isn't this season's work.
+  const startRow = db.prepare("SELECT value FROM settings WHERE key = 'dsaStart'").get() as { value: string } | undefined;
+  const since = startRow ? Date.parse(`${JSON.parse(startRow.value)}T00:00:00`) : 0;
   const marked: string[] = [];
   for (const s of list) {
-    if (!PLAN.has(s.titleSlug)) continue;
+    if (!PLAN.has(s.titleSlug) || Number(s.timestamp) * 1000 < since) continue;
     const cur = db.prepare('SELECT status FROM dsa_progress WHERE problem = ?').get(s.titleSlug) as { status: string } | undefined;
     if (cur?.status === 'solved' || cur?.status === 'revisit') continue;
     const at = new Date(Number(s.timestamp) * 1000);

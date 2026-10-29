@@ -547,7 +547,7 @@ return res`,
           answer: 1,
           why: 'For a fixed i and l-value the needed r-value is determined, so the only new triplets need both to change.',
         },
-        { kind: 'problem', id: '3sum', title: '3Sum', diff: 'M', why: 'You solved it already — re-solve from memory with the duplicate skips.' },
+        { kind: 'problem', id: '3sum', title: '3Sum', diff: 'M', why: 'Sort, fix, squeeze — with the duplicate skips at all three positions.' },
       ],
     },
     {
