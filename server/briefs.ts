@@ -7,6 +7,7 @@ import { DAY_META, dayTypeOn } from '../web/src/core/gym.ts';
 import { DEFAULT_START, problemsForDay } from '../web/src/core/dsa/plan.ts';
 import { DEFAULT_PROFILE, targets } from '../web/src/core/fuel.ts';
 import { planDay } from '../web/src/core/mealPlan.ts';
+import { nextBirthday, nextContact, type Person } from '../web/src/core/people.ts';
 import { weekLabel, workConfig, workDay, type WorkConfig, type WorkOverride } from '../web/src/core/work.ts';
 
 export type Settings = { diet?: 'veg' | 'egg' | 'nonveg'; gymShift?: number; dsaStart?: string; fuel?: typeof DEFAULT_PROFILE; waterGoal?: number; briefs?: { morning?: boolean; evening?: boolean; morningAt?: string; eveningAt?: string }; name?: string; work?: Partial<WorkConfig>; workOverrides?: Record<string, WorkOverride> };
@@ -38,6 +39,12 @@ export function morningBrief(day = localStamp(new Date()).slice(0, 10)) {
   const routines = q<{ name: string; time: string; days: string; emoji: string | null }>('SELECT name, time, days, emoji FROM routines WHERE active = 1 ORDER BY time').filter((r) => JSON.parse(r.days).includes(dow));
   const wc = workConfig(s.work);
   const w = workDay(day, wc, s.workOverrides);
+  const supps = ((s as { supplements?: { name: string; at: string }[] }).supplements ?? []).slice().sort((a, b) => a.at.localeCompare(b.at));
+  const people = q<Person>('SELECT * FROM people');
+  const calls = [
+    ...people.filter((p) => nextBirthday(p, day)?.date === day).map((p) => `🎂 ${p.name}'s birthday`),
+    ...people.filter((p) => nextContact(p, day) === day).map((p) => `Call ${p.name}`),
+  ];
   const work = w.mode === 'office' ? `🏢 Office (${weekLabel(day, wc)}) — leave ${w.leaveBy}, login ${w.shift!.login}, logout ${w.shift!.logout}, home ${w.homeBy}` : w.mode === 'wfh' ? `🏠 WFH — login ${w.shift!.login}, logout ${w.shift!.logout}` : w.mode === 'leave' ? '🌴 On leave today' : null;
   const lines = [
     work,
@@ -47,6 +54,8 @@ export function morningBrief(day = localStamp(new Date()).slice(0, 10)) {
     mealIdeas(day, s, t, ['breakfast', 'lunch']),
     routines.length ? `⏱️ ${routines.map((r) => `${r.time} ${r.name}`).join(' · ')}` : null,
     due ? `✅ ${due} task${due > 1 ? 's' : ''} due` : null,
+    supps.length ? `💊 ${supps.map((x) => `${x.at} ${x.name}`).join(' · ')}` : null,
+    calls.length ? `📞 ${calls.join(' · ')}` : null,
   ].filter(Boolean);
   return { title: `🏁 Good morning — ${new Date(`${day}T12:00:00`).toLocaleDateString(undefined, { weekday: 'long' })}`, body: lines.join('\n'), url: '/' };
 }

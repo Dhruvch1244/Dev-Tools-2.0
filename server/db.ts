@@ -106,6 +106,13 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS shopping (
     id TEXT PRIMARY KEY, name TEXT NOT NULL, qty TEXT, done INTEGER NOT NULL DEFAULT 0, source TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
   );
+  -- Keep in touch: contact rhythm + birthdays. Also the people expenses are split with.
+  CREATE TABLE IF NOT EXISTS people (
+    id TEXT PRIMARY KEY, name TEXT NOT NULL, emoji TEXT, phone TEXT, birthday TEXT, every_days INTEGER, weekday INTEGER, call_at TEXT,
+    last_contact TEXT, notes TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+  );
+  -- Daily check-offs keyed by kind (e.g. 'supp') and ref (the supplement id).
+  CREATE TABLE IF NOT EXISTS checks (kind TEXT NOT NULL, ref TEXT NOT NULL, date TEXT NOT NULL, PRIMARY KEY (kind, ref, date));
   CREATE TABLE IF NOT EXISTS dsa_tests (
     id TEXT PRIMARY KEY, kind TEXT NOT NULL, ref TEXT NOT NULL, started_at TEXT NOT NULL, finished_at TEXT,
     duration_min INTEGER NOT NULL, results TEXT, score REAL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
@@ -142,6 +149,7 @@ export const RESOURCES: Record<string, Resource> = {
   activities: { cols: ['date', 'type', 'started_at', 'duration_min', 'distance_km', 'kcal', 'rpe', 'notes', 'details', 'route'], order: 'date DESC, started_at DESC', dateCol: 'date' },
   routines: { cols: ['name', 'emoji', 'days', 'time', 'duration_min', 'steps', 'habit_id', 'remind', 'gcal_event_id', 'active'], order: 'time ASC' },
   saved_meals: { cols: ['name', 'meal', 'items'], order: 'name ASC' },
+  people: { cols: ['name', 'emoji', 'phone', 'birthday', 'every_days', 'weekday', 'call_at', 'last_contact', 'notes'], order: 'name ASC' },
   shopping: { cols: ['name', 'qty', 'done', 'source'], order: 'done ASC, name ASC' },
   dsa_tests: { cols: ['kind', 'ref', 'started_at', 'finished_at', 'duration_min', 'results', 'score'], order: 'started_at DESC' },
 };

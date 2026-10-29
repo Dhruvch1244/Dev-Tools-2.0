@@ -18,6 +18,7 @@ import type { Activity, FoodLog } from '../lib/types';
 import { useHabits, useHealthToday } from './Life';
 import { TodaySchedule } from './Routines';
 import { WorkCard } from '../components/WorkCard';
+import { SupplementsCard } from '../components/Supplements';
 
 /** One-line entry to the AI assistant; the question opens Pit Wall and is asked straight away. */
 function AskPitWall() {
@@ -261,6 +262,7 @@ export function TodayPage() {
             <SectionTitle action={<Link to="/routines" className="text-xs font-medium text-accent hover:underline">Routines</Link>}>Schedule</SectionTitle>
             <TodaySchedule compact />
           </Card>
+          <SupplementsCard />
           <Card>
             <SectionTitle>Today's habits</SectionTitle>
             {habits.length === 0 ? (

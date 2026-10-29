@@ -79,3 +79,18 @@ test('AI actions: split from the reply and validated', () => {
   // All-day due can't have an early reminder; bad dates are dropped to undated.
   assert.deepEqual(normaliseActions([{ type: 'task', title: 'x', due: '2026-13-40', repeat: 'daily', remind_before: 60 }])[0], { type: 'task', title: 'x', due: null, repeat: null, remind_before: 0, priority: 0, notes: null });
 });
+
+import { nextBirthday, nextContact, peoplePings, type Person } from '../web/src/core/people.ts';
+
+test('pit crew: weekly-on-Sunday rhythm, overdue N-day rhythm, birthdays', () => {
+  const mom: Person = { id: 'm', name: 'Mom', emoji: null, phone: null, birthday: '1970-03-14', every_days: 7, weekday: 0, call_at: '19:00', last_contact: null, notes: null };
+  assert.equal(nextContact(mom, '2026-10-29'), '2026-11-01'); // next Sunday
+  assert.equal(nextContact({ ...mom, last_contact: '2026-10-31' }, '2026-11-01'), '2026-11-08'); // Saturday's call covers Sunday
+  assert.equal(nextContact({ ...mom, last_contact: '2026-10-25' }, '2026-11-01'), '2026-11-01');
+  const friend: Person = { ...mom, id: 'f', weekday: null, every_days: 14, last_contact: '2026-10-01', birthday: '2000-10-30' };
+  assert.equal(nextContact(friend, '2026-10-29'), '2026-10-29');
+  assert.deepEqual(nextBirthday(mom, '2026-10-29'), { date: '2027-03-14', inDays: 136, age: 57 });
+  assert.equal(nextBirthday({ ...mom, birthday: '2000-02-29' }, '2027-01-01')!.date, '2027-02-28');
+  const pings = peoplePings([mom, friend], '2026-10-29');
+  assert.deepEqual(pings.map((p) => p.id).sort(), ['bday-eve:f', 'touch:f']);
+});

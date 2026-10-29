@@ -28,13 +28,18 @@ self.addEventListener('notificationclick', (event) => {
   const d = event.notification.data || {};
   event.notification.close();
 
+  // "Call" opens the dialer; other action buttons are handled server-side without opening the app.
+  if (event.action === 'call' && d.tel) {
+    event.waitUntil(self.clients.openWindow(`tel:${d.tel}`));
+    return;
+  }
   // Action buttons are handled server-side without opening the app.
-  if (event.action && (d.taskId || d.routineId || event.action === 'water')) {
+  if (event.action && (d.taskId || d.routineId || d.suppId || d.personId || event.action === 'water')) {
     event.waitUntil(
       fetch('/api/push/action', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ taskId: d.taskId, routineId: d.routineId, action: event.action }),
+        body: JSON.stringify({ taskId: d.taskId, routineId: d.routineId, suppId: d.suppId, personId: d.personId, action: event.action }),
       }),
     );
     return;

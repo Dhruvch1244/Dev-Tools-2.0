@@ -12,6 +12,7 @@ import { DEFAULT_START, problemsForDay } from '../web/src/core/dsa/plan.ts';
 import { DEFAULT_PROFILE, targets } from '../web/src/core/fuel.ts';
 import { nextSwitch, weekLabel, workConfig, workDay, workPings, workWeek } from '../web/src/core/work.ts';
 import { ACTIONS_GUIDE } from '../web/src/core/aiActions.ts';
+import { nextBirthday, nextContact, peoplePings, type Person } from '../web/src/core/people.ts';
 import { cookBrief, cookConfig, planCookDay } from '../web/src/core/cook.ts';
 
 const q = <T>(sql: string, ...a: (string | number)[]) => db.prepare(sql).all(...a) as T[];
@@ -52,6 +53,8 @@ export async function lifeContext() {
   const sessions = one<{ n: number }>("SELECT count(*) n FROM workouts WHERE finished_at IS NOT NULL AND date >= date(?, '-6 days')", day)?.n ?? 0;
   const spent = one<{ t: number }>("SELECT coalesce(sum(amount),0) t FROM expenses WHERE kind = 'expense' AND substr(date,1,7) = ?", day.slice(0, 7))?.t ?? 0;
   const events = await google.events(day, day).catch(() => []);
+  const people = q<Person>('SELECT * FROM people');
+  const supps = (s as { supplements?: Supplement[] }).supplements ?? [];
   const shifts = wc.shifts.map((x) => `${x.id} ${x.login}-${x.logout}`).join(', ');
 
   return [
@@ -67,6 +70,8 @@ export async function lifeContext() {
     `CALENDAR today: ${events.map((e) => (e.allDay ? `all day ${e.title}` : `${localStamp(new Date(e.start)).slice(11)} ${e.title}`)).join('; ') || 'nothing (or not connected)'}`,
     `TASKS open: ${tasks.map((t) => `${t.title}${t.due ? ` [${t.due.replace('T', ' ')}${t.repeat ? `, ${t.repeat}` : ''}]` : ''}${t.priority ? ` !${t.priority}` : ''}`).join('; ') || 'none'}`,
     `MONEY: ₹${Math.round(spent)} spent this month`,
+    people.length ? `PEOPLE: ${people.map((p) => `${p.name}${nextContact(p, day) ? ` (next call ${nextContact(p, day)})` : ''}${p.birthday ? ` (birthday ${nextBirthday(p, day)!.date})` : ''}`).join('; ')}` : null,
+    supps.length ? `SUPPLEMENTS: ${supps.map((x) => `${x.name} at ${x.at}${one('SELECT 1 FROM checks WHERE kind = ? AND ref = ? AND date = ?', 'supp', x.id, day) ? ' (taken)' : ''}`).join('; ')}` : null,
   ]
     .filter(Boolean)
     .join('\n');
@@ -126,4 +131,29 @@ export async function cookTick() {
   const tonight = plan(day);
   const tm = plan(tomorrow);
   await pushAll({ tag: 'cook', title: `🍳 Cook at ${cfg.at} — dinner ${tonight?.dinner.name ?? ''}`, body: `Breakfast for tomorrow: ${tm?.breakfast.name ?? '—'}. Tap to send the brief.`, url: '/fuel', brief: cookBrief(tonight, tm) });
+}
+
+export type Supplement = { id: string; name: string; at: string; dose?: string };
+
+/** Keep-in-touch, birthday and supplement pushes, each once per day within 30 min of its time. */
+export async function lifePingsTick() {
+  const now = new Date();
+  const [day, hm] = localStamp(now).split('T');
+  const mins = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
+  const due = (at: string) => mins(hm) - mins(at) >= 0 && mins(hm) - mins(at) <= 30;
+  const claim = (key: string) => db.prepare('INSERT OR IGNORE INTO push_sent (task_id, due, sent_at) VALUES (?, ?, ?)').run(key, day, now.toISOString()).changes > 0;
+
+  const people = q<Person>('SELECT * FROM people');
+  for (const p of peoplePings(people, day)) {
+    if (!due(p.at) || !claim(p.id)) continue;
+    const person = people.find((x) => x.id === p.person);
+    await pushAll({ tag: p.id, title: p.title, body: p.body, url: '/people', personId: p.call ? p.person : undefined, tel: person?.phone ?? undefined, actions: p.call ? [...(person?.phone ? [{ action: 'call', title: '📞 Call' }] : []), { action: 'talked', title: '✓ Talked' }] : [] });
+  }
+
+  const supps = ((settings() as { supplements?: Supplement[] }).supplements ?? []);
+  for (const s of supps) {
+    if (!s.at || !due(s.at)) continue;
+    if (one('SELECT 1 FROM checks WHERE kind = ? AND ref = ? AND date = ?', 'supp', s.id, day) || !claim(`supp:${s.id}`)) continue;
+    await pushAll({ tag: `supp-${s.id}`, title: `💊 ${s.name}${s.dose ? ` · ${s.dose}` : ''}`, body: 'Take it now', url: '/', suppId: s.id, actions: [{ action: 'taken', title: '✓ Taken' }] });
+  }
 }

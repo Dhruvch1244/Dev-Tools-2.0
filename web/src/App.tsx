@@ -10,6 +10,7 @@ import { lazy, Suspense } from 'react';
 // Only what Today, the shell and quick-add need is in the first load; every other page is fetched
 // on first visit (DSA alone pulls in CodeMirror + three grammars, ~400 KB).
 const PitWallPage = lazy(() => import('./pages/PitWall').then((m) => ({ default: m.PitWallPage })));
+const PeoplePage = lazy(() => import('./pages/People').then((m) => ({ default: m.PeoplePage })));
 const NotesPage = lazy(() => import('./pages/Notes').then((m) => ({ default: m.NotesPage })));
 const MoneyPage = lazy(() => import('./pages/Money').then((m) => ({ default: m.MoneyPage })));
 const DropPage = lazy(() => import('./pages/Drop').then((m) => ({ default: m.DropPage })));
@@ -33,6 +34,7 @@ export function App() {
       <Routes location={location}>
         <Route path="/" element={<TodayPage />} />
         <Route path="/pitwall" element={<PitWallPage />} />
+        <Route path="/people" element={<PeoplePage />} />
         <Route path="/tasks" element={<TasksPage />} />
         <Route path="/notes" element={<NotesPage />} />
         <Route path="/money" element={<MoneyPage />} />

@@ -19,7 +19,7 @@ import * as google from './google.ts';
 import { briefsTick, eveningRecap, morningBrief } from './briefs.ts';
 import { syncLeetCode } from './lcsync.ts';
 import { DSA_SYSTEM, FUEL_SYSTEM, ask, dsaPrompt, type DsaAsk, type Prompt } from './coach.ts';
-import { CAPTURE_SYSTEM, CHAT_SYSTEM, chatPrompt, lifeContext, workRemindersTick, cookTick, type ChatTurn } from './assistant.ts';
+import { CAPTURE_SYSTEM, CHAT_SYSTEM, chatPrompt, lifeContext, workRemindersTick, cookTick, lifePingsTick, type ChatTurn } from './assistant.ts';
 import { normaliseActions, splitActions } from '../web/src/core/aiActions.ts';
 import { AI_FOOD_SYSTEM, aiUserText, extractJson, normaliseAi } from '../web/src/core/aiFood.ts';
 
@@ -282,13 +282,23 @@ app.post('/api/push/unsubscribe', async (c) => {
 });
 app.post('/api/push/test', async (c) => c.json(await pushAll({ tag: 'test', title: '🏁 Push reminders are on', body: 'This device will get task reminders, even with the app closed.', url: '/tasks' })));
 app.post('/api/push/action', async (c) => {
-  const { taskId, routineId, action } = await c.req.json<{ taskId?: string; routineId?: string; action: string }>();
+  const { taskId, routineId, suppId, personId, action } = await c.req.json<{ taskId?: string; routineId?: string; suppId?: string; personId?: string; action: string }>();
   if (action === 'water') {
     const day = localStamp(new Date()).slice(0, 10);
     const cur = (db.prepare("SELECT value FROM health WHERE date = ? AND kind = 'water'").get(day) as { value: number } | undefined)?.value ?? 0;
     db.prepare("INSERT INTO health (id, date, kind, value, created_at, updated_at) VALUES (?, ?, 'water', ?, ?, ?) ON CONFLICT (date, kind) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at").run(randomUUID(), day, cur + 1, now(), now());
     emit('health');
     return c.json({ ok: true, water: cur + 1 });
+  }
+  if (suppId && action === 'taken') {
+    db.prepare("INSERT OR IGNORE INTO checks (kind, ref, date) VALUES ('supp', ?, ?)").run(suppId, localStamp(new Date()).slice(0, 10));
+    emit('checks');
+    return c.json({ ok: true });
+  }
+  if (personId && action === 'talked') {
+    db.prepare('UPDATE people SET last_contact = ?, updated_at = ? WHERE id = ?').run(localStamp(new Date()).slice(0, 10), now(), personId);
+    emit('people');
+    return c.json({ ok: true });
   }
   if (routineId && action === 'done') {
     const day = localStamp(new Date()).slice(0, 10);
@@ -302,6 +312,17 @@ app.post('/api/push/action', async (c) => {
   taskAction(taskId, action as 'done' | 'snooze');
   emit('tasks');
   return c.json({ ok: true });
+});
+
+// ---- Daily check-offs (supplements) ----
+app.get('/api/checks', (c) => c.json(db.prepare('SELECT * FROM checks WHERE kind = ? AND date >= ?').all(c.req.query('kind') ?? '', c.req.query('from') ?? '0000')));
+app.post('/api/checks/toggle', async (c) => {
+  const { kind, ref, date } = await c.req.json<{ kind: string; ref: string; date: string }>();
+  if (!kind || !ref || !/^\d{4}-\d{2}-\d{2}$/.test(date ?? '')) return c.json({ error: 'kind, ref and date are required' }, 400);
+  const removed = db.prepare('DELETE FROM checks WHERE kind = ? AND ref = ? AND date = ?').run(kind, ref, date).changes > 0;
+  if (!removed) db.prepare('INSERT INTO checks (kind, ref, date) VALUES (?, ?, ?)').run(kind, ref, date);
+  emit('checks');
+  return c.json({ done: !removed });
 });
 
 // ---- Routines: check-offs (a linked habit is ticked with them) ----
@@ -468,6 +489,7 @@ schedule({ name: 'briefs', every: 20_000, run: briefsTick });
 schedule({ name: 'water-nudges', every: 20_000, run: waterNudge });
 schedule({ name: 'work-reminders', every: 20_000, run: workRemindersTick });
 schedule({ name: 'cook-brief', every: 20_000, run: cookTick });
+schedule({ name: 'people-supps', every: 20_000, run: lifePingsTick });
 schedule({ name: 'leetcode-sync', every: 30 * 60_000, run: async () => (await syncLeetCode())?.marked.length && emit('dsa') });
 // If the laptop was off at 03:00, back up on the first start of the day instead.
 schedule({ name: 'backup-catchup', at: '00:00', run: async () => (await listBackups())[0] !== new Date().toISOString().slice(0, 10) && runBackup() });
