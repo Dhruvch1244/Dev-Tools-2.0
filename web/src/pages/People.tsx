@@ -1,4 +1,4 @@
-import { lazy, Suspense, useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useQuery } from '@tanstack/react-query';
 import { BookUser, Cake, Check, ChevronDown, Home, Loader2, MapPin, Phone, Plus, Search, Trash2, Users } from 'lucide-react';
@@ -279,25 +279,41 @@ function CrewRow({ p, t, gifts, weather, home, onOpen, onTalked }: { p: PersonRo
 
 type City = { name: string; region: string; lat: number; lon: number };
 
-/** Search a city (Open-Meteo geocoding through the server), Indian places first. */
+/**
+ * Search a city (Open-Meteo geocoding through the server), Indian places first. Searches as you
+ * type. Not a <form>: it sits inside the person form, and a nested submit would save and close it.
+ */
 function CityPicker({ value, onPick }: { value: string | null; onPick: (c: City | null) => void }) {
   const [q, setQ] = useState('');
   const [term, setTerm] = useState('');
-  const { data: results = [], isFetching } = useQuery({ queryKey: ['geo', term], queryFn: () => api<City[]>(`/geo/search?q=${encodeURIComponent(term)}`), enabled: term.length >= 2, staleTime: Infinity });
+  useEffect(() => {
+    const id = setTimeout(() => setTerm(q.trim()), 350);
+    return () => clearTimeout(id);
+  }, [q]);
+  const { data, isFetching, isError } = useQuery({ queryKey: ['geo', term], queryFn: () => api<City[]>(`/geo/search?q=${encodeURIComponent(term)}`), enabled: term.length >= 2, staleTime: Infinity, retry: 1 });
+  const results = Array.isArray(data) ? data : [];
   return (
     <div className="space-y-2">
-      <form onSubmit={(e) => (e.preventDefault(), setTerm(q.trim()))} className="flex gap-2">
-        <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder={value ?? 'Jaipur, Bengaluru, Pune…'} enterKeyHint="search" />
-        <Button type="submit" variant="soft" aria-label="Search city">
-          {isFetching ? <Loader2 className="size-4 animate-spin" /> : <Search className="size-4" />}
-        </Button>
-      </form>
+      <div className="relative">
+        <Input
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), e.stopPropagation(), setTerm(q.trim()))}
+          placeholder={value ?? 'Type a city — Jaipur, Bengaluru, Pune…'}
+          enterKeyHint="search"
+          autoComplete="off"
+          className="pr-10"
+        />
+        <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-ink-3">{isFetching ? <Loader2 className="size-4 animate-spin" /> : <Search className="size-4" />}</span>
+      </div>
+      {isError && <p className="text-tiny text-danger">City search needs the internet — try again in a moment.</p>}
+      {term.length >= 2 && !isFetching && !isError && !results.length && <p className="text-tiny text-ink-3">No place called “{term}”.</p>}
       {results.length > 0 && (
         <ul className="space-y-1">
           {results.map((c) => (
             <li key={`${c.lat},${c.lon}`}>
               <button type="button" onClick={() => (onPick(c), setQ(''), setTerm(''))} className="flex w-full items-center gap-2 rounded-md bg-bg px-3 py-2 text-left text-sm">
-                <MapPin className="size-3.5 text-accent" /> <b>{c.name}</b> <span className="truncate text-ink-3">{c.region}</span>
+                <MapPin className="size-3.5 shrink-0 text-accent" /> <b>{c.name}</b> <span className="truncate text-ink-3">{c.region}</span>
               </button>
             </li>
           ))}
