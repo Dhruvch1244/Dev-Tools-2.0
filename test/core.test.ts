@@ -113,3 +113,16 @@ test('diet filtering: vegetarian means no meat, fish or eggs', async () => {
   const vegFixes = proteinFixes(40, FOODS.filter((f) => allowedFor('veg', f.id)), []);
   assert.ok(vegFixes.length > 0 && vegFixes.every((f) => foodKind(f.food.id) === 'veg'));
 });
+
+test('route marks for the 3D map', async () => {
+  const { kmMarks, climb, resample, bearing } = await import('../web/src/core/sport.ts');
+  // ~101 m every 30 s for 2 km, then a faster third km (20 s per point).
+  const pts: Pt[] = Array.from({ length: 31 }, (_, i) => [0, i * 0.00091, i <= 20 ? i * 30_000 : 600_000 + (i - 20) * 20_000]);
+  const m = kmMarks(pts);
+  assert.deepEqual(m.map((x) => x.km), [1, 2, 3]);
+  assert.equal(m.find((x) => x.fastest)?.km, 3, 'the quickest km is flagged');
+  // 200→210 counts (+10); the 2 m blip to 212 doesn't; 210→205 counts (−5).
+  assert.deepEqual(climb([200, 201, 199, 200, 210, 212, 205]), { up: 10, down: 5 }, 'sub-3 m wobble is ignored');
+  assert.ok(resample(pts, 300).length < pts.length);
+  assert.ok(Math.abs(bearing([0, 0, 0], [0, 1, 0]) - 90) < 0.01, 'due east is 90°');
+});

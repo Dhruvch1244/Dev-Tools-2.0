@@ -7,6 +7,7 @@ import { listItem } from '../lib/motion';
 import { DIETS, FOODS, FOOD_CATS, allowedFor, searchFoods, type Diet, type Food } from '../core/foods';
 import { ACTIVITY, DEFAULT_PROFILE, MEALS, mealForNow, sumMacros, targets, type Profile } from '../core/fuel';
 import { parseFoodText, proteinFixes } from '../core/foodParse';
+import { planDay, planHeadline, type MealId, type MealPlan } from '../core/mealPlan';
 import { streamCoach } from '../lib/coach';
 import { md } from '../lib/dsa';
 import type { Activity, CustomFood, FoodLog, Health, SavedMeal } from '../lib/types';
@@ -450,6 +451,121 @@ function WeekChart({ logs, target }: { logs: FoodLog[]; target: number }) {
   );
 }
 
+const STATUS_CHIP: Record<MealPlan['status'], { label: string; cls: string }> = {
+  done: { label: 'Done', cls: 'bg-green text-black' },
+  now: { label: 'Now', cls: 'bg-accent text-white' },
+  late: { label: 'Late', cls: 'bg-yellow text-black' },
+  next: { label: 'Next', cls: 'bg-ink text-bg' },
+  later: { label: 'Later', cls: 'bg-surface-2 text-ink-2' },
+  skipped: { label: 'Skipped', cls: 'bg-surface-2 text-ink-3' },
+};
+const hm12 = (hm: string) => {
+  const [h, m] = hm.split(':').map(Number);
+  return `${((h + 11) % 12) + 1}:${String(m).padStart(2, '0')} ${h < 12 ? 'am' : 'pm'}`;
+};
+
+/** Where you are in the day and what to eat next, sized to what's left of today's targets. */
+function DayPlan({ day, remaining, usualIds, diet }: { day: FoodLog[]; remaining: { kcal: number; protein: number }; usualIds: string[]; diet: Diet }) {
+  const { create } = useResource<FoodLog>('food_logs');
+  const toast = useToast();
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 60_000);
+    return () => clearInterval(id);
+  }, []);
+  const nowHM = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+  const per = (m: MealId) => sumMacros(day.filter((l) => l.meal === m));
+  const logged: Record<MealId, { kcal: number; protein: number }> = { breakfast: per("breakfast"), lunch: per("lunch"), snacks: per("snacks"), dinner: per("dinner") };
+  const plan = useMemo(() => planDay({ nowHM, logged, remaining, usualIds, diet }), [nowHM, JSON.stringify(logged), remaining.kcal, remaining.protein, usualIds.join(), diet]); // eslint-disable-line react-hooks/exhaustive-deps
+  const active = plan.find((p) => ['now', 'late', 'next'].includes(p.status))?.meal ?? null;
+  const [focus, setFocus] = useState<MealId | null>(null);
+  const [alt, setAlt] = useState(0);
+  const shown = plan.find((p) => p.meal === (focus ?? active));
+  const opt = shown?.options[alt % Math.max(1, shown.options.length)];
+
+  const logIt = async () => {
+    if (!shown || !opt) return;
+    for (const { food, qty } of opt.items) await create({ date: today(), meal: shown.meal, food_id: food.id, name: food.name, qty, unit: food.serving, kcal: food.kcal * qty, protein: food.protein * qty, carbs: food.carbs * qty, fat: food.fat * qty });
+    navigator.vibrate?.([15, 30, 15]);
+    toast({ message: `${opt.name} logged to ${MEALS.find((m) => m.id === shown.meal)?.label}` });
+    setFocus(null);
+    setAlt(0);
+  };
+
+  return (
+    <Card className="mb-4">
+      <SectionTitle>Your day</SectionTitle>
+      <p className="-mt-1 mb-4 text-sm text-ink-2">{planHeadline(plan)}</p>
+      <div className="relative grid grid-cols-4 gap-1.5">
+        <div className="pointer-events-none absolute left-[12.5%] right-[12.5%] top-[22px] h-[2px] bg-line" />
+        {plan.map((p, i) => {
+          const chip = STATUS_CHIP[p.status];
+          const selectable = p.options.length > 0;
+          const selected = (focus ?? active) === p.meal;
+          return (
+            <motion.button
+              key={p.meal}
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.06 }}
+              disabled={!selectable}
+              onClick={() => (setFocus(p.meal), setAlt(0))}
+              className={cx('relative flex flex-col items-center rounded-lg px-1 pb-2 pt-1 text-center transition', selected && 'bg-surface-2', selectable && 'hover:bg-surface-2')}
+            >
+              <span className={cx('relative z-10 grid size-9 place-items-center rounded-full border-2 text-[11px] font-black', p.status === 'done' ? 'border-green bg-green text-black' : p.status === 'now' || p.status === 'late' ? 'border-accent bg-accent text-white' : 'border-line-strong bg-bg text-ink-2')}>
+                {p.status === 'done' ? '✓' : i + 1}
+                {(p.status === 'now' || p.status === 'late') && <span className="absolute inset-0 animate-ping rounded-full border-2 border-accent opacity-50" />}
+              </span>
+              <span className="mt-1.5 text-[12px] font-black italic uppercase leading-tight">{MEALS.find((m) => m.id === p.meal)?.label}</span>
+              <span className="font-mono text-[10px] text-ink-3">{hm12(p.at)}</span>
+              <span className={cx('slant mt-1 px-1.5 text-[9px] font-black uppercase', chip.cls)}>{p.status === 'done' ? `${Math.round(p.logged.kcal)} kcal` : chip.label}</span>
+            </motion.button>
+          );
+        })}
+      </div>
+      <AnimatePresence mode="wait">
+        {shown && opt ? (
+          <motion.div key={`${shown.meal}-${alt}`} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} className="mt-4 rounded-lg border border-line bg-bg p-4">
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <p className="text-lg font-black italic uppercase">
+                {MEALS.find((m) => m.id === shown.meal)?.label} · {opt.name}
+              </p>
+              <p className="font-mono text-xs text-ink-3">
+                {shown.status === 'now' ? 'now' : shown.status === 'late' ? 'have it now' : hm12(shown.at)} · aim {shown.target?.kcal} kcal / {shown.target?.protein} g
+              </p>
+            </div>
+            <ul className="mt-2 space-y-1 text-sm">
+              {opt.items.map(({ food, qty }) => (
+                <li key={food.id} className="flex justify-between gap-3">
+                  <span>
+                    <b className="font-mono">{qty}×</b> {food.name} <span className="text-xs text-ink-3">({food.serving})</span>
+                  </span>
+                  <span className="font-mono text-xs text-ink-3">{Math.round(food.kcal * qty)}</span>
+                </li>
+              ))}
+            </ul>
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <span className="mr-auto font-mono text-sm font-bold">
+                {opt.kcal} kcal · <span className={opt.protein >= (shown.target?.protein ?? 0) * 0.8 ? 'text-green' : 'text-yellow'}>{opt.protein} g protein</span>
+              </span>
+              {shown.options.length > 1 && (
+                <Button size="sm" variant="ghost" onClick={() => setAlt((a) => a + 1)}>
+                  Another option
+                </Button>
+              )}
+              <Button size="sm" onClick={() => void logIt()}>
+                Log this
+              </Button>
+            </div>
+          </motion.div>
+        ) : (
+          <p className="mt-4 text-sm text-ink-3">{remaining.kcal <= 60 ? "You've hit today's calories — if you're hungry, go for something light like a green salad or buttermilk." : 'All meals for today are logged.'}</p>
+        )}
+      </AnimatePresence>
+    </Card>
+  );
+}
+
 export function FuelPage() {
   const { settings } = useSettings();
   const { data: health = [] } = useList<Health>('health', { from: addDays(today(), -60) });
@@ -562,6 +678,7 @@ export function FuelPage() {
         )}
       </Card>
 
+      {date === today() && <DayPlan day={day} remaining={{ kcal: left, protein: t.protein - total.protein }} usualIds={recentIds} diet={diet} />}
       {date === today() && left > 150 && (
         <Rise className="-mt-1 mb-4 flex justify-end">
           <Button size="sm" variant="ghost" onClick={() => setCoachOpen(true)}>

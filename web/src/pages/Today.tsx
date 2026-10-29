@@ -11,6 +11,7 @@ import { AnimatedNumber, Card, Page, ProgressRing, Rise, SectionTitle, cx } from
 import { TaskRow, useTaskToggle } from './Tasks';
 import { DAY_META, dayTypeOn } from '../core/gym';
 import { targets, DEFAULT_PROFILE, sumMacros } from '../core/fuel';
+import { planDay, type MealId } from '../core/mealPlan';
 import { problemsForDay, currentWeek, WEEKS } from '../core/dsa/plan';
 import { useDsa, useSeason } from '../lib/dsa';
 import type { Activity, FoodLog } from '../lib/types';
@@ -97,7 +98,22 @@ function RaceWeekend() {
   const meta = DAY_META[day];
   const { data: food = [] } = useList<FoodLog>('food_logs', { from: t, to: t });
   const kcal = sumMacros(food).kcal;
-  const target = targets(settings.fuel ?? DEFAULT_PROFILE).kcal;
+  const tg = targets(settings.fuel ?? DEFAULT_PROFILE);
+  const target = tg.kcal;
+  // Next meal from the time-aware plan, e.g. "Lunch 1:30 pm · Roti, dal, sabzi, curd".
+  const nextMeal = (() => {
+    const per = (m: MealId) => sumMacros(food.filter((l) => l.meal === m));
+    const now = new Date();
+    const plan = planDay({
+      nowHM: `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`,
+      logged: { breakfast: per('breakfast'), lunch: per('lunch'), snacks: per('snacks'), dinner: per('dinner') },
+      remaining: { kcal: target - kcal, protein: tg.protein - sumMacros(food).protein },
+      usualIds: food.map((f) => f.food_id ?? '').filter(Boolean),
+      diet: settings.diet ?? 'veg',
+    });
+    const n = plan.find((p) => ['now', 'late', 'next'].includes(p.status) && p.options[0]);
+    return n ? `${n.meal[0].toUpperCase() + n.meal.slice(1)} ${n.status === 'next' ? n.at : 'now'} · ${n.options[0].name}` : null;
+  })();
   const { start } = useSeason();
   const { get } = useDsa();
   const laps = problemsForDay(start, t);
@@ -108,7 +124,7 @@ function RaceWeekend() {
   const actKcal = acts.reduce((a, x) => a + (x.kcal ?? 0), 0);
   const tiles = [
     { to: '/gym', k: 'Gym', v: day === 'rest' ? 'Rest day' : `${meta.label} day`, s: meta.focus, c: meta.color },
-    { to: '/fuel', k: 'Fuel', v: `${Math.max(0, Math.round(target - kcal))} kcal left`, s: `${Math.round(kcal)} / ${target} eaten`, c: 'var(--green)' },
+    { to: '/fuel', k: 'Fuel', v: `${Math.max(0, Math.round(target - kcal))} kcal left`, s: nextMeal ?? `${Math.round(kcal)} / ${target} eaten`, c: 'var(--green)' },
     { to: '/sport', k: 'Sport', v: actMin ? `${Math.round(actMin)} min today` : 'Not yet today', s: actMin ? `${Math.round(actKcal)} kcal burned` : 'Run, walk or badminton', c: 'var(--sky)' },
     { to: '/dsa', k: 'DSA', v: wk === 0 ? 'Pre-season' : laps.length ? `${lapsDone}/${laps.length} laps` : 'Qualifying day', s: wk === 0 ? `Round 1 starts ${start}` : `R${Math.min(wk, 13)} · ${WEEKS[Math.min(wk, 13) - 1]?.gp} GP`, c: 'var(--purple)' },
   ];

@@ -407,3 +407,76 @@ button {
 .lc-statement sup {
   font-size: 0.7em;
 }
+
+/* ---------- 3D track map marks ---------- */
+.track-map .maplibregl-ctrl-attrib {
+  background: rgb(11 12 16 / 0.7) !important;
+  color: var(--ink-3);
+  font-size: 10px;
+}
+.track-map .maplibregl-ctrl-attrib a {
+  color: var(--ink-2);
+}
+.tm-flag span {
+  display: block;
+  padding: 2px 8px;
+  font: 900 italic 10px/1.4 var(--font-sans);
+  letter-spacing: 0.08em;
+  clip-path: polygon(7% 0, 100% 0, 93% 100%, 0 100%);
+  box-shadow: 0 6px 16px -6px #000;
+}
+.tm-start span {
+  background: var(--green);
+  color: #000;
+}
+.tm-finish span {
+  color: #000;
+  background: repeating-conic-gradient(#111 0 25%, #f3f3f3 0 50%) 0 0 / 8px 8px;
+  text-shadow: 0 0 3px #fff, 0 0 3px #fff;
+}
+.tm-km {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--accent);
+  color: #fff;
+  font: 900 italic 10px/1.2 var(--font-sans);
+  box-shadow: 0 6px 14px -6px #000;
+}
+.tm-km small {
+  font: 600 9px var(--font-mono);
+  font-style: normal;
+  opacity: 0.85;
+}
+.tm-km.tm-fast {
+  background: var(--purple);
+  color: #000;
+}
+.tm-summit {
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--yellow);
+  color: #000;
+  font: 900 10px/1.4 var(--font-mono);
+}
+.tm-me {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 3px solid #fff;
+  box-shadow: 0 0 0 0 rgb(225 6 0 / 0.6);
+  animation: tm-pulse 1.6s ease-out infinite;
+}
+@keyframes tm-pulse {
+  to {
+    box-shadow: 0 0 0 18px rgb(225 6 0 / 0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tm-me {
+    animation: none;
+  }
+}

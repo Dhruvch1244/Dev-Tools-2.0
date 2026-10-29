@@ -55,6 +55,12 @@ export default defineConfig({
         navigateFallbackDenylist: [/^\/api/, /^\/share/],
         runtimeCaching: [
           {
+            // Map + elevation tiles: cache-first so neighbourhoods you've seen render offline.
+            urlPattern: ({ url }) => url.hostname === 'tiles.openfreemap.org' || url.hostname === 's3.amazonaws.com',
+            handler: 'CacheFirst',
+            options: { cacheName: 'map-tiles', expiration: { maxEntries: 4000, maxAgeSeconds: 60 * 60 * 24 * 60 }, cacheableResponse: { statuses: [0, 200] } },
+          },
+          {
             // Show last-known data when the laptop is unreachable.
             urlPattern: ({ url }) => url.pathname.startsWith('/api/') && url.pathname !== '/api/events',
             handler: 'NetworkFirst',

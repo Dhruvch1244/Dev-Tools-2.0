@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'motion/react';
 import { useQueryClient } from '@tanstack/react-query';
@@ -9,9 +9,13 @@ import { addDays, isoDate, parseDate, relativeDay, today } from '../lib/format';
 import { listItem } from '../lib/motion';
 import { SPORTS, acceptFix, estimateKcal, fmtDuration, pace, projectTrack, splits, trackDistanceKm, type BadmintonDetails, type Pt, type SportType } from '../core/sport';
 import type { Activity, Habit, HabitLog, Health } from '../lib/types';
+import type { MapInfo } from '../components/TrackMap';
 import { Telemetry } from '../components/f1';
 import { useToast } from '../components/toast';
 import { AnimatedNumber, Button, Card, Chip, IconButton, Input, Page, PageHeader, Rise, SectionTitle, Segmented, Sheet, Textarea, cx } from '../components/ui';
+
+// maplibre (~1 MB) loads only when a map is actually shown.
+const TrackMap = lazy(() => import('../components/TrackMap'));
 
 /** Body weight for calorie estimates: Fuel profile, else the latest logged weight, else 70 kg. */
 export function useWeight() {
@@ -94,6 +98,20 @@ function LiveTracker({ draft, onExit }: { draft: Draft; onExit: () => void }) {
   const [d, setD] = useState<Draft>(draft);
   const [acc, setAcc] = useState<number | null>(null);
   const [gpsError, setGpsError] = useState<string | null>(null);
+  // The 3D map is GPU-heavy; on a long walk the plain outline saves battery. Remembered per device.
+  const [simple, setSimpleState] = useState(() => {
+    try {
+      return localStorage.getItem('tracker-simple') === '1';
+    } catch {
+      return false;
+    }
+  });
+  const setSimple = (v: boolean) => {
+    setSimpleState(v);
+    try {
+      localStorage.setItem('tracker-simple', v ? '1' : '0');
+    } catch {}
+  };
   const [, tick] = useState(0);
   const segStart = useRef<number | null>(draft.status === 'running' ? Date.now() : null);
   const lock = useRef<{ release: () => Promise<void> } | null>(null);
@@ -204,8 +222,17 @@ function LiveTracker({ draft, onExit }: { draft: Draft; onExit: () => void }) {
         <Telemetry label="Avg pace" value={pace(moving / 60000, km)} unit="/km" accent="var(--sky)" />
         <Telemetry label="kcal" value={estimateKcal(d.type, moving / 60000, weight, km)} accent="var(--yellow)" />
       </div>
-      <div className="relative mx-auto my-4 w-full max-w-sm flex-1">
-        <CircuitMap pts={d.pts} live className="h-full max-h-[40vh]" />
+      <div className="relative my-4 w-full flex-1">
+        {simple ? (
+          <CircuitMap pts={d.pts} live className="h-full max-h-[40vh]" />
+        ) : (
+          <Suspense fallback={<CircuitMap pts={d.pts} live className="h-full max-h-[40vh]" />}>
+            <TrackMap pts={d.pts} mode="live" height="min(46vh, 420px)" fallback={<CircuitMap pts={d.pts} live className="h-full max-h-[40vh]" />} />
+          </Suspense>
+        )}
+        <button onClick={() => setSimple(!simple)} className="absolute right-2 top-2 z-10 rounded-md bg-bg/80 px-2 py-1 text-[10px] font-black uppercase tracking-widest text-ink-2 backdrop-blur">
+          {simple ? '3D map' : 'Simple · saves battery'}
+        </button>
       </div>
       {sp.length > 0 && (
         <div className="no-scrollbar mb-3 flex gap-1.5 overflow-x-auto">
@@ -329,15 +356,71 @@ function LogSheet({ open, onClose, initialType }: { open: boolean; onClose: () =
   );
 }
 
+/** Elevation along the route — single series, so no legend; the title carries it. */
+function ElevationProfile({ profile, climbM }: { profile: number[]; climbM: { up: number; down: number } }) {
+  if (profile.length < 3) return null;
+  const lo = Math.min(...profile);
+  const hi = Math.max(...profile);
+  const span = Math.max(4, hi - lo);
+  const pts = profile.map((e, i) => `${(i / (profile.length - 1)) * 100},${38 - ((e - lo) / span) * 32}`).join(' ');
+  return (
+    <div>
+      <p className="mb-1 flex justify-between text-[10px] font-black uppercase tracking-widest text-ink-3">
+        <span>Elevation</span>
+        <span className="font-mono normal-case tracking-normal">
+          ▲ {climbM.up} m · ▼ {climbM.down} m · {Math.round(lo)}–{Math.round(hi)} m
+        </span>
+      </p>
+      <svg viewBox="0 0 100 40" preserveAspectRatio="none" className="h-20 w-full" aria-label={`Elevation from ${Math.round(lo)} to ${Math.round(hi)} metres`}>
+        <defs>
+          <linearGradient id="elev" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stopColor="#e10600" stopOpacity="0.45" />
+            <stop offset="1" stopColor="#e10600" stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        <motion.polygon points={`0,40 ${pts} 100,40`} fill="url(#elev)" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.8 }} />
+        <motion.polyline points={pts} fill="none" stroke="var(--accent)" strokeWidth={1.5} vectorEffect="non-scaling-stroke" initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 1.2 }} />
+      </svg>
+    </div>
+  );
+}
+
 function Detail({ a, onClose }: { a: Activity | null; onClose: () => void }) {
-  const pts: Pt[] = a?.route ? JSON.parse(a.route) : [];
+  const pts: Pt[] = useMemo(() => (a?.route ? JSON.parse(a.route) : []), [a?.route]);
   const det = a?.details ? JSON.parse(a.details) : {};
   const t = (a?.type ?? 'other') as SportType;
+  const [fly, setFly] = useState(0);
+  const [mapInfo, setMapInfo] = useState<MapInfo>({});
+  useEffect(() => (setFly(0), setMapInfo({})), [a?.id]);
   return (
     <Sheet open={!!a} onClose={onClose} title={a ? `${SPORTS[t]?.emoji ?? ''} ${SPORTS[t]?.label ?? a.type} · ${relativeDay(a.date)}` : ''}>
       {a && (
         <div className="space-y-4">
-          {pts.length > 1 && <CircuitMap pts={pts} className="mx-auto max-w-xs" />}
+          {pts.length > 1 && (
+            <div className="space-y-3">
+              <div className="relative">
+                <Suspense fallback={<CircuitMap pts={pts} className="mx-auto max-w-xs" />}>
+                  <TrackMap key={a.id} pts={pts} mode="replay" height={360} flyKey={fly} onInfo={setMapInfo} fallback={<CircuitMap pts={pts} className="mx-auto max-w-xs" />} />
+                </Suspense>
+                <Button size="sm" className="absolute left-3 top-3 z-10" onClick={() => setFly((f) => f + 1)}>
+                  <Play className="size-3.5 fill-current" /> Flyover replay
+                </Button>
+              </div>
+              {mapInfo.profile && mapInfo.climb && <ElevationProfile profile={mapInfo.profile} climbM={mapInfo.climb} />}
+              {mapInfo.landmarks && mapInfo.landmarks.length > 0 && (
+                <div>
+                  <p className="mb-1.5 text-[10px] font-black uppercase tracking-widest text-ink-3">You passed</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {mapInfo.landmarks.map((n) => (
+                      <span key={n} className="slant bg-surface-2 px-2.5 py-0.5 text-[11px] font-bold">
+                        📍 {n}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
           <div className="grid grid-cols-3 gap-2">
             <Telemetry label="Time" value={fmtDuration(a.duration_min)} />
             {a.distance_km ? <Telemetry label="Distance" value={a.distance_km.toFixed(2)} unit="km" accent="var(--sky)" /> : <Telemetry label="Effort" value={a.rpe ?? '—'} unit="/10" accent="var(--sky)" />}

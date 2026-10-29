@@ -6,14 +6,26 @@ import { claimToday, nowHM } from './scheduler.ts';
 import { DAY_META, dayTypeOn } from '../web/src/core/gym.ts';
 import { DEFAULT_START, problemsForDay } from '../web/src/core/dsa/plan.ts';
 import { DEFAULT_PROFILE, targets } from '../web/src/core/fuel.ts';
+import { planDay } from '../web/src/core/mealPlan.ts';
 
-type Settings = { gymShift?: number; dsaStart?: string; fuel?: typeof DEFAULT_PROFILE; waterGoal?: number; briefs?: { morning?: boolean; evening?: boolean; morningAt?: string; eveningAt?: string } };
+type Settings = { diet?: 'veg' | 'egg' | 'nonveg'; gymShift?: number; dsaStart?: string; fuel?: typeof DEFAULT_PROFILE; waterGoal?: number; briefs?: { morning?: boolean; evening?: boolean; morningAt?: string; eveningAt?: string } };
 function settings(): Settings {
   const rows = db.prepare('SELECT key, value FROM settings WHERE key NOT LIKE ?').all('job:%') as { key: string; value: string }[];
   return Object.fromEntries(rows.map((r) => [r.key, JSON.parse(r.value)]));
 }
 const q = <T>(sql: string, ...a: (string | number)[]) => db.prepare(sql).all(...a) as T[];
 const one = <T>(sql: string, ...a: (string | number)[]) => db.prepare(sql).get(...a) as T | undefined;
+
+/** "🥗 Breakfast 08:30 poha & chai · Lunch 13:30 roti, dal, sabzi" for meals not yet logged. */
+function mealIdeas(day: string, s: Settings, t: ReturnType<typeof targets>, meals: ('breakfast' | 'lunch' | 'snacks' | 'dinner')[]) {
+  const per = (m: string) => one<{ k: number; p: number }>('SELECT coalesce(sum(kcal),0) k, coalesce(sum(protein),0) p FROM food_logs WHERE date = ? AND meal = ?', day, m)!;
+  const logged = Object.fromEntries(['breakfast', 'lunch', 'snacks', 'dinner'].map((m) => [m, { kcal: per(m).k, protein: per(m).p }])) as Parameters<typeof planDay>[0]['logged'];
+  const all = Object.values(logged);
+  const usual = q<{ food_id: string }>('SELECT DISTINCT food_id FROM food_logs WHERE food_id IS NOT NULL AND date >= date(?, \'-21 days\')', day).map((r) => r.food_id);
+  const plan = planDay({ nowHM: localStamp(new Date()).slice(11), logged, remaining: { kcal: t.kcal - all.reduce((a, x) => a + x.kcal, 0), protein: t.protein - all.reduce((a, x) => a + x.protein, 0) }, usualIds: usual, diet: s.diet ?? 'veg' });
+  const ideas = plan.filter((p) => meals.includes(p.meal) && p.options[0]).map((p) => `${p.meal[0].toUpperCase() + p.meal.slice(1)} ${p.at} ${p.options[0].name.toLowerCase()}`);
+  return ideas.length ? `🥗 ${ideas.join(' · ')}` : null;
+}
 
 export function morningBrief(day = localStamp(new Date()).slice(0, 10)) {
   const s = settings();
@@ -27,6 +39,7 @@ export function morningBrief(day = localStamp(new Date()).slice(0, 10)) {
     type === 'rest' ? '🛞 Rest day — walk, stretch, recover' : `🏋️ ${DAY_META[type].label} day — ${DAY_META[type].focus}`,
     laps.length ? `💻 DSA: ${laps.map((p) => p.title).join(' · ')}` : null,
     `🍽️ Target ${t.kcal} kcal · ${t.protein} g protein`,
+    mealIdeas(day, s, t, ['breakfast', 'lunch']),
     routines.length ? `⏱️ ${routines.map((r) => `${r.time} ${r.name}`).join(' · ')}` : null,
     due ? `✅ ${due} task${due > 1 ? 's' : ''} due` : null,
   ].filter(Boolean);
@@ -50,6 +63,7 @@ export function eveningRecap(day = localStamp(new Date()).slice(0, 10)) {
     acts.length ? `🏃 ${acts.map((a) => `${a.type}${a.distance_km ? ` ${a.distance_km.toFixed(1)} km` : ` ${Math.round(a.duration_min)} min`}`).join(' · ')}` : null,
     laps.length ? `💻 DSA ${solved}/${laps.length} laps` : null,
     `💧 ${water}/${s.waterGoal ?? 8} glasses`,
+    mealIdeas(day, s, t, ['dinner']),
   ].filter(Boolean);
   return { title: '🏁 Day debrief', body: lines.join('\n'), url: '/' };
 }

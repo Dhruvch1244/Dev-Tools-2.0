@@ -105,3 +105,56 @@ export function projectTrack(pts: Pt[], pad = 6) {
   const oy = (100 - (maxY - minY) * sc) / 2;
   return pts.map((_, i) => `${(ox + (xs[i] - minX) * sc).toFixed(2)},${(oy + (maxY - lats[i]) * sc).toFixed(2)}`).join(' ');
 }
+
+// ---------- Route marks (for the 3D map) ----------
+/** Compass bearing (degrees) from a to b — used to point the onboard camera where you're heading. */
+export function bearing(a: Pt, b: Pt) {
+  const toRad = (x: number) => (x * Math.PI) / 180;
+  const y = Math.sin(toRad(b[1] - a[1])) * Math.cos(toRad(b[0]));
+  const x = Math.cos(toRad(a[0])) * Math.sin(toRad(b[0])) - Math.sin(toRad(a[0])) * Math.cos(toRad(b[0])) * Math.cos(toRad(b[1] - a[1]));
+  return ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
+}
+
+/** Where each full kilometre was crossed, with its split time; the quickest is flagged. */
+export function kmMarks(pts: Pt[]) {
+  const marks: { km: number; at: Pt; minutes: number; fastest: boolean }[] = [];
+  let acc = 0;
+  let lastT = pts[0]?.[2] ?? 0;
+  for (let i = 1; i < pts.length; i++) {
+    acc += haversine(pts[i - 1], pts[i]);
+    if (acc >= 1000 * (marks.length + 1)) {
+      marks.push({ km: marks.length + 1, at: pts[i], minutes: (pts[i][2] - lastT) / 60000, fastest: false });
+      lastT = pts[i][2];
+    }
+  }
+  if (marks.length > 1) {
+    const best = Math.min(...marks.map((m) => m.minutes));
+    marks.forEach((m) => (m.fastest = m.minutes === best));
+  }
+  return marks;
+}
+
+/** Points roughly every `stepM` metres along the track (for elevation sampling). */
+export function resample(pts: Pt[], stepM = 25) {
+  if (pts.length < 2) return pts.slice();
+  const out: Pt[] = [pts[0]];
+  let acc = 0;
+  for (let i = 1; i < pts.length; i++) {
+    acc += haversine(pts[i - 1], pts[i]);
+    if (acc >= stepM) (out.push(pts[i]), (acc = 0));
+  }
+  if (out.at(-1) !== pts.at(-1)) out.push(pts.at(-1)!);
+  return out;
+}
+
+/** Total climb / descent from an elevation series, ignoring sub-3 m noise from DEM interpolation. */
+export function climb(elev: number[]) {
+  let up = 0;
+  let down = 0;
+  let ref = elev[0] ?? 0;
+  for (const e of elev.slice(1)) {
+    const d = e - ref;
+    if (Math.abs(d) >= 3) ((d > 0 ? (up += d) : (down -= d)), (ref = e));
+  }
+  return { up: Math.round(up), down: Math.round(down) };
+}
