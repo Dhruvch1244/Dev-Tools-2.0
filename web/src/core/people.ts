@@ -1,6 +1,8 @@
 // Keep in touch: people with a contact rhythm ("call Mom every Sunday", "Rahul every 2 weeks") and
 // birthdays. Decides who is due today and what to push when. Pure: no React, no I/O.
 
+import { haversine } from './sport';
+
 export type Person = {
   id: string;
   name: string;
@@ -92,3 +94,75 @@ export function peoplePings(people: Person[], today: string): PeoplePing[] {
   }
   return out;
 }
+
+// ---- Circles: who's who, as a hierarchy (circle › org › people) ----
+
+export const CIRCLES: Record<string, { emoji: string; color: string; org: string | null }> = {
+  Family: { emoji: '👪', color: '#ff5fa2', org: 'Side (Mom’s, Dad’s…)' },
+  Friends: { emoji: '🫶', color: '#ffd23f', org: 'Group' },
+  College: { emoji: '🎓', color: '#4fb3ff', org: 'College' },
+  School: { emoji: '🏫', color: '#7ee0a1', org: 'School' },
+  Work: { emoji: '💼', color: '#c9a2ff', org: 'Company' },
+  Gym: { emoji: '🏋️', color: '#e10600', org: 'Gym' },
+  Neighbours: { emoji: '🏘️', color: '#ffb547', org: 'Area' },
+  Other: { emoji: '✨', color: '#9aa0ad', org: null },
+};
+export const CIRCLE_ORDER = Object.keys(CIRCLES);
+
+export type CircleNode<P> = { circle: string; count: number; due: number; orgs: { org: string | null; people: P[] }[] };
+
+/** Group people into circles (in CIRCLE_ORDER) and orgs inside them; no circle → "Other". */
+export function circleTree<P extends Person>(people: P[], today: string): CircleNode<P>[] {
+  const by = new Map<string, Map<string, P[]>>();
+  for (const p of people) {
+    const c = p.circle && p.circle in CIRCLES ? p.circle : 'Other';
+    const orgs = by.get(c) ?? new Map<string, P[]>();
+    const o = p.org?.trim() ?? '';
+    orgs.set(o, [...(orgs.get(o) ?? []), p]);
+    by.set(c, orgs);
+  }
+  return CIRCLE_ORDER.filter((c) => by.has(c)).map((c) => {
+    const orgs = [...by.get(c)!.entries()].sort(([a], [b]) => (a === '' ? -1 : b === '' ? 1 : a.localeCompare(b))).map(([org, ps]) => ({ org: org || null, people: ps }));
+    const all = orgs.flatMap((o) => o.people);
+    return { circle: c, count: all.length, due: all.filter((p) => nextContact(p, today) === today).length, orgs };
+  });
+}
+
+/** People who live in the same city share one map pin. */
+export function cityPins<P extends Person>(people: P[]) {
+  const pins = new Map<string, { city: string; lat: number; lon: number; people: P[] }>();
+  for (const p of people) {
+    if (p.lat == null || p.lon == null) continue;
+    const k = `${p.lat.toFixed(2)},${p.lon.toFixed(2)}`;
+    const pin = pins.get(k) ?? { city: p.city ?? '', lat: p.lat, lon: p.lon, people: [] };
+    pin.people.push(p);
+    pins.set(k, pin);
+  }
+  return [...pins.values()].sort((a, b) => b.people.length - a.people.length);
+}
+
+/** WMO weather code → emoji and words (Open-Meteo). */
+export function weatherOf(code: number, day = true): { emoji: string; text: string } {
+  if (code === 0) return day ? { emoji: '☀️', text: 'Clear' } : { emoji: '🌙', text: 'Clear night' };
+  if (code <= 2) return { emoji: day ? '🌤️' : '☁️', text: 'Partly cloudy' };
+  if (code === 3) return { emoji: '☁️', text: 'Overcast' };
+  if (code === 45 || code === 48) return { emoji: '🌫️', text: 'Fog' };
+  if (code >= 51 && code <= 57) return { emoji: '🌦️', text: 'Drizzle' };
+  if ((code >= 61 && code <= 67) || (code >= 80 && code <= 82)) return { emoji: '🌧️', text: 'Rain' };
+  if ((code >= 71 && code <= 77) || code === 85 || code === 86) return { emoji: '❄️', text: 'Snow' };
+  if (code >= 95) return { emoji: '⛈️', text: 'Thunderstorm' };
+  return { emoji: '🌡️', text: '—' };
+}
+
+/** A conversation starter from their weather: "It's 41° in Jaipur — ask Mom if she's staying in." */
+export function weatherNudge(name: string, city: string, w: { temp: number; code: number }) {
+  if (w.code >= 95) return `Storm in ${city} — check ${name} is okay`;
+  if ((w.code >= 61 && w.code <= 67) || (w.code >= 80 && w.code <= 82)) return `Raining in ${city} — good excuse to call ${name}`;
+  if (w.temp >= 40) return `${Math.round(w.temp)}° in ${city} — ask ${name} to stay cool`;
+  if (w.temp <= 8) return `${Math.round(w.temp)}° in ${city} — ${name} is freezing`;
+  if (w.code === 45 || w.code === 48) return `Foggy in ${city} — ${name} should drive carefully`;
+  return null;
+}
+
+/** Straight-line km between two points. */
+export const kmBetween = (a: { lat: number; lon: number }, b: { lat: number; lon: number }) => haversine([a.lat, a.lon, 0], [b.lat, b.lon, 0]) / 1000;

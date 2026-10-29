@@ -564,3 +564,75 @@ html[data-kb] .chat-dock {
     bottom: 92px;
   }
 }
+
+/* ---- Pit crew map: city pins with faces and the live temperature ---- */
+.crew-map .maplibregl-ctrl-attrib {
+  background: rgb(0 0 0 / 0.5);
+  color: var(--ink-3);
+  font-size: 9px;
+}
+.crew-map .maplibregl-ctrl-attrib a {
+  color: var(--ink-3);
+}
+.crew-pin {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+.crew-pin.is-on {
+  transform: scale(1.18);
+  z-index: 2;
+}
+.crew-faces {
+  display: flex;
+}
+.crew-face {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  margin-left: -9px;
+  border-radius: 999px;
+  border: 2px solid;
+  background: var(--surface);
+  font-size: 15px;
+  font-weight: 900;
+  color: var(--ink);
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.5);
+}
+.crew-face:first-child {
+  margin-left: 0;
+}
+.crew-more {
+  border-color: var(--line-strong);
+  font-size: 10px;
+}
+.crew-city {
+  display: flex;
+  gap: 4px;
+  padding: 1px 6px;
+  transform: skewX(-10deg);
+  background: var(--accent);
+  color: white;
+  font-family: var(--font-display);
+  font-size: 10px;
+  font-weight: 900;
+  font-style: italic;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.crew-temp {
+  opacity: 0.85;
+}
+.crew-me span {
+  display: block;
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  background: #4fb3ff;
+  border: 3px solid white;
+  box-shadow: 0 0 0 6px rgb(79 179 255 / 0.25);
+}

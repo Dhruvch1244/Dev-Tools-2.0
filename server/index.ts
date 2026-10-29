@@ -71,6 +71,38 @@ function logCall(personId: string, date: string | null) {
   emit('checks');
 }
 
+// ---- Places for Pit crew: city search and live weather (Open-Meteo, free, no key) ----
+app.get('/api/geo/search', async (c) => {
+  const q = c.req.query('q')?.trim();
+  if (!q || q.length < 2) return c.json([]);
+  try {
+    const r = await (await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=6&language=en`, { signal: AbortSignal.timeout(6000) })).json() as { results?: { name: string; admin1?: string; country?: string; country_code?: string; latitude: number; longitude: number; population?: number }[] };
+    // Indian places first — that's where the crew mostly is.
+    const rows = (r.results ?? []).sort((a, b) => Number(b.country_code === 'IN') - Number(a.country_code === 'IN'));
+    return c.json(rows.map((x) => ({ name: x.name, region: [x.admin1, x.country_code === 'IN' ? null : x.country].filter(Boolean).join(', '), lat: x.latitude, lon: x.longitude })));
+  } catch (e) {
+    return c.json({ error: (e as Error).message }, 502);
+  }
+});
+const weatherCache = new Map<string, { at: number; v: unknown }>();
+app.get('/api/geo/weather', async (c) => {
+  // pts=lat,lon;lat,lon — one call for every city on the map, cached 15 min per point.
+  const pts = (c.req.query('pts') ?? '').split(';').map((p) => p.split(',').map(Number)).filter((p) => p.length === 2 && p.every(Number.isFinite)).slice(0, 40);
+  const key = (p: number[]) => `${p[0].toFixed(2)},${p[1].toFixed(2)}`;
+  const miss = pts.filter((p) => (weatherCache.get(key(p))?.at ?? 0) < Date.now() - 15 * 60_000);
+  if (miss.length) {
+    try {
+      const url = `https://api.open-meteo.com/v1/forecast?latitude=${miss.map((p) => p[0]).join(',')}&longitude=${miss.map((p) => p[1]).join(',')}&current=temperature_2m,weather_code,is_day&daily=temperature_2m_max,temperature_2m_min&forecast_days=1&timezone=auto`;
+      const j = await (await fetch(url, { signal: AbortSignal.timeout(8000) })).json();
+      const list = (Array.isArray(j) ? j : [j]) as { current?: { temperature_2m: number; weather_code: number; is_day: number }; daily?: { temperature_2m_max: number[]; temperature_2m_min: number[] } }[];
+      list.forEach((w, i) => w.current && weatherCache.set(key(miss[i]), { at: Date.now(), v: { temp: w.current.temperature_2m, code: w.current.weather_code, day: !!w.current.is_day, max: w.daily?.temperature_2m_max?.[0] ?? null, min: w.daily?.temperature_2m_min?.[0] ?? null } }));
+    } catch {
+      // Offline: return what's cached.
+    }
+  }
+  return c.json(Object.fromEntries(pts.map((p) => [key(p), weatherCache.get(key(p))?.v ?? null])));
+});
+
 // ---- Generic CRUD for simple tables ----
 app.get('/api/r/:res', (c) => {
   const name = c.req.param('res');

@@ -19,6 +19,8 @@ export type Drop = Stamped & { kind: 'text' | 'file'; text: string | null; filen
 export type Settings = {
   /** The cached AI "state of my life" recap (Life page). */
   lifeSummary?: { at: string; text: string };
+  /** Where you live — your dot on the Pit crew map and the distance to everyone. */
+  home?: { city: string; lat: number; lon: number };
   name?: string;
   currency?: string;
   waterGoal?: number;

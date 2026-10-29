@@ -15,7 +15,7 @@ import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url';
 maplibregl.setWorkerUrl(workerUrl);
 import { bearing, climb, haversine, kmMarks, resample, type Pt } from '../core/sport';
 
-const STYLE_URL = 'https://tiles.openfreemap.org/styles/liberty';
+export const STYLE_URL = 'https://tiles.openfreemap.org/styles/liberty';
 const DEM = 'https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png';
 // Route paint. The flyover reveals the line by swapping these for a cut-off step — a paint change
 // lands the same frame, where re-sending the geometry goes through the worker and trails the camera.
@@ -36,7 +36,7 @@ const LANE_WIDTH: Record<string, unknown> = {
  * Re-colour the "liberty" street style into the F1 voice — night asphalt rather than pitch black,
  * so every street down to the inner lanes reads at a glance and the red racing line still pops.
  */
-function carbonize(style: StyleSpecification): StyleSpecification {
+export function carbonize(style: StyleSpecification): StyleSpecification {
   const layers = style.layers
     // Bus-stop icons drown the map at running zoom; rail/metro stations stay via the poi_r* layers.
     .filter((l) => !['natural_earth', 'road_area_pattern', 'road_one_way_arrow', 'road_one_way_arrow_opposite', 'poi_transit'].includes(l.id))
