@@ -11,6 +11,10 @@ import { installKeyboard } from './lib/keyboard';
 import './styles.css';
 
 registerSW({ immediate: true });
+// iOS only checks for a new build on a cold start; also check whenever the app comes back to the foreground.
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') void navigator.serviceWorker?.getRegistration().then((r) => r?.update());
+});
 installKeyboard();
 
 createRoot(document.getElementById('root')!).render(

@@ -12,6 +12,7 @@ import { useReminders } from '../lib/reminders';
 import { DAY_META, dayTypeOn } from '../core/gym';
 import { ExpenseForm, QuickNoteForm, TaskForm } from './forms';
 import { SettingsSheet } from './SettingsSheet';
+import { PullRefresh } from './PullRefresh';
 import { Sheet, Textarea, Button, cx } from './ui';
 import { sendDrop } from '../lib/drop';
 import { useToast } from './toast';
@@ -328,6 +329,7 @@ export function Shell({ children }: { children: ReactNode }) {
       </aside>
 
       <Hud />
+      <PullRefresh />
 
       {/* Mobile top-right status */}
       <div className="kb-hide fixed right-3 top-[calc(env(safe-area-inset-top)+10px)] z-30 flex items-center gap-2 lg:hidden">
