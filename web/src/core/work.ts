@@ -34,6 +34,7 @@ export const DEFAULT_WORK: WorkConfig = {
   shifts: [
     { id: 'early', label: 'Early', login: '09:30', logout: '18:00' },
     { id: 'late', label: 'Late', login: '11:00', logout: '20:00' },
+    { id: 'short', label: 'Short', login: '09:30', logout: '15:30' },
   ],
   defaultShift: 'early',
   commute: 40,

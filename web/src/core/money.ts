@@ -135,6 +135,6 @@ export function settleMessage(name: string, b: Balance, upi?: string, seed = Mat
 /** One-line overview: "Rahul owes ₹600 · Priya owes ₹250 · you owe Amit ₹120". */
 export function balancesSummary(bs: Balance[], nameOf: (id: string) => string) {
   const owed = bs.filter((b) => b.net > 0).reduce((a, b) => a + b.net, 0);
-  const owe = -bs.filter((b) => b.net < 0).reduce((a, b) => a + b.net, 0);
+  const owe = Math.abs(bs.filter((b) => b.net < 0).reduce((a, b) => a + b.net, 0));
   return { owed, owe, text: bs.map((b) => (b.net > 0 ? `${nameOf(b.person_id)} owes ${inr(b.net)}` : `you owe ${nameOf(b.person_id)} ${inr(b.net)}`)).join(' · ') };
 }

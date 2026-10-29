@@ -364,7 +364,7 @@ export function MoneyPage() {
         </Card>
       </div>
 
-      <div className="mt-4 grid gap-4 lg:grid-cols-5">
+      <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-5">
         <Card className="flex flex-col lg:col-span-3">
           <DailyColumns month={month} expenses={expenses} currency={currency} />
         </Card>
@@ -382,8 +382,8 @@ export function MoneyPage() {
         </Card>
       </div>
 
-      <div className="mt-4 grid gap-4 lg:grid-cols-5">
-        <Card className="lg:col-span-3">
+      <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-5">
+        <Card className="min-w-0 lg:col-span-3">
           <SectionTitle>Transactions</SectionTitle>
           {byDay.length === 0 && <Empty icon={<Wallet className="size-6" />} title="Nothing logged" hint="Tap + to log what you spend. It takes two seconds." />}
           <div className="space-y-5">
@@ -418,7 +418,7 @@ export function MoneyPage() {
             ))}
           </div>
         </Card>
-        <Rise className="space-y-4 lg:col-span-2">
+        <Rise className="min-w-0 space-y-4 lg:col-span-2">
           <OwedCard onScan={() => setBill(true)} />
           <Subscriptions currency={currency} />
         </Rise>

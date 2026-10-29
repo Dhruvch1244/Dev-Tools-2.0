@@ -11,7 +11,8 @@ import { PersonPicker } from './Contacts';
 import { Button, Input, Sheet, cx } from './ui';
 import { useToast } from './toast';
 
-const inr = (n: number) => `₹${Math.round(n).toLocaleString('en-IN')}`;
+// Math.abs also turns -0 into 0, so an empty "you owe" reads ₹0, not ₹-0.
+const inr = (n: number) => `${n < -0.5 ? '−' : ''}₹${Math.abs(Math.round(n)).toLocaleString('en-IN')}`;
 
 /** Photo of a bill → AI reads it → pick who was in → log my share, track what others owe. */
 export function BillSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -231,7 +232,7 @@ export function OwedCard({ onScan }: { onScan: () => void }) {
   };
 
   return (
-    <div className="rounded-3xl border border-line bg-surface p-5">
+    <div className="min-w-0 rounded-3xl border border-line bg-surface p-5">
       <div className="mb-3 flex items-start justify-between gap-2">
         <p className="flex items-center gap-2 pt-2 text-micro font-black uppercase tracking-[0.25em] text-ink-3">
           <ReceiptText className="size-3.5 text-accent" /> Shared bills
@@ -274,7 +275,7 @@ export function OwedCard({ onScan }: { onScan: () => void }) {
               <AnimatePresence>
                 {open === b.person_id && (
                   <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
-                    <pre className="mx-3 whitespace-pre-wrap rounded-md bg-surface p-3 font-sans text-sm text-ink-2">{msg}</pre>
+                    <pre className="mx-3 whitespace-pre-wrap [overflow-wrap:anywhere] rounded-md bg-surface p-3 font-sans text-sm text-ink-2">{msg}</pre>
                     <div className="flex gap-2 p-3">
                       {b.net > 0 && (
                         <Button size="sm" variant="ghost" aria-label="Another message" onClick={() => (haptic(8), setSeed(Math.random()))}>
@@ -303,7 +304,7 @@ export function OwedCard({ onScan }: { onScan: () => void }) {
       )}
       <label className="mt-3 flex items-center gap-2 text-tiny text-ink-3">
         Your UPI id
-        <input defaultValue={settings.upi ?? ''} onBlur={(e) => e.target.value.trim() !== (settings.upi ?? '') && save({ upi: e.target.value.trim() })} placeholder="name@okhdfc" className="field h-8 flex-1 !py-0 text-sm" autoCapitalize="off" autoCorrect="off" />
+        <input defaultValue={settings.upi ?? ''} onBlur={(e) => e.target.value.trim() !== (settings.upi ?? '') && save({ upi: e.target.value.trim() })} placeholder="name@okhdfc" className="field h-8 min-w-0 flex-1 !py-0 text-sm" autoCapitalize="off" autoCorrect="off" />
       </label>
     </div>
   );
