@@ -25,6 +25,8 @@ const VizGallery = lazy(() => import('./pages/dsa/Viz').then((m) => ({ default: 
 const VizPlayer = lazy(() => import('./pages/dsa/Viz').then((m) => ({ default: m.VizPlayer })));
 const CodeLab = lazy(() => import('./pages/dsa/Viz').then((m) => ({ default: m.CodeLab })));
 const DsaInterview = lazy(() => import('./pages/dsa/Interview').then((m) => ({ default: m.DsaInterview })));
+const AcademyHome = lazy(() => import('./pages/dsa/Academy').then((m) => ({ default: m.AcademyHome })));
+const Lesson = lazy(() => import('./pages/dsa/Academy').then((m) => ({ default: m.Lesson })));
 const DsaTestPage = lazy(() => import('./pages/dsa/Test').then((m) => ({ default: m.DsaTestPage })));
 
 export function App() {
@@ -50,6 +52,8 @@ export function App() {
         <Route path="/report" element={<ReportPage />} />
         <Route path="/dsa" element={<DsaHq />} />
         <Route path="/dsa/week/:n" element={<DsaWeek />} />
+        <Route path="/dsa/learn" element={<AcademyHome />} />
+        <Route path="/dsa/learn/:module" element={<Lesson />} />
         <Route path="/dsa/p/:id" element={<DsaProblem />} />
         <Route path="/dsa/viz" element={<VizGallery />} />
         <Route path="/dsa/viz/:id" element={<VizPlayer />} />

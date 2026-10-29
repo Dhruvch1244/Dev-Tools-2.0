@@ -153,6 +153,12 @@ addColumn('tasks', 'amount', 'REAL');
 addColumn('tasks', 'duration_min', 'INTEGER');
 addColumn('tasks', 'gcal_event_id', 'TEXT');
 
+// Academy progress: one row per lesson module — best stars, total XP earned, attempts.
+db.exec(`CREATE TABLE IF NOT EXISTS learn (
+  id TEXT PRIMARY KEY, module TEXT NOT NULL UNIQUE, stars INTEGER NOT NULL DEFAULT 0, xp INTEGER NOT NULL DEFAULT 0,
+  attempts INTEGER NOT NULL DEFAULT 0, done_at TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+)`);
+
 type Resource = { cols: string[]; order: string; dateCol?: string };
 
 /** Tables exposed through the generic CRUD API, with the columns clients may write. */
@@ -176,6 +182,7 @@ export const RESOURCES: Record<string, Resource> = {
   splits: { cols: ['expense_id', 'person_id', 'amount', 'note', 'date', 'settled_at', 'items'], order: 'date DESC, created_at DESC', dateCol: 'date' },
   contacts: { cols: ['name', 'phone', 'birthday'], order: 'name COLLATE NOCASE ASC' },
   shopping: { cols: ['name', 'qty', 'done', 'source'], order: 'done ASC, name ASC' },
+  learn: { cols: ['module', 'stars', 'xp', 'attempts', 'done_at'], order: 'updated_at DESC' },
   dsa_tests: { cols: ['kind', 'ref', 'started_at', 'finished_at', 'duration_min', 'results', 'score'], order: 'started_at DESC' },
 };
 

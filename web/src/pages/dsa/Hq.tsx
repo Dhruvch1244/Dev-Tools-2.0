@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { motion } from 'motion/react';
 import { useQuery } from '@tanstack/react-query';
-import { Bell, CalendarClock, ChevronRight, Cpu, Flag, Flame, Play, RefreshCw, Timer, Trophy, Zap } from 'lucide-react';
+import { Bell, GraduationCap, CalendarClock, ChevronRight, Cpu, Flag, Flame, Play, RefreshCw, Timer, Trophy, Zap } from 'lucide-react';
 import { api, useList, useResource, useSettings } from '../../lib/api';
 import { useDsa, useSeason, nextRevisit } from '../../lib/dsa';
 import { addDays, daysBetween, parseDate, today } from '../../lib/format';
@@ -291,6 +291,11 @@ export function DsaHq() {
         }
         action={
           <div className="flex gap-2">
+            <Link to="/dsa/learn">
+              <Button>
+                <GraduationCap className="size-4" /> Learn
+              </Button>
+            </Link>
             <Link to="/dsa/viz">
               <Button variant="ghost">
                 <Play className="size-4" /> Visualizer

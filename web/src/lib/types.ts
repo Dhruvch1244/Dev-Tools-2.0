@@ -47,6 +47,7 @@ export type Settings = {
   /** Swapped cook-plan dishes by date. */
   cookPicks?: Record<string, { breakfast?: string; dinner?: string }>;
 };
+export type LearnRow = Stamped & { module: string; stars: number; xp: number; attempts: number; done_at: string | null };
 export type Workout = Stamped & { date: string; day_type: string; notes: string | null; started_at: string | null; finished_at: string | null };
 export type GymSet = Stamped & { workout_id: string; date: string; exercise: string; set_no: number; weight: number; reps: number };
 export type FoodLog = Stamped & { date: string; meal: string; food_id: string | null; name: string; qty: number; unit: string | null; kcal: number; protein: number; carbs: number; fat: number; micros?: string | null };

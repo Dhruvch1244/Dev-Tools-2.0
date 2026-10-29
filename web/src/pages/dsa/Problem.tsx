@@ -364,6 +364,38 @@ function TestBanner({ test }: { test: NonNullable<ReturnType<typeof useLiveTest>
   );
 }
 
+const NOTES_TEMPLATE = `## Pattern
+e.g. prefix sum + hash map
+
+## Key insight
+The one sentence that cracks it.
+
+## Invariant
+What stays true every iteration?
+
+## Approach
+1.
+2.
+
+## Complexity
+| | |
+|---|---|
+| Time | O(n) |
+| Space | O(n) |
+
+## Edge cases
+- empty / single element
+- negatives, duplicates, overflow
+
+## Bugs I hit
+- `;
+const NOTE_SECTIONS: [string, string][] = [
+  ['Dry run', '## Dry run\n| step | state | note |\n|---|---|---|\n| 0 |  |  |'],
+  ['Alt approach', '## Alternative\nBrute force / other idea and why it loses:'],
+  ['Interview script', '## How I’d explain it\n1. Clarify:\n2. Brute force:\n3. Optimise:\n4. Test:'],
+  ['Related', '## Related problems\n- '],
+];
+
 export function DsaProblem() {
   const id = useParams().id ?? '';
   const p = findProblem(id);
@@ -376,7 +408,9 @@ export function DsaProblem() {
   const [code, setCode] = useState<string>('');
   const [notes, setNotes] = useState('');
   const [preview, setPreview] = useState(false);
-  const [leftTab, setLeftTab] = useState<'statement' | 'notes' | 'coach'>('statement');
+  const [leftTab, setLeftTab] = useState<'statement' | 'coach'>('statement');
+  // Right side: write the solution or the engineering notes — the two things you produce.
+  const [rightTab, setRightTab] = useState<'code' | 'notes'>('code');
   const [mobileTab, setMobileTab] = useState<'problem' | 'code' | 'coach' | 'notes'>('problem');
   const [judge, setJudge] = useState<JudgeSummary | null>(null);
   const [timerStart, setTimerStart] = useState<number | null>(null);
@@ -424,10 +458,27 @@ export function DsaProblem() {
   const week = WEEKS.find((w) => w.n === p.week);
   const elapsed = timerStart ? Math.max(0, Math.floor((now - timerStart) / 1000)) : 0;
 
+  const addSection = (text: string) => {
+    const next = `${notes ? `${notes.trimEnd()}\n\n` : ''}${text}`;
+    setNotes(next);
+    persist({ notes: next });
+    setPreview(false);
+  };
   const notesPanel = (
     <>
-      <div className="mb-2 flex justify-end">
-        <button onClick={() => setPreview(!preview)} className="flex items-center gap-1 text-xs font-bold uppercase text-ink-3 hover:text-ink">
+      <div className="mb-2 flex flex-wrap items-center gap-1.5">
+        {!notes.trim() && (
+          <button onClick={() => addSection(NOTES_TEMPLATE)} className="rounded-md bg-accent px-2.5 py-1 text-mini font-bold uppercase text-white">
+            Use template
+          </button>
+        )}
+        {notes.trim() &&
+          NOTE_SECTIONS.map(([label, text]) => (
+            <button key={label} onClick={() => addSection(text)} className="rounded-md bg-surface-2 px-2 py-1 text-mini font-bold uppercase text-ink-2 hover:text-ink">
+              + {label}
+            </button>
+          ))}
+        <button onClick={() => setPreview(!preview)} className="ml-auto flex items-center gap-1 text-xs font-bold uppercase text-ink-3 hover:text-ink">
           {preview ? <Pencil className="size-3.5" /> : <Eye className="size-3.5" />} {preview ? 'Edit' : 'Preview'}
         </button>
       </div>
@@ -435,17 +486,17 @@ export function DsaProblem() {
         <div className="prose-f1 min-h-[300px]" dangerouslySetInnerHTML={{ __html: md(notes || '_Nothing yet._') }} />
       ) : (
         <Textarea
-          rows={16}
+          rows={18}
           value={notes}
           onChange={(e) => {
             setNotes(e.target.value);
             persist({ notes: e.target.value });
           }}
-          placeholder={'## Approach\nWhat pattern? Why does it work?\n\n## Complexity\n| | |\n|---|---|\n| Time | O(n) |\n| Space | O(n) |\n\n## Mistakes I made'}
+          placeholder={NOTES_TEMPLATE}
           className="font-mono text-label leading-relaxed"
         />
       )}
-      <p className="mt-2 text-tiny text-ink-3">Markdown + tables. Saved automatically.</p>
+      <p className="mt-2 text-tiny text-ink-3">Engineering notes: the why, not just the code. Markdown + tables, saved automatically — Pit radio can append to them.</p>
     </>
   );
 
@@ -461,7 +512,7 @@ export function DsaProblem() {
         const next = `${notes ? `${notes.trimEnd()}\n\n` : ''}${text}`;
         setNotes(next);
         save({ problem: id, notes: next });
-        setLeftTab('notes');
+        setRightTab('notes');
         setMobileTab('notes');
       }}
     />
@@ -584,7 +635,7 @@ export function DsaProblem() {
             { value: 'problem', label: 'Problem' },
             { value: 'code', label: 'Code' },
             { value: 'coach', label: 'Coach' },
-            { value: 'notes', label: 'Notes' },
+            { value: 'notes', label: 'Eng notes' },
           ]}
         />
         <Card>{mobileTab === 'problem' ? <Statement q={q} error={lc.error} /> : mobileTab === 'code' ? codePanel : mobileTab === 'coach' ? coachPanel : notesPanel}</Card>
@@ -600,12 +651,22 @@ export function DsaProblem() {
             options={[
               { value: 'statement', label: 'Statement' },
               { value: 'coach', label: 'Pit radio' },
-              { value: 'notes', label: "Engineer's notes" },
             ]}
           />
-          {leftTab === 'statement' ? <Statement q={q} error={lc.error} /> : leftTab === 'coach' ? coachPanel : notesPanel}
+          {leftTab === 'statement' ? <Statement q={q} error={lc.error} /> : coachPanel}
         </Card>
-        <Card>{codePanel}</Card>
+        <Card>
+          <Segmented
+            className="mb-4"
+            value={rightTab}
+            onChange={setRightTab}
+            options={[
+              { value: 'code', label: 'Solution' },
+              { value: 'notes', label: 'Engineering notes' },
+            ]}
+          />
+          {rightTab === 'code' ? codePanel : notesPanel}
+        </Card>
       </div>
     </Page>
   );

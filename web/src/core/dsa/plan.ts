@@ -482,7 +482,12 @@ export const MEGAS: Mega[] = [
 ];
 
 export const ALL_PRACTICE = WEEKS.flatMap((w) => w.problems);
-export const findProblem = (id: string) => [...ALL_PRACTICE, ...WEEKS.flatMap((w) => w.test), ...MEGAS.flatMap((m) => m.problems)].find((p) => p.id === id);
+/** Easy warm-ups the Academy hands out before each week's real set (not counted in season points). */
+export const WARMUPS: Problem[] = [
+  ...P(1, 'contains-duplicate:E two-sum:E valid-anagram:E running-sum-of-1d-array:E range-sum-query-immutable:E find-pivot-index:E'),
+  ...P(2, 'valid-palindrome:E two-sum-ii-input-array-is-sorted:M squares-of-a-sorted-array:E move-zeroes:E remove-duplicates-from-sorted-array:E merge-sorted-array:E maximum-average-subarray-i:E best-time-to-buy-and-sell-stock:E contains-duplicate-ii:E'),
+];
+export const findProblem = (id: string) => [...ALL_PRACTICE, ...WEEKS.flatMap((w) => w.test), ...MEGAS.flatMap((m) => m.problems), ...WARMUPS].find((p) => p.id === id);
 
 /** Points like an F1 finish: harder = more. */
 export const POINTS: Record<Diff, number> = { E: 3, M: 8, H: 15 };
