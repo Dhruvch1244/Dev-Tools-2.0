@@ -13,7 +13,7 @@ import { DAY_META, dayTypeOn } from '../core/gym';
 import { targets, DEFAULT_PROFILE, sumMacros } from '../core/fuel';
 import { problemsForDay, currentWeek, WEEKS } from '../core/dsa/plan';
 import { useDsa, useSeason } from '../lib/dsa';
-import type { FoodLog } from '../lib/types';
+import type { Activity, FoodLog } from '../lib/types';
 import { useHabits, useHealthToday } from './Life';
 import { TodaySchedule } from './Routines';
 
@@ -103,13 +103,17 @@ function RaceWeekend() {
   const laps = problemsForDay(start, t);
   const wk = currentWeek(start, t);
   const lapsDone = laps.filter((p) => ['solved', 'revisit'].includes(get(p.id)?.status ?? '')).length;
+  const { data: acts = [] } = useList<Activity>('activities', { from: t, to: t });
+  const actMin = acts.reduce((a, x) => a + x.duration_min, 0);
+  const actKcal = acts.reduce((a, x) => a + (x.kcal ?? 0), 0);
   const tiles = [
     { to: '/gym', k: 'Gym', v: day === 'rest' ? 'Rest day' : `${meta.label} day`, s: meta.focus, c: meta.color },
     { to: '/fuel', k: 'Fuel', v: `${Math.max(0, Math.round(target - kcal))} kcal left`, s: `${Math.round(kcal)} / ${target} eaten`, c: 'var(--green)' },
+    { to: '/sport', k: 'Sport', v: actMin ? `${Math.round(actMin)} min today` : 'Not yet today', s: actMin ? `${Math.round(actKcal)} kcal burned` : 'Run, walk or badminton', c: 'var(--sky)' },
     { to: '/dsa', k: 'DSA', v: wk === 0 ? 'Pre-season' : laps.length ? `${lapsDone}/${laps.length} laps` : 'Qualifying day', s: wk === 0 ? `Round 1 starts ${start}` : `R${Math.min(wk, 13)} · ${WEEKS[Math.min(wk, 13) - 1]?.gp} GP`, c: 'var(--purple)' },
   ];
   return (
-    <div className="mt-3 grid gap-3 sm:grid-cols-3">
+    <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
       {tiles.map((x, i) => (
         <motion.div key={x.k} initial={{ opacity: 0, x: -30, skewX: -10 }} animate={{ opacity: 1, x: 0, skewX: 0 }} transition={{ delay: 0.35 + i * 0.08, type: 'spring', stiffness: 260, damping: 24 }}>
           <Link to={x.to} className="group relative block overflow-hidden rounded-xl border border-line bg-surface p-4 transition hover:border-accent">

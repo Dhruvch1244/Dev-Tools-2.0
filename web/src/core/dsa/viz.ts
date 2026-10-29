@@ -747,6 +747,7 @@ export function framesFromEvents(events: unknown[]): Frame[] {
   const cells = new Map<string, Record<string, Mark>>();
   const vars: Record<string, Cell | boolean> = {};
   const frames: Frame[] = [];
+  let dirty = false; // state changed since the last cut — only then does the end need its own frame
   const cut = (msg: string) => {
     if (frames.length >= 3000) return;
     frames.push(
@@ -758,6 +759,7 @@ export function framesFromEvents(events: unknown[]): Frame[] {
       }),
     );
     cells.clear();
+    dirty = false;
   };
   for (const e of evs) {
     switch (e.op) {
@@ -783,8 +785,9 @@ export function framesFromEvents(events: unknown[]): Frame[] {
         cut(e.msg);
         continue;
     }
+    dirty = true;
     if (!usesStep) cut(`${e.op} ${'name' in e ? e.name : ''}`);
   }
-  if (usesStep && (arrays.size || tables.size)) cut('end');
+  if (usesStep && dirty && (arrays.size || tables.size)) cut('end');
   return frames;
 }

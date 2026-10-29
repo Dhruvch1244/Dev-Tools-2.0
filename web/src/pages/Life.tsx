@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
+import { Link } from 'react-router';
 import { BookOpen, Droplets, Flame, Minus, Moon, Plus, Scale, Trash2 } from 'lucide-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, useList, useResource, useSettings } from '../lib/api';
@@ -47,7 +48,7 @@ function Habits() {
 
   return (
     <Card className="lg:col-span-3">
-      <SectionTitle>Habits</SectionTitle>
+      <SectionTitle action={<Link to="/routines" className="text-xs font-bold uppercase text-accent hover:underline">Routines →</Link>}>Habits</SectionTitle>
       <div className="mb-3 hidden grid-cols-[1fr_repeat(7,32px)_40px] items-center gap-1.5 pr-1 text-center text-[10px] font-semibold uppercase tracking-wider text-ink-3 sm:grid">
         <span />
         {week.map((d) => (

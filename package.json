@@ -1,12 +1,13 @@
 {
   "name": "dev-tools-2",
   "version": "0.1.0",
-  "description": "Personal life OS — tasks, notes, money, file drop, habits & journal. Self-hosted, synced to your phone over Tailscale.",
+  "description": "Personal life OS — gym, fuel, sport, DSA season, routines, tasks, money, drop & habits. Self-hosted on a laptop, on your phone over Tailscale.",
   "scripts": {
     "dev": "concurrently -k -n api,web -c magenta,cyan \"tsx watch server/index.ts\" \"vite\"",
     "build": "vite build",
     "start": "NODE_ENV=production node --import tsx server/index.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test test/*.test.ts"
   },
   "repository": {
     "type": "git",

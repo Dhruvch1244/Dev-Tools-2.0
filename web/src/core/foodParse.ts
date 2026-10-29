@@ -59,7 +59,10 @@ function score(queryWords: string[][], name: string) {
     else if (forms.some((q) => nameWords.some((n) => n.startsWith(q) || (q.length > 3 && q.startsWith(n))))) s += 2;
     else return 0;
   }
-  return s - 0.25 * Math.max(0, nameWords.length - queryWords.length);
+  // Penalise only name words nothing typed accounts for — "Curd / dahi" is fully covered by "dahi"
+  // (via its alias), "Curd rice" leaves "rice" unexplained.
+  const uncovered = nameWords.filter((n) => !queryWords.some((forms) => forms.some((q) => n === q || n.startsWith(q)))).length;
+  return s - 0.25 * uncovered;
 }
 
 export function parseFoodText<F extends Matchable>(text: string, foods: F[], recentIds: string[] = []): Parsed<F>[] {
@@ -81,7 +84,8 @@ export function parseFoodText<F extends Matchable>(text: string, foods: F[], rec
       }
     }
     const ranked = foods
-      .map((f) => ({ f, s: score(words, f.name) + (recentIds.includes(f.id) ? 1.5 : 0) }))
+      // Raw per-100 g ingredients lose ties to the household dish ("dahi" → a katori of curd, not 100 g raw curd).
+      .map((f) => ({ f, s: score(words, f.name) + (recentIds.includes(f.id) ? 1.5 : 0) - (f.id.startsWith('raw-') ? 1 : 0) }))
       .filter((x) => x.s > 0)
       .sort((a, b) => b.s - a.s);
     return { text: chunk, qty: qty || 1, food: ranked[0]?.f ?? null, alternatives: ranked.slice(1, 4).map((x) => x.f) };
