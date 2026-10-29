@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { ArrowUp, Check, Loader2, MapPin, ReceiptIndianRupee, Trash2 } from 'lucide-react';
+import { ArrowUp, Check, Loader2, MapPin, Plus, ReceiptIndianRupee, Star, Trash2 } from 'lucide-react';
 import { api, useList, useResource } from '../lib/api';
 import { daysBetween, haptic, parseDate, today } from '../lib/format';
 import type { AiAction } from '../core/aiActions';
 import type { Note, Task } from '../lib/types';
 import { planPrompt } from '../core/notes';
 import { ActionCards } from './AiActions';
+import { AppointmentSheet, blankPlan, type PlanDraft } from './AppointmentSheet';
 import { Mic } from './Mic';
 import { Card, SectionTitle, cx } from './ui';
 import { useToast } from './toast';
@@ -31,6 +32,7 @@ export function Upcoming() {
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   const [proposed, setProposed] = useState<AiAction[] | null>(null);
+  const [editing, setEditing] = useState<PlanDraft | null>(null);
 
   const plans = tasks.filter((x) => x.kind === 'plan' && !x.done && x.due && daysBetween(t, x.due.slice(0, 10)) >= 0 && daysBetween(t, x.due.slice(0, 10)) <= 45);
   const bills = tasks.filter((x) => x.kind === 'bill' && !x.done && x.due && daysBetween(t, x.due.slice(0, 10)) <= 31);
@@ -65,7 +67,19 @@ export function Upcoming() {
 
   return (
     <Card>
-      <SectionTitle action={billTotal > 0 && <span className="text-tiny text-ink-3">₹{Math.round(billTotal).toLocaleString('en-IN')} in bills this month</span>}>Coming up</SectionTitle>
+      <SectionTitle
+        action={
+          <span className="flex items-center gap-3">
+            {billTotal > 0 && <span className="text-tiny text-ink-3 max-sm:hidden">₹{Math.round(billTotal).toLocaleString('en-IN')} in bills</span>}
+            <button onClick={() => setEditing(blankPlan())} className="flex items-center gap-1 text-mini font-bold uppercase text-accent">
+              <Plus className="size-3.5" /> Add
+            </button>
+          </span>
+        }
+      >
+        Coming up
+      </SectionTitle>
+      <AppointmentSheet draft={editing} onClose={() => setEditing(null)} />
       <form onSubmit={(e) => (e.preventDefault(), void ask())} className="flex items-end gap-2">
         <textarea
           rows={1}
@@ -91,7 +105,7 @@ export function Upcoming() {
           ))}
         </div>
       )}
-      {!proposed && !plans.length && !bills.length && <p className="mt-2 text-tiny text-ink-3">e.g. “Lodhi Garden picnic Sunday 4 pm” · “rent 18000 on the 1st every month” · “Goa trip 20–23 Dec”</p>}
+      {!proposed && !plans.length && !bills.length && <p className="mt-2 text-tiny text-ink-3">Type or say it — “dentist Tuesday 5 pm”, “rent 18000 on the 1st every month” — or tap Add to fill it in yourself.</p>}
       {proposed && <ActionCards actions={proposed} onDone={() => (setProposed(null), setText(''))} />}
 
       {(plans.length > 0 || bills.length > 0) && (
@@ -104,8 +118,8 @@ export function Upcoming() {
                 const n = daysBetween(t, x.due!.slice(0, 10));
                 return (
                   <motion.li key={x.id} layout initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, height: 0 }} className="group flex items-center gap-3 rounded-md bg-bg px-3 py-2.5">
-                    <span className={cx('grid size-9 shrink-0 place-items-center rounded-md', bill ? 'bg-amber/15 text-amber' : 'bg-accent-soft text-accent')}>{bill ? <ReceiptIndianRupee className="size-4" /> : <MapPin className="size-4" />}</span>
-                    <div className="min-w-0 flex-1">
+                    <span className={cx('grid size-9 shrink-0 place-items-center rounded-md', x.priority >= 3 ? 'bg-yellow/15 text-yellow' : bill ? 'bg-amber/15 text-amber' : 'bg-accent-soft text-accent')}>{x.priority >= 3 ? <Star className="size-4 fill-current" /> : bill ? <ReceiptIndianRupee className="size-4" /> : <MapPin className="size-4" />}</span>
+                    <button onClick={() => setEditing({ ...x, kind: bill ? 'bill' : 'plan' })} className="min-w-0 flex-1 text-left">
                       <p className="line-clamp-2 font-semibold leading-snug">
                         {x.title}
                         {bill && x.amount ? <span className="font-mono text-ink-2"> · ₹{x.amount.toLocaleString('en-IN')}</span> : null}
@@ -115,7 +129,7 @@ export function Upcoming() {
                         {x.place ? ` · ${x.place}` : ''}
                         {bill && x.repeat ? ` · ${x.repeat}` : ''}
                       </p>
-                    </div>
+                    </button>
                     {bill ? (
                       <button onClick={() => paid(x)} className="flex h-9 shrink-0 items-center gap-1 rounded-md bg-green/15 px-2 text-mini font-bold uppercase text-green">
                         <Check className="size-3.5" /> Paid

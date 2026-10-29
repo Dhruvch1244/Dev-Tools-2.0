@@ -101,7 +101,7 @@ async function tick() {
  */
 async function planTick() {
   const now = Date.now();
-  const plans = db.prepare("SELECT id, title, due, place FROM tasks WHERE done = 0 AND kind = 'plan' AND due IS NOT NULL AND substr(due,1,10) >= date('now','localtime','-1 day')").all() as { id: string; title: string; due: string; place: string | null }[];
+  const plans = db.prepare("SELECT id, title, due, place, priority FROM tasks WHERE done = 0 AND kind = 'plan' AND due IS NOT NULL AND substr(due,1,10) >= date('now','localtime','-1 day')").all() as { id: string; title: string; due: string; place: string | null; priority: number }[];
   for (const p of plans) {
     const day = p.due.slice(0, 10);
     const at = p.due.length > 10 ? p.due.slice(11, 16) : null;
@@ -110,11 +110,18 @@ async function planTick() {
     const pings: [number, string, string][] = [[eve.getTime(), 'eve', `Tomorrow${at ? ` · ${at}` : ''}${p.place ? ` · ${p.place}` : ''}`]];
     // A morning reminder only helps when the plan is later in the day (or has no time).
     if (!at || at >= '11:00') pings.push([Date.parse(`${day}T08:30`), 'morn', `Today${at ? ` · ${at}` : ''}${p.place ? ` · ${p.place}` : ''}`]);
+    // Important plans (priority 3) also get a heads-up three days out and the morning before.
+    if (p.priority >= 3)
+      for (const [n, k] of [[3, 'd3'], [1, 'd1']] as const) {
+        const d = new Date(`${day}T09:00`);
+        d.setDate(d.getDate() - n);
+        pings.push([d.getTime(), k, `${n === 1 ? 'Tomorrow' : `In ${n} days`} · ${new Date(`${day}T12:00`).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })}${at ? ` · ${at}` : ''}${p.place ? ` · ${p.place}` : ''} — anything to prepare?`]);
+      }
     for (const [when, k, body] of pings) {
       if (when > now || now - when > STALE_MS) continue;
       const key = `${p.due}@${k}`;
       if (db.prepare('INSERT OR IGNORE INTO push_sent (task_id, due, sent_at) VALUES (?, ?, ?)').run(p.id, key, new Date().toISOString()).changes === 0) continue;
-      const r = await pushAll({ tag: `plan-${p.id}`, title: `📍 ${p.title}`, body, url: '/' });
+      const r = await pushAll({ tag: `plan-${p.id}`, title: `${p.priority >= 3 ? '⭐' : '📍'} ${p.title}`, body, url: '/' });
       if (r.devices > 0 && r.sent === 0) db.prepare('DELETE FROM push_sent WHERE task_id = ? AND due = ?').run(p.id, key);
     }
   }
