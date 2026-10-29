@@ -259,7 +259,7 @@ export function TodayPage() {
 
         <div className="space-y-4 lg:col-span-2">
           <Card>
-            <SectionTitle action={<Link to="/routines" className="text-xs font-medium text-accent hover:underline">Routines</Link>}>Schedule</SectionTitle>
+            <SectionTitle action={<Link to="/plan" className="text-xs font-medium text-accent hover:underline">Week plan →</Link>}>Schedule</SectionTitle>
             <TodaySchedule compact />
           </Card>
           <SupplementsCard />

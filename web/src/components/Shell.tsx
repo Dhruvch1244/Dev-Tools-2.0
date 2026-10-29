@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router';
 import { AnimatePresence, motion } from 'motion/react';
-import { Activity, Camera, Radio, Users, Trophy, Binary, CalendarClock, ChevronLeft, Droplets, Dumbbell, HeartPulse, House, LayoutGrid, ListTodo, Plus, Send, Settings as SettingsIcon, StickyNote, Utensils, Wallet } from 'lucide-react';
+import { Activity, Camera, CalendarRange, Radio, Users, Trophy, Binary, CalendarClock, ChevronLeft, Droplets, Dumbbell, HeartPulse, House, LayoutGrid, ListTodo, Plus, Send, Settings as SettingsIcon, StickyNote, Utensils, Wallet } from 'lucide-react';
 import { mealForNow } from '../core/fuel';
 import { FoodSearch } from '../pages/Fuel';
 import { useHealthToday } from '../pages/Life';
@@ -25,6 +25,7 @@ export const NAV_GROUPS = [
     items: [
       { to: '/', label: 'Today', icon: House },
       { to: '/pitwall', label: 'Pit Wall', icon: Radio },
+      { to: '/plan', label: 'Week plan', icon: CalendarRange },
       { to: '/report', label: 'Race report', icon: Trophy },
       { to: '/routines', label: 'Routines', icon: CalendarClock },
       { to: '/tasks', label: 'Tasks', icon: ListTodo },

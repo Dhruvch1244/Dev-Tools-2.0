@@ -94,3 +94,20 @@ test('pit crew: weekly-on-Sunday rhythm, overdue N-day rhythm, birthdays', () =>
   const pings = peoplePings([mom, friend], '2026-10-29');
   assert.deepEqual(pings.map((p) => p.id).sort(), ['bday-eve:f', 'touch:f']);
 });
+
+import { planWeek } from '../web/src/core/weekPlan.ts';
+
+test('week plan: gym after the commute on office days, nothing overlaps, packing the night before', () => {
+  const days = planWeek({ from: '2026-11-08', days: 3, work: workConfig({}), gymShift: 0, dsaCount: () => 2, routines: [{ name: 'Walk', time: '06:30', duration_min: 45, days: [0, 1, 2, 3, 4, 5, 6] }], cookAt: '16:00' });
+  const mon = days[1];
+  assert.equal(mon.label, 'Office');
+  const gym = mon.blocks.find((b) => b.kind === 'gym')!;
+  assert.ok(gym.start >= '19:00', `gym at ${gym.start}`);
+  assert.ok(mon.blocks.some((b) => b.kind === 'dsa'));
+  assert.ok(days[0].blocks.some((b) => b.kind === 'pack'), 'Sunday packs for Monday office');
+  assert.ok(days[0].blocks.some((b) => b.kind === 'shop'));
+  for (const d of days) {
+    const bs = [...d.blocks].sort((a, b) => a.start.localeCompare(b.start));
+    for (let i = 1; i < bs.length; i++) assert.ok(bs[i].start >= bs[i - 1].end, `${d.date}: ${bs[i - 1].title} overlaps ${bs[i].title}`);
+  }
+});

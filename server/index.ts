@@ -19,7 +19,7 @@ import * as google from './google.ts';
 import { briefsTick, eveningRecap, morningBrief } from './briefs.ts';
 import { syncLeetCode } from './lcsync.ts';
 import { DSA_SYSTEM, FUEL_SYSTEM, ask, dsaPrompt, type DsaAsk, type Prompt } from './coach.ts';
-import { CAPTURE_SYSTEM, CHAT_SYSTEM, JOURNAL_GUIDE, chatPrompt, lifeContext, workRemindersTick, cookTick, lifePingsTick, type ChatTurn } from './assistant.ts';
+import { CAPTURE_SYSTEM, CHAT_SYSTEM, JOURNAL_GUIDE, chatPrompt, lifeContext, workRemindersTick, cookTick, lifePingsTick, planTick, type ChatTurn } from './assistant.ts';
 import { normaliseActions, splitActions } from '../web/src/core/aiActions.ts';
 import { generateReview, listReviews, mondayOf, reviewTick } from './review.ts';
 import { RECEIPT_SYSTEM, normaliseReceipt } from '../web/src/core/money.ts';
@@ -551,6 +551,7 @@ schedule({ name: 'work-reminders', every: 20_000, run: workRemindersTick });
 schedule({ name: 'cook-brief', every: 20_000, run: cookTick });
 schedule({ name: 'people-supps', every: 20_000, run: lifePingsTick });
 schedule({ name: 'ai-review', every: 60_000, run: reviewTick });
+schedule({ name: 'week-plan', every: 20_000, run: planTick });
 schedule({ name: 'leetcode-sync', every: 30 * 60_000, run: async () => (await syncLeetCode())?.marked.length && emit('dsa') });
 // If the laptop was off at 03:00, back up on the first start of the day instead.
 schedule({ name: 'backup-catchup', at: '00:00', run: async () => (await listBackups())[0] !== new Date().toISOString().slice(0, 10) && runBackup() });

@@ -2,6 +2,7 @@ import type { Repeat } from '../core/tasks';
 import type { WorkConfig, WorkOverride } from '../core/work';
 import type { CookConfig } from '../core/cook';
 import type { Person } from '../core/people';
+import type { DayPlan, PlanPrefs } from '../core/weekPlan';
 
 type Stamped = { id: string; created_at: string; updated_at: string };
 
@@ -37,6 +38,9 @@ export type Settings = {
   /** Daily supplements/medicines with a reminder time. */
   /** UPI id shown in 'please pay' messages. */
   upi?: string;
+  planPrefs?: Partial<PlanPrefs>;
+  /** Locked days of the auto-planned week, keyed by date. */
+  weekPlan?: { days?: Record<string, DayPlan>; remind?: boolean };
   supplements?: { id: string; name: string; at: string; dose?: string }[];
   /** Swapped cook-plan dishes by date. */
   cookPicks?: Record<string, { breakfast?: string; dinner?: string }>;

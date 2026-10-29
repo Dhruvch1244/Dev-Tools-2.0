@@ -11,6 +11,7 @@ import { lazy, Suspense } from 'react';
 // on first visit (DSA alone pulls in CodeMirror + three grammars, ~400 KB).
 const PitWallPage = lazy(() => import('./pages/PitWall').then((m) => ({ default: m.PitWallPage })));
 const PeoplePage = lazy(() => import('./pages/People').then((m) => ({ default: m.PeoplePage })));
+const PlanPage = lazy(() => import('./pages/Plan').then((m) => ({ default: m.PlanPage })));
 const NotesPage = lazy(() => import('./pages/Notes').then((m) => ({ default: m.NotesPage })));
 const MoneyPage = lazy(() => import('./pages/Money').then((m) => ({ default: m.MoneyPage })));
 const DropPage = lazy(() => import('./pages/Drop').then((m) => ({ default: m.DropPage })));
@@ -35,6 +36,7 @@ export function App() {
         <Route path="/" element={<TodayPage />} />
         <Route path="/pitwall" element={<PitWallPage />} />
         <Route path="/people" element={<PeoplePage />} />
+        <Route path="/plan" element={<PlanPage />} />
         <Route path="/tasks" element={<TasksPage />} />
         <Route path="/notes" element={<NotesPage />} />
         <Route path="/money" element={<MoneyPage />} />

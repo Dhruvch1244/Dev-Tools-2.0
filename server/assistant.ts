@@ -13,6 +13,7 @@ import { DEFAULT_PROFILE, targets } from '../web/src/core/fuel.ts';
 import { nextSwitch, weekLabel, workConfig, workDay, workPings, workWeek } from '../web/src/core/work.ts';
 import { ACTIONS_GUIDE } from '../web/src/core/aiActions.ts';
 import { nextBirthday, nextContact, peoplePings, type Person } from '../web/src/core/people.ts';
+import { REMIND_KINDS, type DayPlan } from '../web/src/core/weekPlan.ts';
 import { cookBrief, cookConfig, planCookDay } from '../web/src/core/cook.ts';
 
 const q = <T>(sql: string, ...a: (string | number)[]) => db.prepare(sql).all(...a) as T[];
@@ -72,6 +73,7 @@ export async function lifeContext() {
     `TASKS open: ${tasks.map((t) => `${t.title}${t.due ? ` [${t.due.replace('T', ' ')}${t.repeat ? `, ${t.repeat}` : ''}]` : ''}${t.priority ? ` !${t.priority}` : ''}`).join('; ') || 'none'}`,
     `MONEY: ₹${Math.round(spent)} spent this month${owed.length ? ` · shared bills: ${owed.map((o) => `${o.name} ${o.net > 0 ? 'owes me' : 'I owe'} ₹${Math.abs(Math.round(o.net))}`).join(', ')}` : ''}`,
     people.length ? `PEOPLE: ${people.map((p) => `${p.name}${nextContact(p, day) ? ` (next call ${nextContact(p, day)})` : ''}${p.birthday ? ` (birthday ${nextBirthday(p, day)!.date})` : ''}`).join('; ')}` : null,
+    (s as { weekPlan?: { days?: Record<string, DayPlan> } }).weekPlan?.days?.[day] ? `LOCKED PLAN today: ${(s as { weekPlan: { days: Record<string, DayPlan> } }).weekPlan.days[day].blocks.map((b) => `${b.start} ${b.title}`).join('; ')}` : null,
     supps.length ? `SUPPLEMENTS: ${supps.map((x) => `${x.name} at ${x.at}${one('SELECT 1 FROM checks WHERE kind = ? AND ref = ? AND date = ?', 'supp', x.id, day) ? ' (taken)' : ''}`).join('; ')}` : null,
   ]
     .filter(Boolean)
@@ -175,5 +177,24 @@ export async function lifePingsTick() {
     if (!s.at || !due(s.at)) continue;
     if (one('SELECT 1 FROM checks WHERE kind = ? AND ref = ? AND date = ?', 'supp', s.id, day) || !claim(`supp:${s.id}`)) continue;
     await pushAll({ tag: `supp-${s.id}`, title: `💊 ${s.name}${s.dose ? ` · ${s.dose}` : ''}`, body: 'Take it now', url: '/', suppId: s.id, actions: [{ action: 'taken', title: '✓ Taken' }] });
+  }
+}
+
+/** Locked week plan: push 10 minutes before gym, DSA, walks, calls and errands. */
+export async function planTick() {
+  const s = settings() as ReturnType<typeof settings> & { weekPlan?: { days?: Record<string, DayPlan>; remind?: boolean } };
+  if (s.weekPlan?.remind === false) return;
+  const now = new Date();
+  const [day, hm] = localStamp(now).split('T');
+  const plan = s.weekPlan?.days?.[day];
+  if (!plan) return;
+  const mins = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
+  for (const b of plan.blocks) {
+    if (!REMIND_KINDS.includes(b.kind)) continue;
+    const lead = mins(b.start) - mins(hm);
+    if (lead > 10 || lead < 0) continue;
+    if (!db.prepare('INSERT OR IGNORE INTO push_sent (task_id, due, sent_at) VALUES (?, ?, ?)').run(`plan:${b.kind}:${b.start}`, day, now.toISOString()).changes) continue;
+    const icon = { gym: '🏋️', dsa: '💻', walk: '🚶', pack: '🎒', shop: '🛒', cook: '🍳', call: '📞' }[b.kind as string] ?? '⏱️';
+    await pushAll({ tag: `plan-${b.kind}`, title: `${icon} ${b.title} ${lead ? `in ${lead} min` : 'now'}`, body: `${b.start}–${b.end}${b.note ? ` · ${b.note}` : ''}`, url: '/plan' });
   }
 }
