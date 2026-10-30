@@ -5,6 +5,7 @@ import { useList, useResource, useSettings } from '../lib/api';
 import { addDays, parseDate, relativeDay, today } from '../lib/format';
 import { listItem } from '../lib/motion';
 import { DIETS, FOODS, FOOD_CATS, allowedFor, searchFoods, type Diet, type Food } from '../core/foods';
+import { DINNERS, MAKE_AHEAD } from '../core/cook';
 import { ACTIVITY, DEFAULT_PROFILE, MEALS, mealForNow, sumMacros, targets, type Profile } from '../core/fuel';
 import { parseFoodText, proteinFixes } from '../core/foodParse';
 import { planDay, planHeadline, type MealId, type MealPlan } from '../core/mealPlan';
@@ -575,6 +576,10 @@ function DayPlan({ day, remaining, usualIds, diet }: { day: FoodLog[]; remaining
 /** Micronutrient telemetry: today or a 7-day average (micros swing day to day; the week tells the truth). */
 function MicrosCard({ logs, date, profile, kcalTarget }: { logs: FoodLog[]; date: string; profile: Profile; kcalTarget: number }) {
   const [view, setView] = useState<'day' | 'week'>('day');
+  const { settings } = useSettings();
+  const diet: Diet = settings.diet ?? 'veg';
+  // What you actually eat: anything logged this month, plus your cook's breakfasts and dinners.
+  const liked = useMemo(() => new Set([...logs.map((l) => l.food_id).filter((x): x is string => !!x), ...[...MAKE_AHEAD, ...DINNERS].flatMap((d) => d.items.map(([id]) => id))]), [logs]);
   const [open, setOpen] = useState(false);
   const from = addDays(date, -6);
   const window = view === 'day' ? logs.filter((l) => l.date === date) : logs.filter((l) => l.date >= from && l.date <= date);
@@ -624,6 +629,9 @@ function MicrosCard({ logs, date, profile, kcalTarget }: { logs: FoodLog[]; date
           </button>
           {gaps.length > 0 && (
             <div className="mt-3 space-y-2 border-t border-line pt-3">
+              <p className="text-micro font-bold uppercase tracking-wider text-ink-3">
+                {diet === 'veg' ? 'Vegetarian' : diet === 'egg' ? 'Eggetarian' : 'All foods'} · ★ = already in what you eat or your cook makes
+              </p>
               {gaps.slice(0, 3).map((g) => (
                 <div key={g.key} className="text-sm">
                   <p>
@@ -634,9 +642,10 @@ function MicrosCard({ logs, date, profile, kcalTarget }: { logs: FoodLog[]; date
                   </p>
                   {g.status === 'low' && (
                     <div className="mt-1.5 flex flex-wrap gap-1.5">
-                      {richIn(g.key, FOODS, g.target).map(({ food, share }) => (
-                        <span key={food.id} className="rounded-md bg-bg px-2 py-1 text-tiny text-ink-2">
-                          {food.name} <b className="font-mono text-green">{Math.round(share * 100)}%</b>
+                      {richIn(g.key, FOODS, g.target, 5, { allowed: (id) => allowedFor(diet, id), liked }).map(({ food, share, liked: mine }) => (
+                        <span key={food.id} title={food.serving} className={cx('rounded-md px-2 py-1 text-tiny', mine ? 'bg-green/10 text-ink' : 'bg-bg text-ink-2')}>
+                          {mine && '★ '}
+                          {food.name} <span className="text-ink-3">· {food.serving}</span> <b className="font-mono text-green">{Math.round(share * 100)}%</b>
                         </span>
                       ))}
                     </div>

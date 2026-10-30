@@ -566,14 +566,28 @@ export function weekGaps(logs: (Loggable & { kcal: number; date: string })[], da
     .map((r) => ({ key: r.key, target: r.target, pct: r.pct }));
 }
 
-/** Everyday veg dishes richest in one nutrient per serving (share of the daily target). */
-export function richIn(key: MicroKey, foods: { id: string; name: string; serving: string; kcal: number; cat: string }[], target: number, n = 4) {
+/**
+ * Everyday dishes richest in one nutrient per serving (share of the daily target), limited to
+ * what your diet allows. Foods you already eat (logged, or on your cook's menu) rank first —
+ * a suggestion you'll actually follow beats a "perfect" one you won't.
+ */
+export function richIn(
+  key: MicroKey,
+  foods: { id: string; name: string; serving: string; kcal: number; cat: string }[],
+  target: number,
+  n = 4,
+  opts: { allowed: (id: string) => boolean; liked?: Set<string> },
+) {
   const skip = /Raw|Non-veg|Sweets|Restaurant|Packaged|Drinks$/;
   return foods
-    .filter((f) => !skip.test(f.cat) && T[f.id] && !/egg|chicken|mutton|fish|prawn|pork|keema/.test(f.id))
-    .map((f) => ({ food: f, share: (microsOf(f.id)![key] ?? 0) / target }))
+    .filter((f) => !skip.test(f.cat) && T[f.id] && opts.allowed(f.id))
+    .map((f) => {
+      const share = (microsOf(f.id)![key] ?? 0) / target;
+      const liked = !!opts.liked?.has(f.id);
+      return { food: f, share, liked, score: share * (liked ? 1.6 : 1) };
+    })
     .filter((x) => x.share >= 0.1)
-    .sort((a, b) => b.share - a.share)
+    .sort((a, b) => b.score - a.score)
     .slice(0, n);
 }
 
