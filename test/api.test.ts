@@ -138,3 +138,41 @@ test('AI endpoints validate input before calling the model', async () => {
   assert.match(ctx, /WORK today:/);
   assert.ok(!ctx.includes('TOP-SECRET'));
 });
+
+test('Daily 3: the same three questions all day, answers saved, a swap brings a new one', async () => {
+  const a = (await call('/story/today?date=2030-01-01')).body;
+  const b = (await call('/story/today?date=2030-01-01')).body;
+  assert.equal(a.length, 3);
+  assert.deepEqual(b.map((x: { id: string }) => x.id), a.map((x: { id: string }) => x.id));
+  // Short answer: long ones also queue an AI follow-up, which the test shouldn't spawn.
+  assert.equal((await call(`/story/${a[0].id}`, { method: 'PUT', json: { a: 'Jaipur, near the old city.' } })).status, 200);
+  assert.deepEqual((await call('/story/days')).body, ['2030-01-01']);
+  await call(`/story/${a[1].id}/swap`, { method: 'POST' });
+  const c = (await call('/story/today?date=2030-01-01')).body;
+  assert.equal(c.length, 3);
+  assert.ok(!c.some((x: { q: string }) => x.q === a[1].q), 'swapped question is gone');
+  // The next day carries on the story instead of repeating it.
+  const next = (await call('/story/today?date=2030-01-02')).body;
+  assert.ok(!next.some((x: { q: string }) => c.some((y: { q: string }) => y.q === x.q)));
+});
+
+test('places: test mode has no side effects; a real office arrival clocks you in', async () => {
+  await call('/settings', { method: 'PUT', json: { places: [{ id: 'office', name: 'Office', kind: 'office' }, { id: 'gym', name: 'Gym', kind: 'gym' }] } });
+  assert.equal((await call('/hook/place/nowhere/arrive')).status, 404);
+  const t = await call('/hook/place/gym/arrive?test=1');
+  assert.ok(t.body.push.title);
+  assert.equal((await call('/hook/places/log')).body.length, 0);
+  const r = await call('/hook/place/office/arrive', { method: 'POST' });
+  assert.match(r.body.message, /Clocked in/);
+  const s = (await call('/settings')).body;
+  const today = Object.keys(s.workOverrides)[0];
+  assert.equal(s.workOverrides[today].mode, 'office');
+  assert.match(s.workOverrides[today].in, /^\d\d:\d\d$/);
+  assert.equal((await call('/hook/places/log')).body[0].place, 'office');
+});
+
+test('widget snapshot has everything the Scriptable script reads', async () => {
+  const w = (await call('/hook/widget')).body;
+  for (const k of ['date', 'gym', 'kcal', 'protein', 'water', 'habits', 'story', 'work', 'next', 'shutdown', 'top']) assert.ok(k in w, k);
+  assert.ok(w.kcal.target > 0 && w.protein.target > 0);
+});

@@ -13,6 +13,7 @@ import { useToast } from '../../components/toast';
 import { AnimatedNumber, Button, Card, Input, Page, PageHeader, ProgressRing, Rise, SectionTitle, cx } from '../../components/ui';
 import { Telemetry } from '../../components/f1';
 import { PLATFORM, ProblemRow, countdown } from './shared';
+import { FocusCard } from '../../components/FocusMode';
 
 type ContestResp = { contests: { platform: string; name: string; url: string; start: string; durationMin: number }[]; errors: Record<string, string> };
 type ProfileResp = {
@@ -368,6 +369,20 @@ export function DsaHq() {
         <Telemetry label="E · M · H" value={`${diffCount('E')}·${diffCount('M')}·${diffCount('H')}`} accent="var(--yellow)" />
         <Telemetry label="Streak" value={<span className="inline-flex items-center gap-1">{streak}<Flame className={cx('size-6', streak && 'fill-current text-yellow')} /></span>} unit="days" accent="var(--yellow)" />
         <Telemetry label="Revision due" value={due.length} accent="var(--purple)" />
+      </div>
+
+      <div className="mb-4">
+        <FocusCard
+          options={[
+            ...todays.map((p) => ({ ref: p.id, label: p.title })),
+            ...due.slice(0, 3).flatMap((d) => {
+              const p = findProblem(d.problem);
+              return p && !todays.some((x) => x.id === p.id) ? [{ ref: p.id, label: `↻ ${p.title}` }] : [];
+            }),
+            { ref: null, label: 'Free practice' },
+            { ref: null, label: 'Academy lesson' },
+          ]}
+        />
       </div>
 
       <div className="mb-4 grid gap-4 lg:grid-cols-2">

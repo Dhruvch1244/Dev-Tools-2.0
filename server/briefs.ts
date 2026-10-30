@@ -79,7 +79,7 @@ export function eveningRecap(day = localStamp(new Date()).slice(0, 10)) {
     `💧 ${water}/${s.waterGoal ?? 8} glasses`,
     mealIdeas(day, s, t, ['dinner']),
   ].filter(Boolean);
-  return { title: '🏁 Day debrief', body: lines.join('\n'), url: '/' };
+  return { title: '🏁 Day debrief — time to shut down', body: lines.join('\n'), url: '/?shutdown=1' };
 }
 
 /** Runs every scheduler tick; sends each brief once a day at its configured time (or late, until noon / midnight). */

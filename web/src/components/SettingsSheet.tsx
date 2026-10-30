@@ -7,6 +7,7 @@ import { CURRENCIES } from '../lib/categories';
 import { disablePush, enablePush, pushState, sendTestPush, type PushState } from '../lib/push';
 import { Button, Chip, Input, Sheet, cx } from './ui';
 import { useToast } from './toast';
+import { PlacesSection, WidgetSection } from './IphoneSetup';
 
 const PUSH_COPY: Record<PushState, string> = {
   on: 'On for this device — reminders arrive even when the app is closed. Notifications have Mark done and Snooze 10 min buttons.',
@@ -149,6 +150,8 @@ export function SettingsSheet({ open, onClose }: { open: boolean; onClose: () =>
         </section>
         {open && <PushSection />}
         {open && <BriefsSection />}
+        {open && <WidgetSection />}
+        {open && <PlacesSection />}
         {open && <BackupSection />}
       </div>
     </Sheet>

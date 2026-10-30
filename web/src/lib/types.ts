@@ -19,6 +19,10 @@ export type Drop = Stamped & { kind: 'text' | 'file'; text: string | null; filen
 export type Settings = {
   /** The cached AI "state of my life" recap (Life page). */
   lifeSummary?: { at: string; text: string };
+  /** The cached AI portrait from your Daily 3 answers. */
+  storyPortrait?: { at: string; text: string; n: number };
+  /** Places for iPhone location triggers (core/places). */
+  places?: import('../core/places').Place[];
   /** Where you live — your dot on the Pit crew map and the distance to everyone. */
   home?: { city: string; lat: number; lon: number };
   name?: string;
@@ -71,3 +75,7 @@ export type ContactRow = Stamped & { name: string; phone: string | null; birthda
 export type ShopRow = Stamped & { name: string; qty: string | null; done: number; source: string | null; trip?: 'major' | 'minor' | null };
 export type SavedMeal = Stamped & { name: string; meal: string | null; items: string };
 export type Briefs = { morning?: boolean; evening?: boolean; morningAt?: string; eveningAt?: string; water?: boolean };
+/** One day's top 3 (JSON list of { t, done }) and its shutdown: one good thing, energy 1–5, when you closed the day. */
+export type DayRow = Stamped & { date: string; intention: string | null; win: string | null; energy: number | null; shutdown_at: string | null };
+/** A DSA focus stint. */
+export type FocusRow = Stamped & { date: string; started_at: string; planned: number; minutes: number; ref: string | null; label: string | null; distractions: number; away_sec: number; ended_at: string | null };

@@ -9,6 +9,7 @@ import type { Health } from '../lib/types';
 import { AnimatedNumber, Card, IconButton, Page, PageHeader, cx } from '../components/ui';
 import { GuidedJournal } from '../components/GuidedJournal';
 import { LifeInsights } from '../components/LifeInsights';
+import { Daily3 } from '../components/Daily3';
 import { useSearchParams } from 'react-router';
 
 export const MOODS = ['😞', '😕', '😐', '🙂', '😄'];
@@ -151,6 +152,7 @@ export function LifePage() {
     <Page>
       <PageHeader eyebrow="Mood · Health · Journal" title="Life" />
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
+        <Daily3 className="lg:col-span-5" />
         <LifeInsights />
         <HealthToday />
         <GuidedJournal autoStart={params.get('journal') === '1'} />

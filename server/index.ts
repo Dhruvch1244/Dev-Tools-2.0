@@ -29,6 +29,8 @@ import { RECEIPT_SYSTEM, normaliseReceipt } from '../web/src/core/money.ts';
 import { AI_FOOD_SYSTEM, aiUserText, extractJson, normaliseAi } from '../web/src/core/aiFood.ts';
 import { gym } from './gym.ts';
 import { money } from './money.ts';
+import { storyRoutes } from './story.ts';
+import { hookRoutes } from './hooks.ts';
 import { SORT_SYSTEM, normaliseSorted } from '../web/src/core/notes.ts';
 
 const PORT = Number(process.env.PORT ?? 4300);
@@ -43,6 +45,8 @@ const now = () => new Date().toISOString();
 // ---- Live sync: every write broadcasts the resource name; clients refetch it. ----
 const listeners = new Set<(resource: string) => void>();
 const emit = (resource: string) => listeners.forEach((fn) => fn(resource));
+app.route('/api/story', storyRoutes(emit));
+app.route('/api/hook', hookRoutes(emit));
 
 app.get('/api/events', (c) =>
   streamSSE(c, async (stream) => {

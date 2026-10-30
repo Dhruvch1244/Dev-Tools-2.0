@@ -21,6 +21,7 @@ import { TodaySchedule } from './Routines';
 import { Upcoming } from '../components/Upcoming';
 import { WorkCard } from '../components/WorkCard';
 import { SupplementsCard } from '../components/Supplements';
+import { DayCard } from '../components/DayRitual';
 
 /** One-line entry to the AI assistant; the question opens Pit Wall and is asked straight away. */
 function AskPitWall() {
@@ -208,6 +209,10 @@ export function TodayPage() {
         <Headline name={settings.name} />
         <Clock />
       </Rise>
+
+      <div className="mb-3">
+        <DayCard />
+      </div>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <Stat to="/tasks" icon={<ListTodo className="size-5" />} label="Due today" ring={dueToday.length + doneToday ? doneToday / (dueToday.length + doneToday) : 0} color="var(--accent)" sub={`${doneToday} done today`}>

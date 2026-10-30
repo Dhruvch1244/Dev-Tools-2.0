@@ -184,6 +184,18 @@ db.exec(`CREATE TABLE IF NOT EXISTS holdings (
   created_at TEXT NOT NULL, updated_at TEXT NOT NULL
 )`);
 
+// One row per day: its top 3 (JSON, set the night before or that morning) and the shutdown ritual (one good thing, energy, when you shut down).
+db.exec(`CREATE TABLE IF NOT EXISTS days (
+  id TEXT PRIMARY KEY, date TEXT NOT NULL UNIQUE, intention TEXT, win TEXT, energy INTEGER, shutdown_at TEXT,
+  created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+)`);
+// DSA focus stints: planned vs real minutes, the problem worked on, and how often you wandered off.
+db.exec(`CREATE TABLE IF NOT EXISTS focus (
+  id TEXT PRIMARY KEY, date TEXT NOT NULL, started_at TEXT NOT NULL, planned INTEGER NOT NULL, minutes REAL NOT NULL DEFAULT 0,
+  ref TEXT, label TEXT, distractions INTEGER NOT NULL DEFAULT 0, away_sec INTEGER NOT NULL DEFAULT 0, ended_at TEXT,
+  created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+)`);
+
 type Resource = { cols: string[]; order: string; dateCol?: string };
 
 /** Tables exposed through the generic CRUD API, with the columns clients may write. */
@@ -209,6 +221,8 @@ export const RESOURCES: Record<string, Resource> = {
   shopping: { cols: ['name', 'qty', 'done', 'source', 'trip'], order: 'done ASC, name ASC' },
   holdings: { cols: ['kind', 'symbol', 'name', 'qty', 'avg_price', 'value'], order: 'kind ASC, name ASC' },
   learn: { cols: ['module', 'stars', 'xp', 'attempts', 'done_at'], order: 'updated_at DESC' },
+  days: { cols: ['date', 'intention', 'win', 'energy', 'shutdown_at'], order: 'date DESC', dateCol: 'date' },
+  focus: { cols: ['date', 'started_at', 'planned', 'minutes', 'ref', 'label', 'distractions', 'away_sec', 'ended_at'], order: 'started_at DESC', dateCol: 'date' },
   dsa_tests: { cols: ['kind', 'ref', 'started_at', 'finished_at', 'duration_min', 'results', 'score'], order: 'started_at DESC' },
 };
 

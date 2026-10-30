@@ -224,6 +224,12 @@ input[type='time']::-webkit-date-and-time-value {
 @utility kerb {
   background: repeating-linear-gradient(90deg, var(--accent) 0 22px, #f3f3f3 22px 44px);
 }
+/* Chequered flag behind "day closed": a soft grid, so text on top stays readable. */
+@utility checker-band {
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--surface) 82%, transparent), color-mix(in srgb, var(--surface) 55%, transparent)),
+    repeating-conic-gradient(#f3f3f3 0 25%, #111 0 50%) 0 0 / 16px 16px;
+}
 @utility no-scrollbar {
   scrollbar-width: none;
   &::-webkit-scrollbar {

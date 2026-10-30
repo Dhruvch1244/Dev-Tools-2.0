@@ -5,6 +5,7 @@ import { Activity, GraduationCap, Camera, CalendarRange, Radio, Users, Trophy, B
 import { mealForNow } from '../core/fuel';
 import { FoodSearch } from '../pages/Fuel';
 import { useHealthToday } from '../pages/Life';
+import { FocusPill } from './FocusMode';
 import { flushOutbox, useLiveSync, useOutbox, useSettings } from '../lib/api';
 import { bouncy, easeOut, spring } from '../lib/motion';
 import { haptic, today } from '../lib/format';
@@ -395,6 +396,7 @@ export function Shell({ children }: { children: ReactNode }) {
         </div>
       </Sheet>
 
+      <FocusPill />
       <QuickAdd open={quick} onClose={() => setQuick(false)} kind={quickKind} setKind={setQuickKind} />
       <SettingsSheet open={settings} onClose={() => setSettings(false)} />
     </div>
