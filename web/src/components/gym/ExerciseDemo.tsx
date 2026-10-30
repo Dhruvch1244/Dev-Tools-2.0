@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Pause, Play } from 'lucide-react';
 import { api } from '../../lib/api';
-import { figureFor, frameOf, isBreathing, toes, type Figure, type Pose, type Pt } from '../../core/figures';
+import { figureFor, frameOf, isBreathing, joints, parts, poseAt, type Figure, type Pose, type Pt } from '../../core/figures';
 import { cx } from '../ui';
 
 type Demo = { id: string; name: string; level: string; equipment: string | null; muscles: string[]; steps: string[]; frames: number };
@@ -14,48 +14,86 @@ export function useDemo(name: string, enabled = true) {
   return useQuery({ queryKey: ['gym-demo', name], queryFn: () => api<Demo | null>(`/gym/demo?name=${encodeURIComponent(name)}`), enabled: enabled && !local && !!name, staleTime: Infinity, gcTime: Infinity, retry: 1 });
 }
 
-/** Start and end photos cross-fading in a loop: the movement, without a video. */
+/**
+ * Start and end photos cross-fading in a slow, eased loop — the movement without a video. Waits
+ * until both photos have loaded so the first fades aren't blank flashes.
+ */
 function PhotoLoop({ id, paused, className }: { id: string; paused?: boolean; className?: string }) {
+  const [loaded, setLoaded] = useState(0);
+  const ready = loaded >= 2;
   return (
     <span className={cx('relative block overflow-hidden bg-white', className)}>
-      <img src={img(id, 0)} alt="" loading="lazy" className="absolute inset-0 size-full object-cover" />
-      <img src={img(id, 1)} alt="" loading="lazy" className="demo-flip absolute inset-0 size-full object-cover" style={{ animationPlayState: paused ? 'paused' : 'running' }} />
+      {!ready && <span className="absolute inset-0 animate-pulse bg-surface-2" />}
+      <img src={img(id, 0)} alt="" loading="lazy" onLoad={() => setLoaded((n) => n + 1)} className={cx('demo-a absolute inset-0 size-full object-cover transition-opacity duration-500', ready ? 'opacity-100' : 'opacity-0')} style={{ animationPlayState: paused || !ready ? 'paused' : 'running' }} />
+      <img src={img(id, 1)} alt="" loading="lazy" onLoad={() => setLoaded((n) => n + 1)} className={cx('absolute inset-0 size-full object-cover', ready ? 'demo-flip' : 'opacity-0')} style={{ animationPlayState: paused || !ready ? 'paused' : 'running' }} />
     </span>
   );
 }
 
-const SEGMENTS: [keyof Pose | 'toeF' | 'toeB', keyof Pose | 'toeF' | 'toeB', boolean][] = [
-  ['neck', 'elbowB', false], ['elbowB', 'handB', false], ['hip', 'kneeB', false], ['kneeB', 'footB', false], ['footB', 'toeB', false],
-  ['neck', 'hip', true], ['hip', 'kneeF', true], ['kneeF', 'footF', true], ['footF', 'toeF', true], ['neck', 'elbowF', true], ['elbowF', 'handF', true],
-];
+/** Drives a figure from requestAnimationFrame (only while on screen), so the loop is smooth at any frame rate. */
+function useLoopTime(paused: boolean | undefined) {
+  const [t, setT] = useState(0);
+  const [el, setEl] = useState<Element | null>(null);
+  const [visible, setVisible] = useState(true);
+  useEffect(() => {
+    if (!el || typeof IntersectionObserver === 'undefined') return;
+    const io = new IntersectionObserver(([e]) => setVisible(e.isIntersecting));
+    io.observe(el);
+    return () => io.disconnect();
+  }, [el]);
+  useEffect(() => {
+    if (paused || !visible) return;
+    let raf = 0;
+    let last = performance.now();
+    const tick = (now: number) => {
+      setT((x) => x + Math.min(0.1, (now - last) / 1000));
+      last = now;
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [paused, visible]);
+  return { t, ref: setEl };
+}
 
-/** A drawn stick figure tweening through its poses (SVG SMIL, no JS per frame). */
-export function FigureLoop({ fig, paused, className }: { fig: Figure; paused?: boolean; className?: string }) {
-  const frames = [...fig.poses, fig.poses[0]].map((p) => ({ ...p, ...toes(p) }) as Record<string, Pt>);
-  const n = frames.length - 1;
-  const keyTimes = frames.map((_, i) => (i / n).toFixed(3)).join(';');
-  const splines = Array.from({ length: n }, () => '0.45 0 0.55 1').join(';');
-  const anim = (attr: string, vals: number[]) => <animate attributeName={attr} values={vals.join(';')} keyTimes={keyTimes} calcMode="spline" keySplines={splines} dur={`${fig.secs}s`} repeatCount="indefinite" />;
-  const [svg, setSvg] = useState<SVGSVGElement | null>(null);
-  useEffect(() => void (svg && (paused ? svg.pauseAnimations() : svg.unpauseAnimations())), [svg, paused]);
-  const f0 = frames[0];
-  const box = frameOf(fig);
+function Body({ pose, view, ghost }: { pose: Pose; view: Figure['view']; ghost?: boolean }) {
+  const near = ghost ? 'var(--ink-3)' : 'var(--accent)';
+  const far = ghost ? 'var(--ink-3)' : 'color-mix(in srgb, var(--accent) 50%, var(--bg))';
   return (
-    <svg ref={setSvg} viewBox={box.join(' ')} preserveAspectRatio="xMidYMid meet" className={cx('block bg-bg', className)} role="img" aria-label={fig.cue}>
-      {fig.floor !== false && <line x1={box[0]} y1="72.8" x2={box[0] + box[2]} y2="72.8" stroke="var(--line-strong)" strokeWidth="1" />}
-      {fig.props?.map((p, i) => (p.kind === 'line' ? <line key={i} x1={p.x} y1={p.y} x2={p.x2} y2={p.y2} stroke="var(--ink-3)" strokeWidth="1.6" /> : <rect key={i} x={p.x} y={p.y} width={p.x2 - p.x} height={p.y2 - p.y} rx="1" fill="var(--surface-2)" stroke="var(--ink-3)" strokeWidth="0.8" />))}
-      {SEGMENTS.map(([a, b, near], i) => (
-        <line key={i} x1={f0[a][0]} y1={f0[a][1]} x2={f0[b][0]} y2={f0[b][1]} stroke={near ? 'var(--accent)' : 'color-mix(in srgb, var(--accent) 45%, transparent)'} strokeWidth={a === 'neck' && b === 'hip' ? 4.2 : 3.2} strokeLinecap="round">
-          {anim('x1', frames.map((f) => f[a][0]))}
-          {anim('y1', frames.map((f) => f[a][1]))}
-          {anim('x2', frames.map((f) => f[b][0]))}
-          {anim('y2', frames.map((f) => f[b][1]))}
-        </line>
-      ))}
-      <circle cx={f0.head[0]} cy={f0.head[1]} r="5" fill="var(--ink)">
-        {anim('cx', frames.map((f) => f.head[0]))}
-        {anim('cy', frames.map((f) => f.head[1]))}
-      </circle>
+    <g opacity={ghost ? 0.16 : 1}>
+      {parts(joints(pose, view)).map((p, i) =>
+        'd' in p ? (
+          <path key={i} d={p.d} stroke={p.near ? near : far} strokeWidth={p.w} strokeLinecap="round" fill="none" />
+        ) : (
+          <circle key={i} cx={p.circle[0]} cy={p.circle[1]} r={p.r} fill={p.head ? (ghost ? 'var(--ink-3)' : 'var(--ink)') : p.near ? near : far} />
+        ),
+      )}
+    </g>
+  );
+}
+
+/** A drawn figure on a fixed skeleton, eased through its key poses, with the end pose as a ghost and the phase named. */
+export function FigureLoop({ fig, paused, className, labels = true }: { fig: Figure; paused?: boolean; className?: string; labels?: boolean }) {
+  const { t, ref } = useLoopTime(paused);
+  const box = useMemo(() => frameOf(fig), [fig]);
+  const pose = poseAt(fig, t);
+  const hip = joints(pose, fig.view).hip;
+  return (
+    <svg ref={ref} viewBox={box.join(' ')} preserveAspectRatio="xMidYMid meet" className={cx('block bg-bg', className)} role="img" aria-label={fig.cue}>
+      {fig.floor !== false && (
+        <>
+          <line x1={box[0]} y1="72.8" x2={box[0] + box[2]} y2="72.8" stroke="var(--line-strong)" strokeWidth="0.8" />
+          <ellipse cx={hip[0]} cy="73.2" rx="16" ry="1.6" fill="black" opacity="0.35" />
+        </>
+      )}
+      {fig.props?.map((p, i) => (p.kind === 'line' ? <line key={i} x1={p.x} y1={p.y} x2={p.x2} y2={p.y2} stroke="var(--ink-3)" strokeWidth="1.6" /> : <rect key={i} x={p.x} y={p.y} width={p.x2 - p.x} height={p.y2 - p.y} rx="1" fill="var(--surface-2)" stroke="var(--ink-3)" strokeWidth="0.6" />))}
+      {fig.ghost && fig.keys.length === 2 && <Body pose={fig.keys[1].pose} view={fig.view} ghost />}
+      <Body pose={pose} view={fig.view} />
+      {labels && pose.label && (
+        <text x={box[0] + 3} y={box[1] + 6} className="fill-ink-2 font-display font-black uppercase italic" style={{ fontSize: Math.max(3.2, box[2] / 26) }}>
+          {pose.label}
+        </text>
+      )}
     </svg>
   );
 }
@@ -95,7 +133,7 @@ export function DemoThumb({ name, className = 'h-12 w-16' }: { name: string; cla
   const fig = figureFor(name);
   const { data } = useDemo(name);
   if (isBreathing(name)) return <BreathingGuide compact className={cx('shrink-0 rounded-md', className)} />;
-  if (fig) return <FigureLoop fig={fig} className={cx('shrink-0 rounded-md', className)} />;
+  if (fig) return <FigureLoop fig={fig} labels={false} className={cx('shrink-0 rounded-md', className)} />;
   if (data?.id) return <PhotoLoop id={data.id} className={cx('shrink-0 rounded-md', className)} />;
   return null;
 }

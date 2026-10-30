@@ -1,151 +1,283 @@
-// Drawn demos for moves the photo library doesn't have (wall slides, ankle rocks, burpees…): a
-// stick figure as keyframe poses that the UI tweens in a loop. Coordinates live in a 120×80 box,
-// floor at y = 72; "F" limbs are the near side, "B" the far side (drawn dimmer). Pure data.
+// Drawn demos for moves the photo library doesn't have (wall slides, ankle rocks, burpees…).
+// A real 2D skeleton: fixed bone lengths, limbs posed by joint angles or reaching for a point
+// (two-bone IK, so a planted foot or hand stays put while the body moves), a spine that can round.
+// Keyframes tween angles and targets — never raw points — so limbs never stretch. Pure: no React.
+//
+// Angles are degrees in screen space: 0 = straight down, 90 = forward (right), 180 = up, -90 = back.
+// The box is 120×80 with the floor at y = 72. "F" limbs are the near side, "B" the far side.
 
 export type Pt = [number, number];
+type Limb = [number, number] | { to: Pt; bend: 1 | -1 };
 export type Pose = {
-  head: Pt; neck: Pt; hip: Pt;
-  elbowF: Pt; handF: Pt; elbowB: Pt; handB: Pt;
-  kneeF: Pt; footF: Pt; kneeB: Pt; footB: Pt;
-  /** Toe tips; default a short foot pointing right (side views). */
-  toeF?: Pt; toeB?: Pt;
+  hip: Pt;
+  torso: number;
+  torsoLen?: number;
+  /** Upper-back curve: + rounds it (towards the back), − arches. */
+  spine?: number;
+  head?: number;
+  armF: Limb; armB: Limb; legF: Limb; legB: Limb;
+  footF?: number; footB?: number;
+  /** Shown while this pose is held / being moved to. */
+  label?: string;
 };
+export type Key = { pose: Pose; hold?: number; move?: number };
 export type Prop = { kind: 'line' | 'rect'; x: number; y: number; x2: number; y2: number };
-export type Figure = { poses: Pose[]; secs: number; props?: Prop[]; cue: string; floor?: boolean };
+export type Figure = { view: 'side' | 'front'; keys: Key[]; cue: string; props?: Prop[]; floor?: boolean; ghost?: boolean };
 
-const STAND: Pose = { head: [60, 14], neck: [60, 22], hip: [60, 44], elbowF: [60, 33], handF: [60, 44], elbowB: [60, 33], handB: [60, 44], kneeF: [60, 58], footF: [60, 72], kneeB: [60, 58], footB: [60, 72] };
-const pose = (base: Pose, p: Partial<Pose>): Pose => ({ ...base, ...p });
-/** Both arms / both legs the same (side views). */
-const arms = (elbow: Pt, hand: Pt) => ({ elbowF: elbow, handF: hand, elbowB: [elbow[0] - 2, elbow[1]] as Pt, handB: [hand[0] - 2, hand[1]] as Pt });
-const legs = (knee: Pt, foot: Pt) => ({ kneeF: knee, footF: foot, kneeB: [knee[0] - 2, knee[1]] as Pt, footB: [foot[0] - 2, foot[1]] as Pt });
+export const BONES = { torso: 20, upperArm: 11, foreArm: 10, thigh: 15, shin: 14, foot: 5, head: 7.5, headR: 4.6 };
+const rad = (d: number) => (d * Math.PI) / 180;
+const dir = (a: number): Pt => [Math.sin(rad(a)), Math.cos(rad(a))];
+const add = (p: Pt, v: Pt, k = 1): Pt => [p[0] + v[0] * k, p[1] + v[1] * k];
 
-const PLANK = pose(STAND, { head: [96, 48], neck: [88, 53], hip: [55, 60], ...arms([89, 62], [90, 72]), ...legs([38, 66], [20, 72]) });
-const SQUAT = pose(STAND, { head: [72, 33], neck: [66, 40], hip: [54, 58], ...arms([68, 56], [72, 72]), ...legs([70, 60], [60, 72]) });
-const FRONT_LEGS = { kneeF: [55, 59] as Pt, footF: [54, 72] as Pt, kneeB: [65, 59] as Pt, footB: [66, 72] as Pt, toeF: [50, 72] as Pt, toeB: [70, 72] as Pt };
+/** Two-bone chain from `root`: by angles, or reaching for a target (clamped straight when out of reach). */
+export function solveLimb(root: Pt, limb: Limb, l1: number, l2: number): { mid: Pt; end: Pt } {
+  if (Array.isArray(limb)) {
+    const mid = add(root, dir(limb[0]), l1);
+    return { mid, end: add(mid, dir(limb[1]), l2) };
+  }
+  const dx = limb.to[0] - root[0];
+  const dy = limb.to[1] - root[1];
+  const d = Math.min(Math.max(Math.hypot(dx, dy), Math.abs(l1 - l2) + 0.01), l1 + l2 - 0.001);
+  const base = Math.atan2(dy, dx);
+  const a = Math.acos((l1 * l1 + d * d - l2 * l2) / (2 * l1 * d));
+  const mid: Pt = [root[0] + l1 * Math.cos(base + limb.bend * a), root[1] + l1 * Math.sin(base + limb.bend * a)];
+  return { mid, end: [root[0] + d * Math.cos(base), root[1] + d * Math.sin(base)] };
+}
+
+export type Joints = {
+  hip: Pt; shoulder: Pt; spineCtl: Pt; head: Pt; neck: Pt;
+  shoulderF: Pt; shoulderB: Pt; hipF: Pt; hipB: Pt;
+  elbowF: Pt; handF: Pt; elbowB: Pt; handB: Pt;
+  kneeF: Pt; ankleF: Pt; toeF: Pt; kneeB: Pt; ankleB: Pt; toeB: Pt;
+};
+
+export function joints(p: Pose, view: Figure['view']): Joints {
+  const len = p.torsoLen ?? BONES.torso;
+  const t = dir(p.torso);
+  const shoulder = add(p.hip, t, len);
+  // Spine bulge: perpendicular to the torso, towards the back.
+  const perp: Pt = [t[1], -t[0]];
+  const spineCtl = add(add(p.hip, t, len * 0.55), perp, p.spine ?? 0);
+  const h = dir(p.head ?? p.torso);
+  // Front view: shoulders and hips side by side; side view: the far limbs sit just behind.
+  const across: Pt = view === 'front' ? [-t[1] * 6, t[0] * 6] : [-0.8, -0.3];
+  const acrossHip: Pt = view === 'front' ? [-t[1] * 3.6, t[0] * 3.6] : [-0.8, -0.3];
+  // Front view: F is the figure's side on the right of the picture, B the left.
+  const shoulderF = view === 'front' ? add(shoulder, across, 1) : shoulder;
+  const shoulderB = view === 'front' ? add(shoulder, across, -1) : add(shoulder, across, 1);
+  const hipF = view === 'front' ? add(p.hip, acrossHip, 1) : p.hip;
+  const hipB = view === 'front' ? add(p.hip, acrossHip, -1) : add(p.hip, acrossHip, 1);
+  const aF = solveLimb(shoulderF, p.armF, BONES.upperArm, BONES.foreArm);
+  const aB = solveLimb(shoulderB, p.armB, BONES.upperArm, BONES.foreArm);
+  const lF = solveLimb(hipF, p.legF, BONES.thigh, BONES.shin);
+  const lB = solveLimb(hipB, p.legB, BONES.thigh, BONES.shin);
+  return {
+    hip: p.hip, shoulder, spineCtl, neck: add(shoulder, h, 2.6), head: add(shoulder, h, BONES.head),
+    shoulderF, shoulderB, hipF, hipB,
+    elbowF: aF.mid, handF: aF.end, elbowB: aB.mid, handB: aB.end,
+    kneeF: lF.mid, ankleF: lF.end, toeF: add(lF.end, dir(p.footF ?? (view === 'front' ? 60 : 90)), BONES.foot),
+    kneeB: lB.mid, ankleB: lB.end, toeB: add(lB.end, dir(p.footB ?? (view === 'front' ? -60 : 90)), BONES.foot),
+  };
+}
+
+const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
+const lerpPt = (a: Pt, b: Pt, t: number): Pt => [lerp(a[0], b[0], t), lerp(a[1], b[1], t)];
+const lerpLimb = (a: Limb, b: Limb, t: number): Limb =>
+  Array.isArray(a) && Array.isArray(b) ? [lerp(a[0], b[0], t), lerp(a[1], b[1], t)] : !Array.isArray(a) && !Array.isArray(b) ? { to: lerpPt(a.to, b.to, t), bend: a.bend } : t < 0.5 ? a : b;
+
+export function tween(a: Pose, b: Pose, t: number): Pose {
+  return {
+    hip: lerpPt(a.hip, b.hip, t),
+    torso: lerp(a.torso, b.torso, t),
+    torsoLen: lerp(a.torsoLen ?? BONES.torso, b.torsoLen ?? BONES.torso, t),
+    spine: lerp(a.spine ?? 0, b.spine ?? 0, t),
+    head: lerp(a.head ?? a.torso, b.head ?? b.torso, t),
+    armF: lerpLimb(a.armF, b.armF, t), armB: lerpLimb(a.armB, b.armB, t),
+    legF: lerpLimb(a.legF, b.legF, t), legB: lerpLimb(a.legB, b.legB, t),
+    footF: a.footF != null || b.footF != null ? lerp(a.footF ?? 90, b.footF ?? 90, t) : undefined,
+    footB: a.footB != null || b.footB != null ? lerp(a.footB ?? 90, b.footB ?? 90, t) : undefined,
+    label: t < 0.5 ? a.label : b.label,
+  };
+}
+
+const ease = (t: number) => 0.5 - Math.cos(Math.PI * t) / 2;
+const DEFAULT_HOLD = 0.5;
+const DEFAULT_MOVE = 1.2;
+export const cycleOf = (f: Figure) => f.keys.reduce((s, k) => s + (k.hold ?? DEFAULT_HOLD) + (k.move ?? DEFAULT_MOVE), 0);
+
+/** The pose `secs` into the loop: hold each key, then ease to the next. */
+export function poseAt(f: Figure, secs: number): Pose {
+  let t = secs % cycleOf(f);
+  for (let i = 0; i < f.keys.length; i++) {
+    const k = f.keys[i];
+    const hold = k.hold ?? DEFAULT_HOLD;
+    const move = k.move ?? DEFAULT_MOVE;
+    if (t < hold) return k.pose;
+    t -= hold;
+    if (t < move) return tween(k.pose, f.keys[(i + 1) % f.keys.length].pose, ease(t / move));
+    t -= move;
+  }
+  return f.keys[0].pose;
+}
+
+/** The box the figure moves within (sampled through the loop), padded to 3:2 so thumbnails zoom in on the body. */
+export function frameOf(f: Figure): [number, number, number, number] {
+  const xs: number[] = [];
+  const ys: number[] = [];
+  const total = cycleOf(f);
+  for (let s = 0; s < total; s += total / 40) {
+    const j = joints(poseAt(f, s), f.view);
+    for (const [x, y] of Object.values(j)) (xs.push(x), ys.push(y));
+    ys.push(j.head[1] - BONES.headR);
+  }
+  for (const p of f.props ?? []) (xs.push(p.x, p.x2), ys.push(p.y, p.y2));
+  if (f.floor !== false) ys.push(73);
+  const pad = 6;
+  let [x0, y0, x1, y1] = [Math.min(...xs) - pad, Math.min(...ys) - pad, Math.max(...xs) + pad, Math.max(...ys) + pad];
+  // Never zoom in past a ~body-and-a-half wide frame, or the limbs turn into slabs.
+  const MIN_W = 84;
+  if (x1 - x0 < MIN_W) (x0 -= (MIN_W - (x1 - x0)) / 2, x1 = x0 + MIN_W);
+  const w = x1 - x0;
+  const h = y1 - y0;
+  if (w / h < 1.5) (x0 -= (h * 1.5 - w) / 2, x1 = x0 + h * 1.5);
+  else (y0 -= (w / 1.5 - h) / 2, y1 = y0 + w / 1.5);
+  return [x0, y0, x1 - x0, y1 - y0];
+}
+
+// ---- The moves ----
+
+const STAND: Pose = { hip: [60, 43], torso: 180, armF: { to: [61, 64], bend: -1 }, armB: { to: [60, 64], bend: -1 }, legF: { to: [61, 71], bend: -1 }, legB: { to: [59, 71], bend: -1 } };
+const SQUAT: Pose = { hip: [52, 62], torso: 125, head: 115, armF: { to: [73, 71], bend: 1 }, armB: { to: [71, 71], bend: 1 }, legF: { to: [61, 71], bend: -1 }, legB: { to: [59, 71], bend: -1 } };
+const PLANK: Pose = { hip: [53.5, 57.5], torso: 112, armF: { to: [73, 71.5], bend: 1 }, armB: { to: [71, 71.5], bend: 1 }, legF: { to: [25, 70], bend: -1 }, legB: { to: [23, 70], bend: -1 }, footF: 35, footB: 35 };
+const JUMP: Pose = { hip: [60, 35], torso: 180, armF: { to: [63, -2], bend: 1 }, armB: { to: [61, -2], bend: 1 }, legF: { to: [61, 66], bend: -1 }, legB: { to: [59, 66], bend: -1 }, footF: 30, footB: 30 };
 
 export const FIGURES: Record<string, Figure> = {
   'Wall slides': {
-    secs: 3,
-    cue: 'Back, head and forearms stay on the wall; slide from a W up to a Y',
-    poses: [
-      pose(STAND, { head: [60, 15], neck: [60, 24], hip: [60, 46], elbowF: [46, 28], handF: [44, 16], elbowB: [74, 28], handB: [76, 16], ...FRONT_LEGS }),
-      pose(STAND, { head: [60, 15], neck: [60, 24], hip: [60, 46], elbowF: [50, 12], handF: [45, 3], elbowB: [70, 12], handB: [75, 3], ...FRONT_LEGS }),
+    view: 'front',
+    ghost: true,
+    cue: 'Back, head and forearms stay on the wall; slide from a W up to a Y, then pull back down',
+    keys: [
+      { pose: { hip: [60, 43], torso: 180, armF: [72, 172], armB: [-72, -172], legF: [3, 0], legB: [-3, 0], label: 'W — elbows down' }, hold: 0.6, move: 1.6 },
+      { pose: { hip: [60, 43], torso: 180, armF: [152, 165], armB: [-152, -165], legF: [3, 0], legB: [-3, 0], label: 'Y — slide up' }, hold: 0.5, move: 1.6 },
     ],
   },
   'Scap push-ups': {
-    secs: 2,
-    cue: 'Arms stay straight — only the shoulder blades squeeze together, then push apart',
-    poses: [pose(PLANK, { neck: [88, 56], head: [96, 52] }), pose(PLANK, { neck: [88, 49], head: [96, 45], hip: [55, 58] })],
+    view: 'side',
+    ghost: true,
+    cue: 'Arms stay straight the whole time — only the shoulder blades move: let the chest sink, then push the floor away',
+    keys: [
+      { pose: { ...PLANK, spine: -2.5, head: 108, label: 'Blades together' }, hold: 0.4, move: 1 },
+      { pose: { ...PLANK, spine: 3.5, head: 104, label: 'Push the floor away' }, hold: 0.5, move: 1 },
+    ],
   },
   'Thread the needle': {
-    secs: 3.2,
-    cue: 'On all fours: reach up to the ceiling, then thread the arm under and rest the shoulder down',
-    poses: [
-      pose(STAND, { head: [87, 42], neck: [78, 47], hip: [40, 50], elbowF: [80, 34], handF: [82, 22], elbowB: [78, 60], handB: [78, 72], kneeF: [42, 72], footF: [24, 72], kneeB: [40, 72], footB: [22, 72] }),
-      pose(STAND, { head: [84, 56], neck: [76, 54], hip: [40, 50], elbowF: [68, 64], handF: [54, 69], elbowB: [78, 62], handB: [78, 72], kneeF: [42, 72], footF: [24, 72], kneeB: [40, 72], footB: [22, 72] }),
+    view: 'side',
+    cue: 'On all fours: reach up to the ceiling, then thread the arm under your body and let that shoulder sink',
+    keys: [
+      { pose: { hip: [45, 57], torso: 107, head: 150, armF: [180, 180], armB: { to: [64, 71.5], bend: 1 }, legF: [0, -90], legB: [-2, -90], footF: -95, footB: -95, label: 'Open up' }, hold: 0.6, move: 1.6 },
+      { pose: { hip: [45, 57], torso: 99, head: 25, armF: [-40, -75], armB: { to: [64, 71.5], bend: 1 }, legF: [0, -90], legB: [-2, -90], footF: -95, footB: -95, label: 'Thread under' }, hold: 0.8, move: 1.6 },
     ],
   },
   'Ankle rocks': {
-    secs: 2.4,
-    cue: 'Half-kneeling: drive the front knee forward past the toes, heel stays down',
-    poses: [
-      pose(STAND, { head: [47, 19], neck: [46, 28], hip: [44, 52], elbowF: [58, 40], handF: [70, 54], elbowB: [56, 40], handB: [68, 54], kneeF: [70, 54], footF: [70, 72], toeF: [78, 72], kneeB: [42, 72], footB: [24, 72], toeB: [22, 70] }),
-      pose(STAND, { head: [53, 20], neck: [52, 29], hip: [50, 53], elbowF: [66, 42], handF: [80, 56], elbowB: [64, 42], handB: [78, 56], kneeF: [82, 57], footF: [70, 72], toeF: [78, 72], kneeB: [44, 72], footB: [24, 72], toeB: [22, 70] }),
-    ],
-  },
-  '90/90 hip switches': {
-    secs: 3.6,
-    cue: 'Sit tall, feet wide; let both knees drop to one side, then sweep them over to the other',
-    poses: [
-      pose(STAND, { head: [60, 31], neck: [60, 40], hip: [60, 64], elbowF: [50, 54], handF: [46, 68], elbowB: [70, 54], handB: [74, 68], kneeF: [36, 64], footF: [42, 72], kneeB: [56, 66], footB: [78, 72], toeF: [42, 72], toeB: [78, 72] }),
-      pose(STAND, { head: [60, 31], neck: [60, 40], hip: [60, 64], elbowF: [50, 54], handF: [46, 68], elbowB: [70, 54], handB: [74, 68], kneeF: [48, 50], footF: [42, 72], kneeB: [72, 50], footB: [78, 72], toeF: [42, 72], toeB: [78, 72] }),
-      pose(STAND, { head: [60, 31], neck: [60, 40], hip: [60, 64], elbowF: [50, 54], handF: [46, 68], elbowB: [70, 54], handB: [74, 68], kneeF: [64, 66], footF: [42, 72], kneeB: [84, 64], footB: [78, 72], toeF: [42, 72], toeB: [78, 72] }),
-      pose(STAND, { head: [60, 31], neck: [60, 40], hip: [60, 64], elbowF: [50, 54], handF: [46, 68], elbowB: [70, 54], handB: [74, 68], kneeF: [48, 50], footF: [42, 72], kneeB: [72, 50], footB: [78, 72], toeF: [42, 72], toeB: [78, 72] }),
-    ],
-  },
-  'Thoracic open books': {
-    secs: 4,
-    cue: 'Seen from above: lie on your side, knees bent in front; sweep the top arm over to the other side and let your eyes follow it',
-    floor: false,
-    poses: [
-      pose(STAND, { head: [24, 44], neck: [32, 44], hip: [60, 44], elbowB: [32, 55], handB: [32, 66], elbowF: [34, 55], handF: [34, 66], kneeF: [61, 62], footF: [80, 62], kneeB: [63, 63], footB: [82, 63], toeF: [84, 62], toeB: [86, 63] }),
-      pose(STAND, { head: [23, 42], neck: [32, 44], hip: [60, 44], elbowB: [32, 55], handB: [32, 66], elbowF: [34, 33], handF: [34, 22], kneeF: [61, 62], footF: [80, 62], kneeB: [63, 63], footB: [82, 63], toeF: [84, 62], toeB: [86, 63] }),
+    view: 'side',
+    ghost: true,
+    cue: 'Half-kneeling: rock the front knee forward past your toes, heel glued down, then back',
+    keys: [
+      { pose: { hip: [52, 57], torso: 180, armF: { to: [66, 56], bend: 1 }, armB: { to: [65, 57], bend: 1 }, legF: { to: [67, 71], bend: -1 }, legB: [0, -90], footB: -100, label: 'Knee over ankle' }, hold: 0.4, move: 1.1 },
+      { pose: { hip: [57, 57.5], torso: 175, armF: { to: [73, 60], bend: 1 }, armB: { to: [72, 61], bend: 1 }, legF: { to: [67, 71], bend: -1 }, legB: [-20, -90], footB: -100, label: 'Knee past toes' }, hold: 0.6, move: 1.1 },
     ],
   },
   'Hollow Hold': {
-    secs: 2,
-    cue: 'Low back pressed into the floor; shoulders and legs hover just off it',
-    poses: [
-      pose(STAND, { head: [88, 58], neck: [80, 63], hip: [58, 67], ...arms([92, 58], [104, 55]), ...legs([40, 66], [22, 62]), toeF: [20, 58], toeB: [18, 58] }),
-      pose(STAND, { head: [88, 56], neck: [80, 61], hip: [58, 67], ...arms([92, 56], [104, 53]), ...legs([40, 65], [22, 60]), toeF: [20, 56], toeB: [18, 56] }),
+    view: 'side',
+    ghost: true,
+    cue: 'Lower back pressed into the floor; shoulders and legs hover just off it — hold and breathe',
+    keys: [
+      { pose: { hip: [56, 68.5], torso: 99, head: 105, armF: [100, 102], armB: [98, 100], legF: [-99, -97], legB: [-97, -95], footF: -80, footB: -80, label: 'Hold' }, hold: 1.2, move: 1.4 },
+      { pose: { hip: [56, 68.5], torso: 95, head: 100, armF: [96, 97], armB: [94, 95], legF: [-95, -94], legB: [-93, -92], footF: -80, footB: -80, label: 'Breathe' }, hold: 0.8, move: 1.4 },
     ],
   },
   'Dragon Flag': {
-    secs: 3.6,
-    cue: 'Grip behind your head; body stays one straight line as you lower it slowly',
-    props: [{ kind: 'rect', x: 30, y: 60, x2: 104, y2: 64 }],
-    poses: [
-      pose(STAND, { head: [94, 55], neck: [86, 58], hip: [82, 32], ...arms([96, 48], [101, 58]), ...legs([80, 19], [79, 6]), toeF: [79, 2], toeB: [77, 2] }),
-      pose(STAND, { head: [94, 55], neck: [86, 58], hip: [64, 52], ...arms([96, 48], [101, 58]), ...legs([46, 48], [28, 44]), toeF: [24, 42], toeB: [22, 42] }),
+    view: 'side',
+    floor: false,
+    ghost: true,
+    cue: 'Grip the bench behind your head; your body stays one straight line from shoulders to toes as you lower slowly',
+    props: [
+      { kind: 'rect', x: 40, y: 60, x2: 106, y2: 64 },
+      { kind: 'line', x: 46, y: 64, x2: 46, y2: 72 },
+      { kind: 'line', x: 100, y: 64, x2: 100, y2: 72 },
+    ],
+    keys: [
+      { pose: { hip: [82.8, 38.6], torso: 15, head: 100, armF: { to: [101, 60], bend: -1 }, armB: { to: [100, 60], bend: -1 }, legF: [195, 195], legB: [194, 194], footF: 190, footB: 190, label: 'Top — body straight' }, hold: 0.5, move: 2.4 },
+      { pose: { hip: [69.8, 49.6], torso: 65, head: 100, armF: { to: [101, 60], bend: -1 }, armB: { to: [100, 60], bend: -1 }, legF: [245, 245], legB: [244, 244], footF: 240, footB: 240, label: 'Lower slowly' }, hold: 0.4, move: 1.4 },
     ],
   },
   'L-Sit': {
-    secs: 2,
-    cue: 'Push the floor away, shoulders down; legs straight out and locked',
-    props: [{ kind: 'rect', x: 50, y: 56, x2: 62, y2: 60 }],
-    poses: [
-      pose(STAND, { head: [58, 17], neck: [58, 26], hip: [58, 48], ...arms([57, 37], [56, 56]), ...legs([76, 48], [94, 48]), toeF: [98, 45], toeB: [96, 45] }),
-      pose(STAND, { head: [58, 16], neck: [58, 25], hip: [58, 47], ...arms([57, 36], [56, 56]), ...legs([76, 46], [94, 45]), toeF: [98, 42], toeB: [96, 42] }),
+    view: 'side',
+    ghost: true,
+    cue: 'Push the floor away, shoulders down; legs straight out and locked — hold',
+    props: [{ kind: 'rect', x: 53, y: 64, x2: 63, y2: 72 }],
+    keys: [
+      { pose: { hip: [58, 62.5], torso: 180, armF: { to: [58.5, 64], bend: 1 }, armB: { to: [57.5, 64], bend: 1 }, legF: [90, 90], legB: [91, 91], footF: 150, footB: 150, label: 'Hold' }, hold: 1.2, move: 1.2 },
+      { pose: { hip: [58, 62], torso: 180, armF: { to: [58.5, 64], bend: 1 }, armB: { to: [57.5, 64], bend: 1 }, legF: [86, 86], legB: [87, 87], footF: 150, footB: 150, label: 'Squeeze' }, hold: 0.8, move: 1.2 },
     ],
   },
   Burpee: {
-    secs: 4,
-    cue: 'Squat, hands down, jump back to a plank, jump in, jump up',
-    poses: [STAND, SQUAT, PLANK, SQUAT, pose(STAND, { head: [60, 8], neck: [60, 16], hip: [60, 38], elbowF: [63, 8], handF: [65, 1], elbowB: [57, 8], handB: [55, 1], kneeF: [60, 52], footF: [60, 66], kneeB: [60, 52], footB: [60, 66] })],
+    view: 'side',
+    cue: 'Squat and put your hands down, jump back to a plank, jump the feet in, then jump up',
+    keys: [
+      { pose: { ...STAND, label: 'Stand' }, hold: 0.3, move: 0.55 },
+      { pose: { ...SQUAT, label: 'Hands down' }, hold: 0.15, move: 0.45 },
+      { pose: { ...PLANK, label: 'Plank' }, hold: 0.3, move: 0.45 },
+      { pose: { ...SQUAT, label: 'Feet in' }, hold: 0.15, move: 0.5 },
+      { pose: { ...JUMP, label: 'Jump!' }, hold: 0.1, move: 0.5 },
+    ],
   },
   'Wall Sit': {
-    secs: 3,
+    view: 'side',
     cue: 'Back flat on the wall, thighs level with the floor, knees over ankles — hold',
-    props: [{ kind: 'line', x: 40, y: 0, x2: 40, y2: 72 }],
-    poses: [
-      pose(STAND, { head: [44, 17], neck: [44, 26], hip: [44, 52], ...arms([52, 36], [58, 31]), ...legs([68, 52], [68, 72]) }),
-      pose(STAND, { head: [44, 16], neck: [44, 25], hip: [44, 52], ...arms([52, 35], [58, 30]), ...legs([68, 52], [68, 72]) }),
+    props: [{ kind: 'line', x: 38.5, y: 0, x2: 38.5, y2: 72 }],
+    keys: [
+      { pose: { hip: [45, 57], torso: 180, armF: { to: [53, 43], bend: 1 }, armB: { to: [52, 44], bend: 1 }, legF: { to: [60.5, 71], bend: -1 }, legB: { to: [59, 71], bend: -1 }, label: 'Hold' }, hold: 1.5, move: 1 },
+      { pose: { hip: [45, 57.4], torso: 180, armF: { to: [53, 43.4], bend: 1 }, armB: { to: [52, 44.4], bend: 1 }, legF: { to: [60.5, 71], bend: -1 }, legB: { to: [59, 71], bend: -1 }, label: 'Breathe' }, hold: 1, move: 1 },
     ],
   },
   'Tibialis Raise': {
-    secs: 1.8,
-    cue: 'Lean back on a wall, heels out in front; pull your toes up hard, lower slowly',
-    props: [{ kind: 'line', x: 40, y: 0, x2: 40, y2: 72 }],
-    poses: [
-      pose(STAND, { head: [44, 15], neck: [44, 24], hip: [48, 46], ...arms([48, 35], [50, 46]), ...legs([60, 59], [72, 72]), toeF: [80, 72], toeB: [78, 72] }),
-      pose(STAND, { head: [44, 15], neck: [44, 24], hip: [48, 46], ...arms([48, 35], [50, 46]), ...legs([60, 59], [72, 72]), toeF: [78, 64], toeB: [76, 64] }),
+    view: 'side',
+    ghost: true,
+    cue: 'Lean back on a wall, heels out in front; pull your toes up hard, then lower slowly',
+    props: [{ kind: 'line', x: 38.5, y: 0, x2: 38.5, y2: 72 }],
+    keys: [
+      { pose: { hip: [48, 46], torso: 195, armF: { to: [49, 64], bend: -1 }, armB: { to: [48, 64], bend: -1 }, legF: { to: [66, 70.5], bend: -1 }, legB: { to: [64.5, 70.5], bend: -1 }, footF: 95, footB: 95, label: 'Toes down' }, hold: 0.3, move: 0.8 },
+      { pose: { hip: [48, 46], torso: 195, armF: { to: [49, 64], bend: -1 }, armB: { to: [48, 64], bend: -1 }, legF: { to: [66, 70.5], bend: -1 }, legB: { to: [64.5, 70.5], bend: -1 }, footF: 145, footB: 145, label: 'Pull toes up' }, hold: 0.4, move: 1.2 },
     ],
   },
 };
 
-/** Drills drawn as the box-breathing guide instead of a figure. */
+/** Drills shown as the box-breathing guide instead of a figure. */
 export const isBreathing = (name: string) => /box breathing/i.test(name);
 
 const key = (s: string) => s.toLowerCase().trim();
 const BY = new Map(Object.entries(FIGURES).map(([k, v]) => [key(k), v]));
 export const figureFor = (name: string) => BY.get(key(name)) ?? null;
 
-/** Default toes for a pose (a short foot pointing right). */
-export const toes = (p: Pose): { toeF: Pt; toeB: Pt } => ({ toeF: p.toeF ?? [p.footF[0] + 6, p.footF[1]], toeB: p.toeB ?? [p.footB[0] + 6, p.footB[1]] });
+export type Part = { d: string; w: number; near: boolean } | { circle: Pt; r: number; near: boolean; head?: boolean };
+const seg = (a: Pt, b: Pt) => `M${a[0].toFixed(2)} ${a[1].toFixed(2)}L${b[0].toFixed(2)} ${b[1].toFixed(2)}`;
 
-/** The box the figure (and its props) moves within, padded — so small thumbnails zoom in on the body. */
-export function frameOf(f: Figure): [number, number, number, number] {
-  const xs: number[] = [];
-  const ys: number[] = [];
-  for (const p of f.poses) for (const [x, y] of Object.values({ ...p, ...toes(p) })) (xs.push(x), ys.push(y));
-  for (const p of f.props ?? []) (xs.push(p.x, p.x2), ys.push(p.y, p.y2));
-  if (f.floor !== false) ys.push(73);
-  const pad = 7;
-  let [x0, y0, x1, y1] = [Math.min(...xs) - pad, Math.min(...ys) - pad, Math.max(...xs) + pad, Math.max(...ys) + pad];
-  // Keep a 3:2 frame so it fills the card the same way the photos do.
-  const w = x1 - x0;
-  const h = y1 - y0;
-  if (w / h < 1.5) (x0 -= (h * 1.5 - w) / 2, x1 = x0 + h * 1.5);
-  else (y0 -= (w / 1.5 - h) / 2, y1 = y0 + w / 1.5);
-  return [x0, y0, x1 - x0, y1 - y0];
+/** What to draw for a pose, back to front: far limbs, torso and head, near limbs, hands. */
+export function parts(j: Joints): Part[] {
+  const limb = (near: boolean, s: Pt, e: Pt, h: Pt, k: Pt, a: Pt, t: Pt): Part[] => [
+    { d: seg(near ? j.hipF : j.hipB, k), w: 4.6, near },
+    { d: seg(k, a), w: 3.8, near },
+    { d: seg(a, t), w: 2.6, near },
+    { d: seg(s, e), w: 3.6, near },
+    { d: seg(e, h), w: 3.1, near },
+    { circle: h, r: 1.6, near },
+  ];
+  return [
+    ...limb(false, j.shoulderB, j.elbowB, j.handB, j.kneeB, j.ankleB, j.toeB),
+    { d: `M${j.hip[0].toFixed(2)} ${j.hip[1].toFixed(2)}Q${j.spineCtl[0].toFixed(2)} ${j.spineCtl[1].toFixed(2)} ${j.shoulder[0].toFixed(2)} ${j.shoulder[1].toFixed(2)}`, w: 5.8, near: true },
+    { d: seg(j.shoulder, j.neck), w: 2.8, near: true },
+    { circle: j.head, r: BONES.headR, near: true, head: true },
+    ...limb(true, j.shoulderF, j.elbowF, j.handF, j.kneeF, j.ankleF, j.toeF),
+  ];
 }

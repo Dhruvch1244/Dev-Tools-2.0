@@ -18,7 +18,7 @@ const MOBILISE: Record<Exclude<DayType, 'rest'>, Drill[]> = {
   push: [
     { name: 'Arm circles', dose: '10 forward + 10 back', cue: 'Big, slow circles, ribs down' },
     { name: 'Band pull-aparts', dose: '2 × 15', cue: 'Squeeze shoulder blades, no shrug' },
-    { name: 'Thoracic open books', dose: '8 each side', cue: 'Follow your hand with your eyes' },
+    { name: 'Standing T-spine twists', dose: '10 each side', cue: 'Hands on hips, hips still — turn from the upper back' },
     { name: 'Wall slides', dose: '10', cue: 'Forearms on the wall, slide up without arching' },
   ],
   pull: [
@@ -37,11 +37,11 @@ const MOBILISE: Record<Exclude<DayType, 'rest'>, Drill[]> = {
     { name: 'Arm circles', dose: '10 forward + 10 back', cue: 'Big, slow circles' },
     { name: 'Band pull-aparts', dose: '2 × 15', cue: 'Squeeze shoulder blades, no shrug' },
     { name: 'Cat–cow', dose: '10 slow', cue: 'Move one vertebra at a time' },
-    { name: 'Thoracic open books', dose: '8 each side', cue: 'Follow your hand with your eyes' },
+    { name: 'Standing T-spine twists', dose: '10 each side', cue: 'Hands on hips, hips still — turn from the upper back' },
   ],
   lower: [
     { name: 'Leg swings', dose: '10 front–back + 10 side each leg', cue: 'Let the hip swing loose' },
-    { name: '90/90 hip switches', dose: '8 each side', cue: 'Sit tall, rotate the knees side to side' },
+    { name: 'Standing hip circles', dose: '8 each way, each leg', cue: 'Hold on to something; draw big slow circles with the knee' },
     { name: 'Hip hinge with dowel', dose: '10', cue: 'Head, upper back and tailbone stay on the stick' },
     { name: 'Ankle rocks', dose: '10 each side', cue: 'Knee over toes, heel stays down' },
   ],
@@ -103,8 +103,8 @@ const MOBILITY: Phase[] = [
     drills: [
       { name: 'Cat–cow', dose: '10 slow', cue: 'One vertebra at a time' },
       { name: 'World’s greatest stretch', dose: '5 each side', cue: 'Lunge, elbow to instep, rotate and reach' },
-      { name: '90/90 hip switches', dose: '8 each side', cue: 'Sit tall, rotate the knees side to side' },
-      { name: 'Thoracic open books', dose: '8 each side', cue: 'Follow your hand with your eyes' },
+      { name: 'Standing hip circles', dose: '8 each way, each leg', cue: 'Hold on to something; draw big slow circles with the knee' },
+      { name: 'Standing T-spine twists', dose: '10 each side', cue: 'Hands on hips, hips still — turn from the upper back' },
       { name: 'Deep squat hold', dose: '2 × 30 s', cue: 'Heels down, hold onto something if needed', secs: 30 },
       { name: 'Couch stretch', dose: '45 s each side', cue: 'Squeeze the glute of the back leg', secs: 45 },
       { name: 'Dead hang', dose: '2 × 20 s', cue: 'Let the shoulders open up', secs: 20 },

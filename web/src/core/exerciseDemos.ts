@@ -4,6 +4,8 @@
 // Pure data + lookup, no React.
 
 export const DEMO_IDS: Record<string, string> = {
+  "Standing hip circles": "Standing_Hip_Circles",
+  "Standing T-spine twists": "Middle_Back_Stretch",
   "Barbell Bench Press": "Barbell_Bench_Press_-_Medium_Grip",
   "Incline Barbell Press": "Barbell_Incline_Bench_Press_-_Medium_Grip",
   "Decline Barbell Press": "Decline_Barbell_Bench_Press",

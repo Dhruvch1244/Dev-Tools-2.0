@@ -637,17 +637,30 @@ html[data-kb] .chat-dock {
   box-shadow: 0 0 0 6px rgb(79 179 255 / 0.25);
 }
 
-/* Exercise demos: the finish photo fades in over the start photo and back — the movement on loop. */
+/* Exercise demos: the finish photo eases in over the start photo and back, with a slow push-in,
+   so the photo pair reads as one smooth movement. */
 @keyframes demo-flip {
-  0%, 38% { opacity: 0; }
-  50%, 88% { opacity: 1; }
+  0%, 30% { opacity: 0; }
+  50%, 80% { opacity: 1; }
   100% { opacity: 0; }
 }
+@keyframes demo-drift {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.04); }
+  100% { transform: scale(1); }
+}
 .demo-flip {
-  animation: demo-flip 2.6s ease-in-out infinite;
+  animation: demo-flip 3.6s cubic-bezier(0.45, 0, 0.55, 1) infinite, demo-drift 3.6s ease-in-out infinite;
+  will-change: opacity, transform;
+}
+.demo-a {
+  animation: demo-drift 3.6s ease-in-out infinite;
 }
 @media (prefers-reduced-motion: reduce) {
   .demo-flip {
-    animation-duration: 6s;
+    animation: demo-flip 7s ease-in-out infinite;
+  }
+  .demo-a {
+    animation: none;
   }
 }
