@@ -9,6 +9,7 @@ import type { Region } from '../../core/gymStats';
 import type { GymSet } from '../../lib/types';
 import { BodyMap } from '../BodyMap';
 import { Sheet } from '../ui';
+import { ExerciseDemo } from './ExerciseDemo';
 
 function Block({ icon: Icon, title, items, tone = 'text-ink-2', ordered }: { icon: typeof Zap; title: string; items: string[]; tone?: string; ordered?: boolean }) {
   if (!items.length) return null;
@@ -38,6 +39,7 @@ export function GuideSheet({ name, sets, onClose, onPick }: { name: string | nul
   const heat: Partial<Record<Region, number>> = { ...Object.fromEntries((g?.secondary ?? []).map((m) => [m, 0.45])), ...Object.fromEntries((g?.primary ?? []).map((m) => [m, 1])) };
   return (
     <Sheet open={!!name} onClose={onClose} title={name ?? ''}>
+      {name && <ExerciseDemo name={name} className="mb-5" />}
       {isLoading && (
         <div className="space-y-2 py-2">
           <p className="text-sm text-ink-3">Pulling the technique notes…</p>

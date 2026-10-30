@@ -19,6 +19,7 @@ import { PlanSheet, type SavedPlan } from '../components/gym/PlanSheet';
 import { WeekCard } from '../components/gym/WeekCard';
 import { plannedHeat } from '../core/gymStats';
 import { WarmupCard } from '../components/gym/WarmupCard';
+import { DemoThumb } from '../components/gym/ExerciseDemo';
 import { cooldownFor, warmupFor } from '../core/warmup';
 import { AnimatedNumber, Button, Card, IconButton, Input, Page, PageHeader, Rise, SectionTitle, Sheet, cx } from '../components/ui';
 
@@ -131,8 +132,11 @@ function ExerciseCard({ ex, workout, sets, lastSets, priorBest, onLogged, onSwap
   return (
     <motion.div layout {...listItem} className={cx('rounded-xl border bg-surface p-4 transition-colors', done ? 'border-green/40' : 'border-line')}>
       <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="truncate text-[16px] font-bold">{ex.name}</p>
+        <button onClick={onGuide} aria-label={`How to do ${ex.name}`} className="shrink-0">
+          <DemoThumb name={ex.name} className="h-14 w-20" />
+        </button>
+        <div className="min-w-0 flex-1">
+          <p className="line-clamp-2 text-[16px] font-bold leading-tight">{ex.name}</p>
           {muscleOf(ex.name) && <p className="text-micro font-black uppercase tracking-[0.18em] text-accent-2">{muscleOf(ex.name)}</p>}
           <p className="text-xs text-ink-3">
             Target {ex.sets} × {ex.reps}

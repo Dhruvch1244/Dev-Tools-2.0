@@ -2,7 +2,10 @@
 // a photo, parse "what I did" into sets, and the weekly debrief. All go through the local Claude
 // CLI (coach.ts ask); the browser never talks to a model directly.
 import { Hono } from 'hono';
-import { db } from './db.ts';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { DATA_DIR, db } from './db.ts';
+import { demoId } from '../web/src/core/exerciseDemos.ts';
 import { settings } from './briefs.ts';
 import { ask, type Prompt } from './coach.ts';
 import { localStamp } from './push.ts';
@@ -143,4 +146,59 @@ gym.post('/debrief', async (c) => {
   } catch (e) {
     return c.json(fail(e), 502);
   }
+});
+
+// ---- Exercise demos: start/end photos + steps from free-exercise-db (public domain) ----
+// The ~1 MB catalogue is fetched once into data/, photos are fetched on first view and kept in
+// data/exercise-img/ so the phone gets them from the laptop over the tailnet, fast and offline.
+const EXDB = 'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main';
+type DbExercise = { id: string; name: string; instructions: string[]; level: string; equipment: string | null; primaryMuscles: string[]; images: string[] };
+let catalogue: Promise<DbExercise[]> | null = null;
+function exerciseDb() {
+  catalogue ??= (async () => {
+    const file = join(DATA_DIR, 'exercise-db.json');
+    if (existsSync(file)) return JSON.parse(readFileSync(file, 'utf8')) as DbExercise[];
+    const rows = (await (await fetch(`${EXDB}/dist/exercises.json`, { signal: AbortSignal.timeout(30_000) })).json()) as DbExercise[];
+    writeFileSync(file, JSON.stringify(rows));
+    return rows;
+  })().catch((e) => ((catalogue = null), Promise.reject(e)));
+  return catalogue;
+}
+const words = (s: string) => new Set(s.toLowerCase().replace(/[^a-z0-9 ]/g, ' ').split(/\s+/).filter((w) => w.length > 1 && !['the', 'with', 'and', 'on', 'to'].includes(w)));
+
+gym.get('/demo', async (c) => {
+  const name = c.req.query('name') ?? '';
+  try {
+    const rows = await exerciseDb();
+    let hit = rows.find((r) => r.id === (demoId(name) ?? c.req.query('id')));
+    // An exercise the coach invented: best word overlap, only if it's clearly the same move.
+    if (!hit) {
+      const w = words(name);
+      const scored = rows.map((r) => {
+        const x = words(r.name);
+        const inter = [...w].filter((t) => x.has(t)).length;
+        return { r, s: inter / (w.size + x.size - inter || 1) };
+      });
+      const best = scored.sort((a, b) => b.s - a.s)[0];
+      if (best && best.s >= 0.6) hit = best.r;
+    }
+    if (!hit) return c.json(null);
+    return c.json({ id: hit.id, name: hit.name, level: hit.level, equipment: hit.equipment, muscles: hit.primaryMuscles, steps: hit.instructions, frames: hit.images.length });
+  } catch (e) {
+    return c.json({ error: (e as Error).message }, 502);
+  }
+});
+
+gym.get('/demo-img/:id/:n', async (c) => {
+  const { id, n } = c.req.param();
+  if (!/^[\w()'.,-]+$/.test(id) || !/^[01]$/.test(n)) return c.json({ error: 'bad id' }, 400);
+  const dir = join(DATA_DIR, 'exercise-img');
+  const file = join(dir, `${id}_${n}.jpg`);
+  if (!existsSync(file)) {
+    const r = await fetch(`${EXDB}/exercises/${encodeURIComponent(id)}/${n}.jpg`, { signal: AbortSignal.timeout(15_000) }).catch(() => null);
+    if (!r?.ok) return c.json({ error: 'not found' }, 404);
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(file, Buffer.from(await r.arrayBuffer()));
+  }
+  return c.body(readFileSync(file), 200, { 'content-type': 'image/jpeg', 'cache-control': 'public, max-age=31536000, immutable' });
 });

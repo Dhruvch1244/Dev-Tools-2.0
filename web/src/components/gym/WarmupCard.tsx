@@ -6,6 +6,7 @@ import { api } from '../../lib/api';
 import { haptic, today } from '../../lib/format';
 import { minutesOf, type Phase } from '../../core/warmup';
 import { Card, cx } from '../ui';
+import { DemoThumb, ExerciseDemo } from './ExerciseDemo';
 
 const clock = (s: number) => (s >= 60 ? `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}` : `${s}s`);
 
@@ -28,6 +29,8 @@ export function WarmupCard({ kind, title, phases, open: startOpen = true, accent
   const n = all.filter(done).length;
   const [open, setOpen] = useState(startOpen && n < all.length);
   const [timer, setTimer] = useState<{ ref: string; left: number } | null>(null);
+  // The drill whose demo is open (tap a drill to see how it's done).
+  const [shown, setShown] = useState<string | null>(null);
 
   useEffect(() => {
     if (!timer) return;
@@ -74,24 +77,38 @@ export function WarmupCard({ kind, title, phases, open: startOpen = true, accent
                       const on = done(r);
                       const running = timer?.ref === r;
                       return (
-                        <li key={r} className={cx('flex items-center gap-3 rounded-md bg-bg px-3 py-2', on && 'opacity-60')}>
-                          <button onClick={() => (haptic(10), toggle.mutate(r))} aria-pressed={on} aria-label={`Done: ${d.name}`} className={cx('grid size-7 shrink-0 place-items-center rounded-md border-2', on ? 'border-green bg-green text-black' : 'border-line-strong')}>
-                            {on && <Check className="size-4" />}
-                          </button>
-                          <div className="min-w-0 flex-1">
-                            <p className={cx('text-sm font-bold', on && 'line-through')}>{d.name}</p>
-                            <p className="text-tiny text-ink-3">
-                              <span className="font-mono font-bold text-ink-2">{d.dose}</span> · {d.cue}
-                            </p>
-                          </div>
-                          {d.secs && !on && (
-                            <button onClick={() => setTimer(running ? null : { ref: r, left: d.secs! })} className={cx('flex h-8 shrink-0 items-center gap-1 rounded-md px-2 font-mono text-tiny font-bold', running ? 'bg-accent text-white' : 'bg-surface-2 text-ink-2')}>
-                              <Timer className="size-3.5" /> {clock(running ? timer!.left : d.secs)}
+                        <li key={r} className={cx('rounded-md bg-bg', on && 'opacity-60')}>
+                          <div className="flex items-center gap-3 px-3 py-2">
+                            <button onClick={() => (haptic(10), toggle.mutate(r))} aria-pressed={on} aria-label={`Done: ${d.name}`} className={cx('grid size-7 shrink-0 place-items-center rounded-md border-2', on ? 'border-green bg-green text-black' : 'border-line-strong')}>
+                              {on && <Check className="size-4" />}
                             </button>
-                          )}
-                          <a href={`https://www.youtube.com/results?search_query=${encodeURIComponent(`${d.name} how to`)}`} target="_blank" rel="noreferrer" aria-label={`Video: ${d.name}`} className="grid size-8 shrink-0 place-items-center rounded-md text-ink-3">
-                            <Play className="size-3.5" />
-                          </a>
+                            <button onClick={() => setShown(shown === r ? null : r)} aria-expanded={shown === r} className="flex min-w-0 flex-1 items-center gap-3 text-left">
+                              <DemoThumb name={d.name} className="h-11 w-14" />
+                              <span className="min-w-0 flex-1">
+                                <span className={cx('block text-sm font-bold', on && 'line-through')}>{d.name}</span>
+                                <span className="block text-tiny text-ink-3">
+                                  <span className="font-mono font-bold text-ink-2">{d.dose}</span> · {d.cue}
+                                </span>
+                              </span>
+                            </button>
+                            {d.secs && !on && (
+                              <button onClick={() => setTimer(running ? null : { ref: r, left: d.secs! })} className={cx('flex h-8 shrink-0 items-center gap-1 rounded-md px-2 font-mono text-tiny font-bold', running ? 'bg-accent text-white' : 'bg-surface-2 text-ink-2')}>
+                                <Timer className="size-3.5" /> {clock(running ? timer!.left : d.secs)}
+                              </button>
+                            )}
+                          </div>
+                          <AnimatePresence initial={false}>
+                            {shown === r && (
+                              <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
+                                <div className="px-3 pb-3">
+                                  <ExerciseDemo name={d.name} />
+                                  <a href={`https://www.youtube.com/results?search_query=${encodeURIComponent(`${d.name} how to`)}`} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1 text-tiny font-bold uppercase text-accent">
+                                    <Play className="size-3" /> Watch a video
+                                  </a>
+                                </div>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
                         </li>
                       );
                     })}

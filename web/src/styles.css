@@ -636,3 +636,18 @@ html[data-kb] .chat-dock {
   border: 3px solid white;
   box-shadow: 0 0 0 6px rgb(79 179 255 / 0.25);
 }
+
+/* Exercise demos: the finish photo fades in over the start photo and back — the movement on loop. */
+@keyframes demo-flip {
+  0%, 38% { opacity: 0; }
+  50%, 88% { opacity: 1; }
+  100% { opacity: 0; }
+}
+.demo-flip {
+  animation: demo-flip 2.6s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .demo-flip {
+    animation-duration: 6s;
+  }
+}
