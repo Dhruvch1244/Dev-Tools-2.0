@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronLeft, ChevronRight, Radio, Sparkles } from 'lucide-react';
 import { api, useList, useSettings } from '../lib/api';
 import { addDays, parseDate, today } from '../lib/format';
-import { e1rm, volume } from '../core/gym';
+import { setScore, volume } from '../core/gym';
 import { DEFAULT_PROFILE, targets } from '../core/fuel';
 import { ALL_PRACTICE, POINTS } from '../core/dsa/plan';
 import type { Activity, DsaProgress, DsaTest, FoodLog, GymSet, Habit, HabitLog, Health, Routine, RoutineLog, Workout } from '../lib/types';
@@ -129,8 +129,8 @@ export function ReportPage() {
       const ss = sets.filter((s) => inRange(s.date, a, b));
       const prior = sets.filter((s) => s.date < a);
       const prs = [...new Set(ss.map((s) => s.exercise))].filter((ex) => {
-        const best = Math.max(0, ...prior.filter((s) => s.exercise === ex).map((s) => e1rm(s.weight, s.reps)));
-        return best > 0 && ss.some((s) => s.exercise === ex && e1rm(s.weight, s.reps) > best);
+        const best = Math.max(0, ...prior.filter((s) => s.exercise === ex).map((s) => setScore(s.weight, s.reps)));
+        return best > 0 && ss.some((s) => s.exercise === ex && setScore(s.weight, s.reps) > best);
       }).length;
       const fd = food.filter((f) => inRange(f.date, a, b));
       const days = new Set(fd.map((f) => f.date)).size;

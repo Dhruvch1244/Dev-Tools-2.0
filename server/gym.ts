@@ -42,6 +42,8 @@ function history(names: string[]) {
       const lastDay = mine.at(-1)!.date;
       const last = mine.filter((s) => s.date === lastDay);
       const best = Math.max(...mine.map((s) => e1rm(s.weight, s.reps)));
+      // 0 kg = bodyweight: tell the coach so it progresses reps, not load.
+      if (best <= 0) return `${n}: bodyweight, last ${last.map((s) => s.reps).join(', ')} reps (${lastDay}) · best ${Math.max(...mine.map((s) => s.reps))} reps`;
       return `${n}: last ${last.map((s) => `${s.weight}×${s.reps}`).join(', ')} (${lastDay}) · best e1RM ${Math.round(best)}`;
     })
     .join('\n');
@@ -134,7 +136,7 @@ gym.post('/debrief', async (c) => {
     `Week ${r.from} → ${r.to}: ${r.sessions}/${r.planned} planned sessions, ${r.sets} sets, ${r.volume} kg volume${r.volumeChange != null ? ` (${r.volumeChange > 0 ? '+' : ''}${r.volumeChange}% vs previous week)` : ''}.`,
     `Sets per muscle (target): ${r.muscles.map((m) => `${m.muscle} ${m.sets} (${m.min}-${m.max}) ${m.status}`).join('; ')}`,
     r.pushPull != null ? `Push:pull ratio ${r.pushPull}` : '',
-    r.prs.length ? `PRs: ${r.prs.map((p) => `${p.exercise} ${p.weight}×${p.reps}`).join(', ')}` : 'No PRs',
+    r.prs.length ? `PRs: ${r.prs.map((p) => `${p.exercise} ${p.weight > 0 ? p.weight : 'BW'}×${p.reps}`).join(', ')}` : 'No PRs',
     `Best e1RM per lift this week: ${[...best].map(([n, v]) => `${n} ${Math.round(v)}`).join(', ') || 'none'}`,
     `App flags: ${r.flags.join(' | ') || 'none'}`,
   ]

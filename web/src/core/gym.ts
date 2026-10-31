@@ -83,6 +83,12 @@ export type SetRow = { exercise: string; weight: number; reps: number };
 /** Epley estimate. Rep counts above ~12 make any 1RM formula unreliable, so cap the input. */
 export const e1rm = (weight: number, reps: number) => (reps <= 0 ? 0 : weight * (1 + Math.min(reps, 12) / 30));
 export const volume = (sets: SetRow[]) => sets.reduce((a, s) => a + s.weight * s.reps, 0);
+/**
+ * How good a set is, for PRs and sector colours. Loaded sets compare by e1RM; bodyweight sets
+ * (logged at 0 kg — calf raises on a step, push-ups) compare by reps, and any loaded set ranks above
+ * a bodyweight one. Volume stays external load only, so bodyweight sets add sets, not kilos.
+ */
+export const setScore = (weight: number, reps: number) => (weight > 0 ? e1rm(weight, reps) : Math.max(0, reps) / 1000);
 
 /**
  * F1 timing colours for a set, like a sector on the timing screen:
@@ -93,7 +99,7 @@ export const volume = (sets: SetRow[]) => sets.reduce((a, s) => a + s.weight * s
  * Only the session-best set can be purple; otherwise a first session paints every set purple.
  */
 export function sectorColor(set: SetRow, sessionBest: number, priorBest: number, lastSessionBest: number): 'purple' | 'green' | 'yellow' {
-  const v = e1rm(set.weight, set.reps);
+  const v = setScore(set.weight, set.reps);
   if (v > 0 && v === sessionBest && v > priorBest) return 'purple';
   if (v > lastSessionBest) return 'green';
   return 'yellow';
@@ -102,7 +108,7 @@ export function sectorColor(set: SetRow, sessionBest: number, priorBest: number,
 /** Best e1RM per exercise across sets, optionally excluding one workout. */
 export function bestByExercise(sets: (SetRow & { workout_id: string })[], excludeWorkout?: string) {
   const m = new Map<string, number>();
-  for (const s of sets) if (s.workout_id !== excludeWorkout) m.set(s.exercise, Math.max(m.get(s.exercise) ?? 0, e1rm(s.weight, s.reps)));
+  for (const s of sets) if (s.workout_id !== excludeWorkout) m.set(s.exercise, Math.max(m.get(s.exercise) ?? 0, setScore(s.weight, s.reps)));
   return m;
 }
 
@@ -129,6 +135,12 @@ export function suggestNext(exercise: string, reps: string, last: SetRow[]): Sug
   const top = Math.max(...last.map((s) => s.weight));
   const atTop = last.filter((s) => s.weight === top);
   const step = BIG_LOWER.test(exercise) ? 5 : 2.5;
+  // Bodyweight: progress by reps; past the top of the range, more reps or a harder version.
+  if (top <= 0) {
+    const best = Math.max(...last.map((s) => s.reps));
+    if (last.every((s) => s.reps >= hi)) return { weight: 0, reps: best + 1, why: `Every set hit ${hi} at bodyweight — go for ${best + 1}, or hold a dumbbell / go single-leg` };
+    return { weight: 0, reps: Math.min(hi, best + 1), why: `Bodyweight — beat ${best} reps (aim ${Math.min(hi, best + 1)})` };
+  }
   if (atTop.every((s) => s.reps >= hi)) return { weight: top + step, reps: lo, why: `All sets hit ${hi} at ${top} kg — add ${step} kg` };
   const best = Math.max(...atTop.map((s) => s.reps));
   return { weight: top, reps: Math.min(hi, best + 1), why: `Stay at ${top} kg, beat ${best} reps (aim ${Math.min(hi, best + 1)})` };

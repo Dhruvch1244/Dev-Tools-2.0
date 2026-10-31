@@ -4,7 +4,7 @@
 // research tallies weekly volume. Pure: no React, no I/O.
 
 import { EXERCISES, muscleOf, type Muscle } from './exercises';
-import { e1rm, type DayType } from './gym';
+import { setScore, type DayType } from './gym';
 
 /** Body-map regions — the library's muscles minus Cardio. */
 export type Region = Exclude<Muscle, 'Cardio'>;
@@ -128,13 +128,13 @@ export function weekReport(to: string, sets: SetLike[], workouts: WorkoutLike[],
   const press = counts.Chest + counts.Shoulders + counts.Triceps * 0.5;
   const pull = counts.Back + counts['Rear delts'] + counts.Biceps * 0.5;
   const before = new Map<string, number>();
-  for (const s of sets) if (s.date < from) before.set(s.exercise, Math.max(before.get(s.exercise) ?? 0, e1rm(s.weight, s.reps)));
+  for (const s of sets) if (s.date < from) before.set(s.exercise, Math.max(before.get(s.exercise) ?? 0, setScore(s.weight, s.reps)));
   const bestInWeek = new Map<string, SetLike>();
   for (const s of week) {
     const b = bestInWeek.get(s.exercise);
-    if (!b || e1rm(s.weight, s.reps) > e1rm(b.weight, b.reps)) bestInWeek.set(s.exercise, s);
+    if (!b || setScore(s.weight, s.reps) > setScore(b.weight, b.reps)) bestInWeek.set(s.exercise, s);
   }
-  const prs = [...bestInWeek.values()].filter((s) => (before.get(s.exercise) ?? 0) > 0 && e1rm(s.weight, s.reps) > before.get(s.exercise)!).map(({ exercise, weight, reps }) => ({ exercise, weight, reps }));
+  const prs = [...bestInWeek.values()].filter((s) => (before.get(s.exercise) ?? 0) > 0 && setScore(s.weight, s.reps) > before.get(s.exercise)!).map(({ exercise, weight, reps }) => ({ exercise, weight, reps }));
 
   const flags: string[] = [];
   const v = vol(week);

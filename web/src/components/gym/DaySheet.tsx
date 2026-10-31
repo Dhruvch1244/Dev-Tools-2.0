@@ -15,7 +15,7 @@ import { Button, Sheet, cx } from '../ui';
 import { useToast } from '../toast';
 
 const TYPES: Exclude<DayType, 'rest'>[] = ['push', 'pull', 'legs', 'upper', 'lower'];
-const kg = (n: number) => `${+n.toFixed(1)}`;
+const kg = (n: number) => (n > 0 ? `${+n.toFixed(1)}` : 'BW');
 
 /** Quick add of one set to an exercise in a past/edited session. */
 function AddSet({ onAdd }: { onAdd: (w: number, r: number) => void }) {

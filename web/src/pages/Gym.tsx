@@ -6,7 +6,7 @@ import { ExercisePicker } from '../components/ExercisePicker';
 import { useList, useResource, useSettings } from '../lib/api';
 import { addDays, haptic, parseDate, relativeDay, today } from '../lib/format';
 import { listItem, spring } from '../lib/motion';
-import { CYCLE, DAY_META, DEFAULT_TEMPLATES, bestByExercise, dayTypeOn, e1rm, platesPerSide, sectorColor, suggestNext, volume, type DayType, type Exercise } from '../core/gym';
+import { CYCLE, DAY_META, DEFAULT_TEMPLATES, bestByExercise, dayTypeOn, e1rm, platesPerSide, sectorColor, setScore, suggestNext, volume, type DayType, type Exercise } from '../core/gym';
 import { EXERCISES } from '../core/exercises';
 import type { GymSet, Workout } from '../lib/types';
 import { Chequered, CountdownBar, SectorChip, SectorLegend, StartLights, Telemetry } from '../components/f1';
@@ -23,7 +23,8 @@ import { DemoThumb } from '../components/gym/ExerciseDemo';
 import { cooldownFor, warmupFor } from '../core/warmup';
 import { AnimatedNumber, Button, Card, IconButton, Input, Page, PageHeader, Rise, SectionTitle, Sheet, cx } from '../components/ui';
 
-const kg = (n: number) => `${+n.toFixed(1)}`;
+// 0 kg is a bodyweight set.
+const kg = (n: number) => (n > 0 ? `${+n.toFixed(1)}` : 'BW');
 
 function useTemplates() {
   const { settings, save } = useSettings();
@@ -118,8 +119,8 @@ function ExerciseCard({ ex, workout, sets, lastSets, priorBest, onLogged, onSwap
   const barbell = EXERCISES.find((e) => e.name === ex.name)?.equipment === 'Barbell';
   const plates = barbell && Number(weight) ? platesPerSide(Number(weight)) : null;
   const done = sets.length >= ex.sets;
-  const lastBest = lastSets.reduce((m, s) => Math.max(m, e1rm(s.weight, s.reps)), 0);
-  const sessionBest = sets.reduce((m, s) => Math.max(m, e1rm(s.weight, s.reps)), 0);
+  const lastBest = lastSets.reduce((m, s) => Math.max(m, setScore(s.weight, s.reps)), 0);
+  const sessionBest = sets.reduce((m, s) => Math.max(m, setScore(s.weight, s.reps)), 0);
 
   const log = async () => {
     const w = Number(weight);
@@ -165,7 +166,7 @@ function ExerciseCard({ ex, workout, sets, lastSets, priorBest, onLogged, onSwap
       )}
       {coach && !target?.weight && sets.length < ex.sets && (
         <p className="mt-2 flex items-center gap-1.5 text-xs font-semibold text-green">
-          <span className="slant bg-green px-1.5 text-micro font-black text-black">COACH</span> {coach.why} → {coach.weight} × {coach.reps}
+          <span className="slant bg-green px-1.5 text-micro font-black text-black">COACH</span> {coach.why} → {kg(coach.weight)} × {coach.reps}
         </p>
       )}
       {!lastSets.length && sets.length === 0 && <p className="mt-2 text-xs text-ink-3">First time: pick a weight you could do for {ex.reps} with ~2 reps left in the tank.</p>}
@@ -196,6 +197,7 @@ function ExerciseCard({ ex, workout, sets, lastSets, priorBest, onLogged, onSwap
         <Stepper value={weight} onChange={setWeight} step={2.5} unit="kg" label="Weight" decimal />
         <span className="pb-3 text-ink-3 max-sm:hidden">×</span>
         <Stepper value={reps} onChange={setReps} step={1} unit="reps" label="Reps" />
+        {!Number(weight) && reps && <p className="basis-full text-tiny text-ink-3">0 kg = bodyweight · counted by reps (more reps = faster lap)</p>}
         {plates && plates.length > 0 && (
           <p className="basis-full font-mono text-tiny text-ink-3">
             Per side on a 20 kg bar: <span className="text-ink">{plates.join(' + ')}</span>
@@ -234,7 +236,7 @@ function Session({ workout, template, sets, allSets, workouts, onGuide, targets 
   const prior = useMemo(() => bestByExercise(allSets, workout.id), [allSets, workout.id]);
   // A PR needs history to beat — a first-ever benchmark isn't counted as one.
   const sessionMax = bestByExercise(sets);
-  const prs = [...sessionMax].filter(([name, v]) => (prior.get(name) ?? 0) > 0 && v > prior.get(name)!).map(([name]) => sets.filter((s) => s.exercise === name).sort((a, b) => e1rm(b.weight, b.reps) - e1rm(a.weight, a.reps))[0]);
+  const prs = [...sessionMax].filter(([name, v]) => (prior.get(name) ?? 0) > 0 && v > prior.get(name)!).map(([name]) => sets.filter((s) => s.exercise === name).sort((a, b) => setScore(b.weight, b.reps) - setScore(a.weight, a.reps))[0]);
   const mins = Math.round((Date.now() - new Date(workout.started_at ?? workout.created_at).getTime()) / 60000);
 
   return (
@@ -513,7 +515,10 @@ function WeeklyVolume({ sets }: { sets: GymSet[] }) {
 function ProgressSheet({ exercise, sets, onClose }: { exercise: string | null; sets: GymSet[]; onClose: () => void }) {
   const points = useMemo(() => {
     const byDate = new Map<string, number>();
-    for (const s of sets) if (s.exercise === exercise) byDate.set(s.date, Math.max(byDate.get(s.date) ?? 0, e1rm(s.weight, s.reps)));
+    const mine = sets.filter((s) => s.exercise === exercise);
+    // Bodyweight-only: the line is reps; otherwise e1RM of the loaded sets.
+    const bw = mine.every((s) => s.weight <= 0);
+    for (const s of mine) byDate.set(s.date, Math.max(byDate.get(s.date) ?? 0, bw ? s.reps : e1rm(s.weight, s.reps)));
     return [...byDate].sort((a, b) => a[0].localeCompare(b[0])).map(([date, v]) => ({ date, v: Math.round(v) }));
   }, [exercise, sets]);
   const [hover, setHover] = useState<number | null>(null);
@@ -562,9 +567,9 @@ function PrBoard({ sets }: { sets: GymSet[] }) {
     const best = new Map<string, GymSet>();
     for (const s of sets) {
       const b = best.get(s.exercise);
-      if (!b || e1rm(s.weight, s.reps) > e1rm(b.weight, b.reps)) best.set(s.exercise, s);
+      if (!b || setScore(s.weight, s.reps) > setScore(b.weight, b.reps)) best.set(s.exercise, s);
     }
-    return [...best.values()].sort((a, b) => e1rm(b.weight, b.reps) - e1rm(a.weight, a.reps)).slice(0, 8);
+    return [...best.values()].sort((a, b) => setScore(b.weight, b.reps) - setScore(a.weight, a.reps)).slice(0, 8);
   }, [sets]);
   return (
     <Card>
@@ -584,7 +589,7 @@ function PrBoard({ sets }: { sets: GymSet[] }) {
               <span className="font-mono text-ink-2">
                 {kg(s.weight)}×{s.reps}
               </span>
-              <span className="w-16 text-right font-mono font-bold text-purple">{Math.round(e1rm(s.weight, s.reps))}</span>
+              <span className="w-16 text-right font-mono font-bold text-purple">{s.weight > 0 ? Math.round(e1rm(s.weight, s.reps)) : `${s.reps}r`}</span>
             </motion.li>
           ))}
         </ol>

@@ -3,7 +3,7 @@ import { motion } from 'motion/react';
 import { CircleAlert, ListChecks, Play, Settings2, Wind, Zap } from 'lucide-react';
 import { api } from '../../lib/api';
 import { relativeDay } from '../../lib/format';
-import { e1rm } from '../../core/gym';
+import { e1rm, setScore } from '../../core/gym';
 import { videoLinks, type Guide } from '../../core/gymAi';
 import type { Region } from '../../core/gymStats';
 import type { GymSet } from '../../lib/types';
@@ -34,7 +34,7 @@ function Block({ icon: Icon, title, items, tone = 'text-ink-2', ordered }: { ico
 export function GuideSheet({ name, sets, onClose, onPick }: { name: string | null; sets: GymSet[]; onClose: () => void; onPick?: (name: string) => void }) {
   const { data: g, isLoading, error } = useQuery({ queryKey: ['gym-guide', name], queryFn: () => api<Guide>(`/gym/guide/${encodeURIComponent(name!)}`), enabled: !!name, staleTime: Infinity, retry: false });
   const mine = sets.filter((s) => s.exercise === name);
-  const best = mine.reduce<GymSet | null>((b, s) => (!b || e1rm(s.weight, s.reps) > e1rm(b.weight, b.reps) ? s : b), null);
+  const best = mine.reduce<GymSet | null>((b, s) => (!b || setScore(s.weight, s.reps) > setScore(b.weight, b.reps) ? s : b), null);
   const lastDay = mine.at(-1)?.date;
   const heat: Partial<Record<Region, number>> = { ...Object.fromEntries((g?.secondary ?? []).map((m) => [m, 0.45])), ...Object.fromEntries((g?.primary ?? []).map((m) => [m, 1])) };
   return (
@@ -70,7 +70,7 @@ export function GuideSheet({ name, sets, onClose, onPick }: { name: string | nul
               )}
               {best && (
                 <p className="rounded-md bg-bg px-2.5 py-2 font-mono text-tiny text-ink-2">
-                  Best {best.weight}×{best.reps} (~{Math.round(e1rm(best.weight, best.reps))} 1RM)
+                  {best.weight > 0 ? `Best ${best.weight}×${best.reps} (~${Math.round(e1rm(best.weight, best.reps))} 1RM)` : `Best ${best.reps} reps at bodyweight`}
                   {lastDay && <><br />Last: {relativeDay(lastDay)}</>}
                 </p>
               )}

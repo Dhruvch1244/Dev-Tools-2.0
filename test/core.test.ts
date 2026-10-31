@@ -1,7 +1,7 @@
 // Pure core logic (web/src/core). Runs without a browser: `npm test`.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { CYCLE, dayTypeOn, e1rm, platesPerSide, sectorColor, suggestNext, repRange } from '../web/src/core/gym.ts';
+import { CYCLE, dayTypeOn, e1rm, platesPerSide, sectorColor, setScore, suggestNext, repRange } from '../web/src/core/gym.ts';
 import { bmr, mealForNow, targets, DEFAULT_PROFILE } from '../web/src/core/fuel.ts';
 import { FOODS } from '../web/src/core/foods.ts';
 import { parseFoodText, proteinFixes } from '../web/src/core/foodParse.ts';
@@ -142,4 +142,18 @@ test('jot sorting: lists validated, gifts keep a person, dated things become act
   assert.deepEqual(r.items.map((i) => [i.list, i.title, i.person]), [['places', 'Bukhara', null], ['gifts', 'Pashmina shawl', 'Mom'], ['note', 'Call plumber', null]]);
   assert.equal(r.actions[0].type, 'plan');
   assert.deepEqual(normaliseSorted('nonsense'), { items: [], actions: [] });
+});
+
+test('bodyweight sets (0 kg) are scored by reps and progress by reps', () => {
+  const bw = (reps: number) => ({ exercise: 'Standing Calf Raise', weight: 0, reps });
+  assert.ok(setScore(0, 20) > setScore(0, 15), 'more reps is better');
+  assert.ok(setScore(2.5, 1) > setScore(0, 50), 'any load beats bodyweight');
+  // 20 reps after a best of 15: a PR (purple), not the old always-yellow.
+  assert.equal(sectorColor(bw(20), setScore(0, 20), setScore(0, 15), setScore(0, 15)), 'purple');
+  assert.equal(sectorColor(bw(12), setScore(0, 20), setScore(0, 15), setScore(0, 15)), 'yellow');
+  const next = suggestNext('Standing Calf Raise', '12-15', [bw(13), bw(12)]);
+  assert.deepEqual([next?.weight, next?.reps], [0, 14]);
+  const past = suggestNext('Standing Calf Raise', '12-15', [bw(16), bw(15)]);
+  assert.equal(past?.weight, 0, 'never tells you to add 2.5 kg to bodyweight');
+  assert.equal(past?.reps, 17);
 });
