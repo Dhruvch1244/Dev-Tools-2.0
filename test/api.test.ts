@@ -192,3 +192,18 @@ test('undo a tick-off: a paid repeating bill goes back to its date and its expen
   await call(`/r/tasks/${once.id}`, { method: 'PATCH', json: { done: 0 } });
   assert.equal((await call('/r/expenses')).body.filter((e: { note: string }) => e.note === 'Undo once').length, 0);
 });
+
+test('scan history: saved scans list newest first by kind, and can be deleted', async () => {
+  const { DatabaseSync } = await import('node:sqlite');
+  const db = new DatabaseSync(join(dir, 'life.db'));
+  const add = db.prepare('INSERT INTO scans (id, kind, title, input, result, thumb, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)');
+  add.run('s1', 'machine', 'Seated Leg Curl', null, JSON.stringify({ machine: 'Seated Leg Curl', primary: ['Hamstrings'] }), null, '2030-01-01T10:00:00Z');
+  add.run('s2', 'machine', 'Lat Pulldown', null, JSON.stringify({ machine: 'Lat Pulldown', primary: ['Lats'] }), null, '2030-01-02T10:00:00Z');
+  add.run('s3', 'food', 'Rajma, Roti', null, JSON.stringify({ items: [], note: '' }), null, '2030-01-02T11:00:00Z');
+  db.close();
+  const list = (await call('/scans?kind=machine')).body;
+  assert.deepEqual(list.map((s: { id: string }) => s.id), ['s2', 's1']);
+  assert.equal(list[0].result.primary[0], 'Lats');
+  await call('/scans/s2', { method: 'DELETE' });
+  assert.deepEqual((await call('/scans?kind=machine')).body.map((s: { id: string }) => s.id), ['s1']);
+});

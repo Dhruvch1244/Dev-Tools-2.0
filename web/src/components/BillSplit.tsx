@@ -7,6 +7,7 @@ import { emojiFor } from '../lib/categories';
 import { ME, RECEIPT_CATEGORIES, balances, balancesSummary, settleMessage, splitShares, type Receipt } from '../core/money';
 import type { Expense, PersonRow, SplitRow } from '../lib/types';
 import { shrink } from './AiSnap';
+import { ScanHistory, maybeThumb, useScans } from './ScanHistory';
 import { PersonPicker } from './Contacts';
 import { Button, Input, Sheet, cx } from './ui';
 import { useToast } from './toast';
@@ -31,6 +32,7 @@ export function BillSheet({ open, onClose }: { open: boolean; onClose: () => voi
   const [assign, setAssign] = useState<Record<number, string[]>>({});
   const [payer, setPayer] = useState<string>(ME);
 
+  const { refresh } = useScans<Receipt>('receipt');
   const reset = () => (setPhoto(null), setR(null), setErr(''), setWho([ME]), setMode('equal'), setAssign({}), setPayer(ME));
   const manual = () => setR({ merchant: '', date: today(), items: [], extras: 0, total: 0, category: 'Food', note: '' });
   const read = async (f?: File) => {
@@ -40,7 +42,8 @@ export function BillSheet({ open, onClose }: { open: boolean; onClose: () => voi
     try {
       const img = await shrink(f, 1600);
       setPhoto(img);
-      const res = await api<Receipt>('/money/receipt', { method: 'POST', body: JSON.stringify({ image: img }) });
+      const res = await api<Receipt>('/money/receipt', { method: 'POST', body: JSON.stringify({ image: img, thumb: await maybeThumb(img) }) });
+      refresh();
       if (!res.total) setErr(res.note || "Couldn't read a total — type it in below.");
       setR({ ...res, date: res.date ?? today() });
       haptic(12);
@@ -102,6 +105,7 @@ export function BillSheet({ open, onClose }: { open: boolean; onClose: () => voi
           </Button>
           <p className="text-center text-tiny text-ink-3">Restaurant bills, Swiggy/Zomato or cab screenshots, grocery receipts — AI reads items, taxes and the total.</p>
           {err && <p className="text-sm text-warn">{err}</p>}
+          {!busy && <ScanHistory<Receipt> kind="receipt" onOpen={(s) => (setPhoto(s.thumb), setR({ ...s.result, date: s.result.date ?? today() }))} sub={(s) => s.result.date ?? s.result.category} limit={5} />}
         </div>
       ) : (
         <div className="space-y-4">

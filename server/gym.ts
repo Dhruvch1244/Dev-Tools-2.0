@@ -9,6 +9,7 @@ import { demoId } from '../web/src/core/exerciseDemos.ts';
 import { settings } from './briefs.ts';
 import { ask, type Prompt } from './coach.ts';
 import { localStamp } from './push.ts';
+import { saveScan } from './scans.ts';
 import { extractJson } from '../web/src/core/aiFood.ts';
 import { DAY_META, DEFAULT_TEMPLATES, dayTypeOn, e1rm, type DayType, type Exercise } from '../web/src/core/gym.ts';
 import { DAY_MUSCLES } from '../web/src/core/exercises.ts';
@@ -93,7 +94,7 @@ gym.get('/guide/:name', async (c) => {
 });
 
 gym.post('/machine', async (c) => {
-  const { image, text } = await c.req.json<{ image?: string; text?: string }>();
+  const { image, text, thumb } = await c.req.json<{ image?: string; text?: string; thumb?: string }>();
   const m = image?.match(/^data:(image\/(?:jpeg|png|webp|gif));base64,(.+)$/);
   if (!m && !text?.trim()) return c.json({ error: 'Add a photo of the machine' }, 400);
   if (m && m[2].length > 8_000_000) return c.json({ error: 'Photo too large' }, 413);
@@ -101,7 +102,8 @@ gym.post('/machine', async (c) => {
   const prompt: Prompt = m ? [{ type: 'image', source: { type: 'base64', media_type: m[1], data: m[2] } }, { type: 'text', text: t }] : t;
   try {
     const reply = await ask(MACHINE_SYSTEM, prompt, { onDelta: () => {}, signal: c.req.raw.signal });
-    return c.json(normaliseMachine(extractJson(reply)));
+    const res = normaliseMachine(extractJson(reply));
+    return c.json({ ...res, scan_id: saveScan('machine', res.machine, text, res, thumb) });
   } catch (e) {
     return c.json(fail(e), 502);
   }

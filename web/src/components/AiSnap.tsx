@@ -1,15 +1,16 @@
 import { useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { Camera, ImagePlus, Minus, Plus, Sparkles, Trash2, TriangleAlert, X, Zap } from 'lucide-react';
+import { Bookmark, Camera, ImagePlus, Minus, Plus, Sparkles, Trash2, TriangleAlert, X, Zap } from 'lucide-react';
 import { useResource, useSettings } from '../lib/api';
 import { MEALS } from '../core/fuel';
 import { rescale, type AiItem, type AiResult } from '../core/aiFood';
 import { amount } from '../core/portion';
 import type { Diet } from '../core/foods';
-import type { FoodLog } from '../lib/types';
+import type { FoodLog, SavedMeal } from '../lib/types';
 import { haptic } from '../lib/format';
 import { Button, Textarea, cx } from './ui';
 import { useToast } from './toast';
+import { ScanHistory, maybeThumb, useScans } from './ScanHistory';
 
 /** Downscale on the phone before upload: a 12 MP photo becomes ~150 KB, plenty for the model. */
 export async function shrink(file: File, max = 1280): Promise<string> {
@@ -40,6 +41,8 @@ export function AiSnap({ date, meal, onMealChange, onDone }: { date: string; mea
   const { settings } = useSettings();
   const diet: Diet = settings.diet ?? 'veg';
   const { create } = useResource<FoodLog>('food_logs');
+  const savedApi = useResource<SavedMeal>('saved_meals');
+  const { refresh } = useScans<AiResult>('food');
   const toast = useToast();
   const camera = useRef<HTMLInputElement>(null);
   const gallery = useRef<HTMLInputElement>(null);
@@ -71,10 +74,11 @@ export function AiSnap({ date, meal, onMealChange, onDone }: { date: string; mea
     const tick = setInterval(() => setLine((l) => (l + 1) % LINES.length), 1800);
     ctl.current = new AbortController();
     try {
-      const r = await fetch('/api/fuel/vision', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ image: photo ?? undefined, text, diet }), signal: ctl.current.signal });
+      const r = await fetch('/api/fuel/vision', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ image: photo ?? undefined, text, diet, thumb: await maybeThumb(photo) }), signal: ctl.current.signal });
       const j = await r.json().catch(() => ({ error: `AI unavailable (${r.status})` }));
       if (!r.ok) throw new Error(j.error ?? 'AI unavailable');
       setRes(j);
+      refresh();
       haptic(12);
       if (!j.items.length) setErr(j.note || "Couldn't spot any food — try a clearer photo or describe it.");
     } catch (e) {
@@ -88,6 +92,13 @@ export function AiSnap({ date, meal, onMealChange, onDone }: { date: string; mea
   const setItem = (i: number, it: AiItem | null) => setRes((r) => r && { ...r, items: it ? r.items.map((x, j) => (j === i ? it : x)) : r.items.filter((_, j) => j !== i) });
   const items = res?.items ?? [];
   const total = items.reduce((a, x) => ({ kcal: a.kcal + x.kcal, protein: a.protein + x.protein }), { kcal: 0, protein: 0 });
+
+  const saveMeal = async () => {
+    const name = prompt('Name this meal', items.map((x) => x.name).slice(0, 2).join(' + '))?.trim();
+    if (!name) return;
+    await savedApi.create({ name, meal, items: JSON.stringify(items.map(({ food_id, name, qty, unit, kcal, protein, carbs, fat, micros }) => ({ food_id, name, qty, unit, kcal, protein, carbs, fat, micros: JSON.stringify(micros) }))) });
+    toast({ message: `Saved “${name}” — one tap under Add → Saved meals` });
+  };
 
   const log = async () => {
     for (const x of items)
@@ -197,14 +208,18 @@ export function AiSnap({ date, meal, onMealChange, onDone }: { date: string; mea
               <Button variant="ghost" onClick={() => setRes(null)}>
                 Redo
               </Button>
+              <Button variant="soft" onClick={() => void saveMeal()} aria-label="Save as a meal">
+                <Bookmark className="size-4" />
+              </Button>
               <Button className="flex-1" onClick={() => void log()}>
-                <Zap className="size-4" /> Log {items.length} · {Math.round(total.kcal)} kcal · {Math.round(total.protein)} g P
+                <Zap className="size-4" /> Log · {Math.round(total.kcal)} kcal · {Math.round(total.protein)}g P
               </Button>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
-      {!res && !busy && <p className="text-center text-tiny text-ink-3">Runs on your laptop with your Claude login · nothing is stored but what you log</p>}
+      {!res && !busy && !photo && <ScanHistory<AiResult> kind="food" onOpen={(s) => (setRes(s.result), setPhoto(s.thumb), setErr(''))} sub={(s) => `${Math.round(s.result.items.reduce((a, x) => a + x.kcal, 0))} kcal · P${Math.round(s.result.items.reduce((a, x) => a + x.protein, 0))}`} limit={6} />}
+      {!res && !busy && <p className="text-center text-tiny text-ink-3">Runs on your laptop with your Claude login · past scans are kept here so you can log them again</p>}
     </div>
   );
 }

@@ -1,11 +1,15 @@
 import { useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { BookOpen, Camera, CircleAlert, ImagePlus, ListChecks, Settings2, ShieldAlert } from 'lucide-react';
+import { BookOpen, Camera, Check, CircleAlert, ImagePlus, ListChecks, Plus, Settings2, ShieldAlert } from 'lucide-react';
 import type { Machine } from '../../core/gymAi';
 import type { Region } from '../../core/gymStats';
 import { BodyMap } from '../BodyMap';
 import { shrink } from '../AiSnap';
+import { ScanHistory, maybeThumb, useScans } from '../ScanHistory';
+import { useSettings } from '../../lib/api';
+import { haptic, today } from '../../lib/format';
 import { Button, Sheet, Textarea } from '../ui';
+import { useToast } from '../toast';
 
 const LINES = ['Looking at the machine…', 'Working out what it trains…', 'Writing setup steps…'];
 
@@ -19,6 +23,16 @@ export function MachineScan({ open, onClose, onGuide }: { open: boolean; onClose
   const [line, setLine] = useState(0);
   const [res, setRes] = useState<Machine | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const { refresh } = useScans<Machine>('machine');
+  const { settings, save } = useSettings();
+  const toast = useToast();
+  const t = today();
+  const inToday = settings.gymAdded?.date === t ? settings.gymAdded.names : [];
+  const addToday = (name: string) => {
+    haptic(10);
+    if (!inToday.includes(name)) save({ gymAdded: { date: t, names: [...inToday, name] } });
+    toast({ message: `${name} added to today’s session`, action: { label: 'Undo', onClick: () => save({ gymAdded: { date: t, names: inToday.filter((n) => n !== name) } }) } });
+  };
 
   const pick = async (f?: File) => {
     if (!f) return;
@@ -31,10 +45,11 @@ export function MachineScan({ open, onClose, onGuide }: { open: boolean; onClose
     setErr(null);
     const id = setInterval(() => setLine((l) => (l + 1) % LINES.length), 1600);
     try {
-      const r = await fetch('/api/gym/machine', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ image: photo ?? undefined, text }) });
+      const r = await fetch('/api/gym/machine', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ image: photo ?? undefined, text, thumb: await maybeThumb(photo) }) });
       const j = await r.json().catch(() => ({ error: `AI unavailable (${r.status})` }));
       if (!r.ok) throw new Error(j.error ?? 'AI unavailable');
       setRes(j);
+      refresh();
     } catch (e) {
       setErr((e as Error).message);
     } finally {
@@ -73,6 +88,7 @@ export function MachineScan({ open, onClose, onGuide }: { open: boolean; onClose
             {busy ? LINES[line] : 'Explain this machine'}
           </Button>
           {err && <p className="text-sm text-accent">{err}</p>}
+          {!photo && !busy && <ScanHistory<Machine> kind="machine" onOpen={(s) => (setRes(s.result), setPhoto(s.thumb))} sub={(s) => s.result.primary.join(', ')} />}
         </div>
       )}
       <AnimatePresence>
@@ -126,15 +142,25 @@ export function MachineScan({ open, onClose, onGuide }: { open: boolean; onClose
                 <ShieldAlert className="mt-0.5 size-4 shrink-0" /> {res.safety}
               </p>
             )}
-            {res.exercises.length > 0 && (
-              <div className="flex flex-wrap gap-2">
-                {res.exercises.map((n) => (
-                  <Button key={n} size="sm" variant="soft" onClick={() => onGuide(n)}>
-                    <BookOpen className="size-4" /> {n} guide
-                  </Button>
-                ))}
-              </div>
-            )}
+            <section className="space-y-2 rounded-xl border border-line bg-bg p-3">
+              <p className="text-micro font-black uppercase tracking-[0.2em] text-accent">Use it today</p>
+              {(res.exercises.length ? res.exercises : [res.machine]).map((n) => {
+                const on = inToday.includes(n);
+                return (
+                  <div key={n} className="flex items-center gap-2">
+                    <span className="min-w-0 flex-1 truncate text-sm font-semibold">{n}</span>
+                    {res.exercises.includes(n) && (
+                      <button onClick={() => onGuide(n)} aria-label={`${n} guide`} className="grid size-9 place-items-center rounded-md bg-surface-2 text-ink-2">
+                        <BookOpen className="size-4" />
+                      </button>
+                    )}
+                    <Button size="sm" variant={on ? 'soft' : 'primary'} disabled={on} onClick={() => addToday(n)}>
+                      {on ? <Check className="size-4" /> : <Plus className="size-4" />} {on ? 'In today' : 'Add to today'}
+                    </Button>
+                  </div>
+                );
+              })}
+            </section>
             <Button variant="ghost" className="w-full" onClick={() => (setRes(null), setPhoto(null), setText(''))}>
               <Camera className="size-4" /> Scan another
             </Button>

@@ -220,7 +220,10 @@ function Session({ workout, template, sets, allSets, workouts, onGuide, targets 
   const planned = template.map((t) => (swaps[t.name] ? { ...t, name: swaps[t.name] } : t));
   const loggedNames = [...new Set(sets.map((s) => s.exercise))];
   const exercises: Exercise[] = [...planned, ...loggedNames.filter((n) => !planned.some((t) => t.name === n)).map((name) => ({ name, sets: 3, reps: '8-12' }))];
-  const [added, setAdded] = useState<Exercise[]>([]);
+  // Added exercises live in settings, so a machine scanned before the session (or an app reload) keeps them.
+  const { settings, save } = useSettings();
+  const added: Exercise[] = (settings.gymAdded?.date === workout.date ? settings.gymAdded.names : []).map((name) => ({ name, sets: 3, reps: '8-12' }));
+  const setAdded = (fn: (a: Exercise[]) => Exercise[]) => save({ gymAdded: { date: workout.date, names: fn(added).map((e) => e.name) } });
   const all = [...exercises, ...added.filter((a) => !exercises.some((e) => e.name === a.name))];
   const original = (name: string) => Object.entries(swaps).find(([, v]) => v === name)?.[0] ?? name;
 

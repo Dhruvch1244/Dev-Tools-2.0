@@ -32,6 +32,8 @@ export type Settings = {
   gymShift?: number;
   gymTemplates?: Partial<Record<string, { name: string; sets: number; reps: string }[]>>;
   /** Today's AI-planned session (core/gymAi GymPlan), used instead of the template on that date. */
+  /** Exercises added to a day's session (from the library or a machine scan), kept until that day is over. */
+  gymAdded?: { date: string; names: string[] };
   gymPlan?: { date: string; day_type: import('../core/gym').DayType; plan: import('../core/gymAi').GymPlan };
   fuel?: { sex: 'male' | 'female'; age: number; height: number; weight: number; activity: number; goal: 'cut' | 'maintain' | 'bulk' };
   dsaStart?: string;

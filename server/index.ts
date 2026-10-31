@@ -31,6 +31,7 @@ import { gym } from './gym.ts';
 import { money } from './money.ts';
 import { storyRoutes } from './story.ts';
 import { hookRoutes } from './hooks.ts';
+import { saveScan, scanRoutes } from './scans.ts';
 import { SORT_SYSTEM, normaliseSorted } from '../web/src/core/notes.ts';
 
 const PORT = Number(process.env.PORT ?? 4300);
@@ -47,6 +48,7 @@ const listeners = new Set<(resource: string) => void>();
 const emit = (resource: string) => listeners.forEach((fn) => fn(resource));
 app.route('/api/story', storyRoutes(emit));
 app.route('/api/hook', hookRoutes(emit));
+app.route('/api/scans', scanRoutes(emit));
 
 app.get('/api/events', (c) =>
   streamSSE(c, async (stream) => {
@@ -689,7 +691,7 @@ app.post('/api/ai/capture', async (c) => {
 
 // ---- AI meal logging: photo and/or description → items to review, then log ----
 app.post('/api/fuel/vision', async (c) => {
-  const { image, text, diet = 'veg' } = await c.req.json<{ image?: string; text?: string; diet?: 'veg' | 'egg' | 'nonveg' }>();
+  const { image, text, diet = 'veg', thumb } = await c.req.json<{ image?: string; text?: string; diet?: 'veg' | 'egg' | 'nonveg'; thumb?: string }>();
   const m = image?.match(/^data:(image\/(?:jpeg|png|webp|gif));base64,(.+)$/);
   if (image && !m) return c.json({ error: 'Send the photo as a JPEG/PNG data URL' }, 400);
   if (!m && !text?.trim()) return c.json({ error: 'Add a photo or describe the meal' }, 400);
@@ -698,7 +700,9 @@ app.post('/api/fuel/vision', async (c) => {
   const prompt: Prompt = m ? [{ type: 'image', source: { type: 'base64', media_type: m[1], data: m[2] } }, { type: 'text', text: userText }] : userText;
   try {
     const reply = await ask(AI_FOOD_SYSTEM, prompt, { onDelta: () => {}, signal: c.req.raw.signal });
-    return c.json(normaliseAi(extractJson(reply), diet));
+    const res = normaliseAi(extractJson(reply), diet);
+    // Kept for the history list only when it found something to log.
+    return c.json(res.items.length ? { ...res, scan_id: saveScan('food', res.items.map((x) => x.name).join(', '), text, res, thumb) } : res);
   } catch (e) {
     return c.json({ error: (e as Error).message }, 502);
   }
@@ -706,7 +710,7 @@ app.post('/api/fuel/vision', async (c) => {
 
 // ---- AI receipt reading: photo → merchant, items, extras, total, category ----
 app.post('/api/money/receipt', async (c) => {
-  const { image, text } = await c.req.json<{ image?: string; text?: string }>();
+  const { image, text, thumb } = await c.req.json<{ image?: string; text?: string; thumb?: string }>();
   const m = image?.match(/^data:(image\/(?:jpeg|png|webp|gif));base64,(.+)$/);
   if (!m && !text?.trim()) return c.json({ error: 'Add a photo of the bill' }, 400);
   if (m && m[2].length > 8_000_000) return c.json({ error: 'Photo too large' }, 413);
@@ -714,7 +718,8 @@ app.post('/api/money/receipt', async (c) => {
   const prompt: Prompt = m ? [{ type: 'image', source: { type: 'base64', media_type: m[1], data: m[2] } }, { type: 'text', text: ask_ }] : ask_;
   try {
     const reply = await ask(RECEIPT_SYSTEM, prompt, { onDelta: () => {}, signal: c.req.raw.signal });
-    return c.json(normaliseReceipt(extractJson(reply)));
+    const res = normaliseReceipt(extractJson(reply));
+    return c.json(res.total ? { ...res, scan_id: saveScan('receipt', `${res.merchant || 'Bill'} · ₹${Math.round(res.total)}`, text, res, thumb) } : res);
   } catch (e) {
     return c.json({ error: (e as Error).message }, 502);
   }
