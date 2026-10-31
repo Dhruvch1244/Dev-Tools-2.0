@@ -12,7 +12,7 @@ import { profiles, upcomingContests } from './contests.ts';
 import { run, type Lang } from './runner.ts';
 import { getQuestion } from './leetcode.ts';
 import { judge, support } from './judge.ts';
-import { completeTask, localStamp, publicKey, pushAll, remindersTick, subscribe, subscriptions, taskAction, unsubscribe } from './push.ts';
+import { completeTask, undoComplete, localStamp, publicKey, pushAll, remindersTick, subscribe, subscriptions, taskAction, unsubscribe } from './push.ts';
 import { claimToday, nowHM, schedule, startScheduler } from './scheduler.ts';
 import { listBackups, runBackup } from './backup.ts';
 import * as google from './google.ts';
@@ -147,16 +147,27 @@ app.patch('/api/r/:res/:id', async (c) => {
   const res = RESOURCES[name];
   if (!res) return c.json({ error: 'unknown resource' }, 404);
   const patch = { ...pickColumns(res, await c.req.json()), updated_at: now() };
+  const wasDone = name === 'tasks' && (db.prepare('SELECT done FROM tasks WHERE id = ?').get(c.req.param('id')) as { done: number } | undefined)?.done === 1;
   const keys = Object.keys(patch);
   db.prepare(`UPDATE ${name} SET ${keys.map((k) => `${k} = ?`).join(', ')} WHERE id = ?`).run(...Object.values(patch), c.req.param('id'));
   // Ticking off a repeating task rolls it to the next due date instead of closing it.
   if (name === 'tasks' && (patch as Record<string, unknown>).done === 1) (completeTask(c.req.param('id')), emit('expenses'));
+  // Unticking takes the tick back properly: a paid bill's expense comes out of Money again.
+  else if (wasDone && (patch as Record<string, unknown>).done === 0) (undoComplete(c.req.param('id'), false), emit('expenses'));
   // Every "Talked" is kept as a call check, so daily calls (Mom) get a streak; an undo drops today's.
   if (name === 'people' && 'last_contact' in patch) logCall(c.req.param('id'), patch.last_contact as string | null);
   emit(name);
   if (name === 'tasks' && !('gcal_event_id' in patch) && ['due', 'title', 'place', 'duration_min', 'kind', 'notes'].some((k) => k in patch)) void google.syncTask(c.req.param('id')).then(() => emit('tasks'));
   if (name === 'routines' && !('gcal_event_id' in patch)) void google.syncRoutine(c.req.param('id')).then(() => emit('routines'));
   return c.json(db.prepare(`SELECT * FROM ${name} WHERE id = ?`).get(c.req.param('id')) ?? null);
+});
+
+// Undo a tick-off, including a repeating task that already rolled to its next date.
+app.post('/api/tasks/:id/undo', (c) => {
+  undoComplete(c.req.param('id'));
+  emit('tasks');
+  emit('expenses');
+  return c.json(db.prepare('SELECT * FROM tasks WHERE id = ?').get(c.req.param('id')) ?? null);
 });
 
 app.delete('/api/r/:res/:id', (c) => {

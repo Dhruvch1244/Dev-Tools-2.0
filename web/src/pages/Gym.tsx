@@ -1,10 +1,10 @@
 import { useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { ArrowLeftRight, BookOpen, Camera, Check as CheckIcon, ChevronDown, Flag, Minus, Pencil, Plus, Redo2, Sparkles, Timer, Trash2, Trophy, X } from 'lucide-react';
+import { ArrowLeftRight, BookOpen, Camera, Check as CheckIcon, ChevronDown, Flag, Minus, Pencil, Plus, Redo2, RotateCcw, Sparkles, Timer, Trash2, Trophy, X } from 'lucide-react';
 import { DAY_MUSCLES, muscleOf } from '../core/exercises';
 import { ExercisePicker } from '../components/ExercisePicker';
 import { useList, useResource, useSettings } from '../lib/api';
-import { addDays, parseDate, relativeDay, today } from '../lib/format';
+import { addDays, haptic, parseDate, relativeDay, today } from '../lib/format';
 import { listItem, spring } from '../lib/motion';
 import { CYCLE, DAY_META, DEFAULT_TEMPLATES, bestByExercise, dayTypeOn, e1rm, platesPerSide, sectorColor, suggestNext, volume, type DayType, type Exercise } from '../core/gym';
 import { EXERCISES } from '../core/exercises';
@@ -211,6 +211,7 @@ function ExerciseCard({ ex, workout, sets, lastSets, priorBest, onLogged, onSwap
 
 function Session({ workout, template, sets, allSets, workouts, onGuide, targets }: { workout: Workout; template: Exercise[]; sets: GymSet[]; allSets: GymSet[]; workouts: Workout[]; onGuide: (n: string) => void; targets?: Record<string, { weight: number | null; why: string | null }> }) {
   const { update } = useResource<Workout>('workouts');
+  const toast = useToast();
   const [rest, setRest] = useState(0);
   const [picking, setPicking] = useState<null | { swap?: string }>(null);
   const [finished, setFinished] = useState(false);
@@ -292,6 +293,7 @@ function Session({ workout, template, sets, allSets, workouts, onGuide, targets 
         onClick={() => {
           update({ id: workout.id, finished_at: new Date().toISOString() });
           setFinished(true);
+          toast({ message: 'Session finished', action: { label: 'Undo', onClick: () => (setFinished(false), update({ id: workout.id, finished_at: null })) } });
         }}
       >
         <Flag className="size-5" /> Finish session
@@ -315,6 +317,9 @@ function Session({ workout, template, sets, allSets, workouts, onGuide, targets 
               ))}
             </div>
           )}
+          <button onClick={() => (setFinished(false), update({ id: workout.id, finished_at: null }))} className="mt-5 text-tiny font-bold uppercase text-ink-3 underline underline-offset-4">
+            Finished by mistake? Back to the session
+          </button>
         </div>
       </Sheet>
     </div>
@@ -326,7 +331,7 @@ function TodayPanel({ shift, workouts, sets, onGuide }: { shift: number; workout
   const t = today();
   const planned = dayTypeOn(t, shift);
   const [override, setOverride] = useState<DayType | null>(null);
-  const { create } = useResource<Workout>('workouts');
+  const { create, update } = useResource<Workout>('workouts');
   const { forToday, todayPlan } = useTemplates();
   const [planning, setPlanning] = useState(false);
   const { save, settings } = useSettings();
@@ -356,6 +361,7 @@ function TodayPanel({ shift, workouts, sets, onGuide }: { shift: number; workout
 
   if (active?.finished_at) {
     const s = sets.filter((x) => x.workout_id === active.id);
+    const resume = () => (haptic(10), update({ id: active.id, finished_at: null }));
     return (
       <div className="space-y-4">
         <Card className="flex flex-col items-center gap-4 py-10 text-center sm:flex-row sm:text-left">
@@ -366,6 +372,9 @@ function TodayPanel({ shift, workouts, sets, onGuide }: { shift: number; workout
               {s.length} sets · {Math.round(volume(s))} kg volume. Next up: <b className="text-ink">{tomorrow.label}</b> tomorrow.
             </p>
           </div>
+          <Button variant="soft" onClick={resume}>
+            <RotateCcw className="size-4" /> Resume session
+          </Button>
         </Card>
         {cool(true)}
       </div>
@@ -584,7 +593,7 @@ function PrBoard({ sets }: { sets: GymSet[] }) {
 }
 
 function History({ workouts, sets }: { workouts: Workout[]; sets: GymSet[] }) {
-  const { remove, create } = useResource<Workout>('workouts');
+  const { remove, create, update } = useResource<Workout>('workouts');
   const setsApi = useResource<GymSet>('sets');
   const toast = useToast();
   const [open, setOpen] = useState<string | null>(null);
@@ -633,9 +642,16 @@ function History({ workouts, sets }: { workouts: Workout[]; sets: GymSet[] }) {
                           <span className="font-mono text-ink">{s.filter((x) => x.exercise === name).map((x) => `${kg(x.weight)}×${x.reps}`).join('  ')}</span>
                         </p>
                       ))}
-                      <Button size="sm" variant="danger" className="mt-2" onClick={() => del(w)}>
-                        <Trash2 className="size-3.5" /> Delete session
-                      </Button>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {w.date === today() && (
+                          <Button size="sm" variant="soft" onClick={() => (update({ id: w.id, finished_at: null }), toast({ message: 'Session reopened — it’s back on Today' }))}>
+                            <RotateCcw className="size-3.5" /> Reopen
+                          </Button>
+                        )}
+                        <Button size="sm" variant="danger" onClick={() => del(w)}>
+                          <Trash2 className="size-3.5" /> Delete session
+                        </Button>
+                      </div>
                     </div>
                   </motion.div>
                 )}

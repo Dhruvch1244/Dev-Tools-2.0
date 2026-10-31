@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { Bell, CalendarClock, Flag, ListTodo, Repeat as RepeatIcon, Trash2 } from 'lucide-react';
-import { useList, useResource } from '../lib/api';
+import { useList, useResource, useUndoTask } from '../lib/api';
 import { listItem } from '../lib/motion';
 import { dueLabel, today } from '../lib/format';
 import type { Task } from '../lib/types';
@@ -19,6 +19,7 @@ type Filter = 'today' | 'upcoming' | 'someday' | 'done';
 export function useTaskToggle() {
   const { update } = useResource<Task>('tasks');
   const toast = useToast();
+  const undo = useUndoTask();
   const [pending, setPending] = useState<Record<string, boolean>>({});
   const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const isDone = (t: Task) => pending[t.id] ?? !!t.done;
@@ -29,7 +30,7 @@ export function useTaskToggle() {
     timers.current[t.id] = setTimeout(() => {
       update({ id: t.id, done: next ? 1 : 0, done_at: next ? new Date().toISOString() : null });
       // The server rolls a repeating task forward instead of closing it.
-      if (next && t.repeat && t.due) toast({ message: `Done · next ${dueLabel(nextDue(t.due, t.repeat, today()))}` });
+      if (next) toast({ message: t.repeat && t.due ? `Done · next ${dueLabel(nextDue(t.due, t.repeat, today()))}` : `Done · ${t.title}`, action: { label: 'Undo', onClick: () => void undo(t.id) } });
       setPending(({ [t.id]: _, ...rest }) => rest);
     }, 650);
   };

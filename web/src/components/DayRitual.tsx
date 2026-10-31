@@ -3,7 +3,7 @@ import { Link, useSearchParams } from 'react-router';
 import { AnimatePresence, motion } from 'motion/react';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowLeft, ArrowRight, Check, Flag, Moon, Plus, Sunrise, Trash2, X } from 'lucide-react';
-import { api, useList, useResource, useSettings } from '../lib/api';
+import { api, useList, useResource, useSettings, useUndoTask } from '../lib/api';
 import { addDays, haptic, today } from '../lib/format';
 import type { DayRow, Task } from '../lib/types';
 import { ENERGY, SHUTDOWN_STEPS, parseTop, runEnding, toTomorrow, topJson, type Top } from '../core/day';
@@ -13,6 +13,7 @@ import { weatherOf } from '../core/people';
 import { useHabits } from '../lib/habits';
 import { Daily3, useStory } from './Daily3';
 import { Button, Card, Sheet, cx } from './ui';
+import { useToast } from './toast';
 
 /** A stable id per date, so the phone and laptop (even offline) write the same row. */
 const dayId = (date: string) => `00000000-0000-4000-8000-${date.replace(/-/g, '')}0000`;
@@ -124,13 +125,18 @@ export function DayCard() {
           </ul>
         )}
         <TopThree items={top} onChange={(items) => void save({ intention: topJson(items) })} />
-        {evening &&
+        {(evening || row?.shutdown_at) &&
           (row?.shutdown_at ? (
             <div className="checker-band flex items-center justify-between gap-3 rounded-md p-3">
               <span className="text-sm font-bold">🏁 Shut down at {new Date(row.shutdown_at).toTimeString().slice(0, 5)}</span>
-              <button onClick={() => setOpen(true)} className="text-tiny font-bold uppercase text-accent">
-                Reopen
-              </button>
+              <span className="flex gap-3">
+                <button onClick={() => void save({ shutdown_at: null })} className="text-tiny font-bold uppercase text-ink-2">
+                  Undo
+                </button>
+                <button onClick={() => setOpen(true)} className="text-tiny font-bold uppercase text-accent">
+                  Redo
+                </button>
+              </span>
             </div>
           ) : (
             <Button className="w-full" onClick={() => (haptic(15), setOpen(true))}>
@@ -155,6 +161,8 @@ export function ShutdownSheet({ open, onClose }: { open: boolean; onClose: () =>
   const { data: brief } = useBrief();
   const { data: tasks = [] } = useList<Task>('tasks');
   const tasksApi = useResource<Task>('tasks');
+  const undo = useUndoTask();
+  const toast = useToast();
   const { habits, isDone, isDue, toggle } = useHabits();
   const story = useStory();
   const [win, setWin] = useState('');
@@ -192,6 +200,9 @@ export function ShutdownSheet({ open, onClose }: { open: boolean; onClose: () =>
             </Link>
             <Button onClick={onClose}>Done</Button>
           </div>
+          <button onClick={() => (void day.save({ shutdown_at: null }), setDoneAt(null), setStep(0), onClose())} className="text-tiny font-bold uppercase text-ink-3 underline underline-offset-4">
+            Closed by mistake? Undo
+          </button>
         </div>
       ) : (
         <div className="space-y-4">
@@ -224,7 +235,7 @@ export function ShutdownSheet({ open, onClose }: { open: boolean; onClose: () =>
                   {loops.map((x) => (
                     <div key={x.id} className="flex items-center gap-2 rounded-md bg-bg px-3 py-2">
                       <span className="min-w-0 flex-1 truncate text-sm font-semibold">{x.title}</span>
-                      <button onClick={() => (haptic(10), tasksApi.update({ id: x.id, done: 1, done_at: new Date().toISOString() }))} className="rounded-md bg-green px-2 py-1 text-tiny font-black uppercase text-black">
+                      <button onClick={() => (haptic(10), tasksApi.update({ id: x.id, done: 1, done_at: new Date().toISOString() }), toast({ message: `Done · ${x.title}`, action: { label: 'Undo', onClick: () => void undo(x.id) } }))} className="rounded-md bg-green px-2 py-1 text-tiny font-black uppercase text-black">
                         Done
                       </button>
                       <button onClick={() => tasksApi.update({ id: x.id, due: toTomorrow(x.due, tm) })} className="rounded-md bg-surface-2 px-2 py-1 text-tiny font-black uppercase">

@@ -129,6 +129,16 @@ export function useResource<T extends Row>(resource: string) {
   return { create: (data: Partial<T>) => create.mutateAsync({ ...data, id: (data as Partial<Row>).id ?? uuid() } as Partial<T>), update: update.mutate, remove: remove.mutate };
 }
 
+/** Take back a tick-off on the server: reopens it (back to its old date if it rolled) and drops a paid bill's expense. */
+export function useUndoTask() {
+  const qc = useQueryClient();
+  return async (id: string) => {
+    await api(`/tasks/${id}/undo`, { method: 'POST' });
+    void qc.invalidateQueries({ queryKey: ['tasks'] });
+    void qc.invalidateQueries({ queryKey: ['expenses'] });
+  };
+}
+
 export function useSettings() {
   const qc = useQueryClient();
   const { data = {} } = useQuery({ queryKey: ['settings'], queryFn: () => api<Settings>('/settings') });

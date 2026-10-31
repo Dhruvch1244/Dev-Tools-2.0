@@ -176,3 +176,19 @@ test('widget snapshot has everything the Scriptable script reads', async () => {
   for (const k of ['date', 'gym', 'kcal', 'protein', 'water', 'habits', 'story', 'work', 'next', 'shutdown', 'top']) assert.ok(k in w, k);
   assert.ok(w.kcal.target > 0 && w.protein.target > 0);
 });
+
+test('undo a tick-off: a paid repeating bill goes back to its date and its expense leaves Money', async () => {
+  const bill = (await call('/r/tasks', { method: 'POST', json: { title: 'Undo rent', kind: 'bill', amount: 777, due: '2030-03-05', repeat: 'monthly' } })).body;
+  await call(`/r/tasks/${bill.id}`, { method: 'PATCH', json: { done: 1 } });
+  const spent = async () => (await call('/r/expenses')).body.filter((e: { note: string }) => e.note === 'Undo rent').length;
+  assert.equal(await spent(), 1);
+  const back = (await call(`/tasks/${bill.id}/undo`, { method: 'POST' })).body;
+  assert.equal(back.due, '2030-03-05');
+  assert.equal(back.done, 0);
+  assert.equal(await spent(), 0);
+  // A one-off: unticking it in the list takes the expense back out too.
+  const once = (await call('/r/tasks', { method: 'POST', json: { title: 'Undo once', kind: 'bill', amount: 50, due: '2030-03-06' } })).body;
+  await call(`/r/tasks/${once.id}`, { method: 'PATCH', json: { done: 1 } });
+  await call(`/r/tasks/${once.id}`, { method: 'PATCH', json: { done: 0 } });
+  assert.equal((await call('/r/expenses')).body.filter((e: { note: string }) => e.note === 'Undo once').length, 0);
+});

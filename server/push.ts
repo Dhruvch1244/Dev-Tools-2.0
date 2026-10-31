@@ -17,6 +17,8 @@ db.exec(`
     endpoint TEXT PRIMARY KEY, keys TEXT NOT NULL, device TEXT, created_at TEXT NOT NULL
   );
   CREATE TABLE IF NOT EXISTS push_sent (task_id TEXT NOT NULL, due TEXT NOT NULL, sent_at TEXT NOT NULL, PRIMARY KEY (task_id, due));
+  -- The last tick-off of each task (its due before rolling, the bill expense it logged), so a mis-tap can be undone.
+  CREATE TABLE IF NOT EXISTS task_undo (task_id TEXT PRIMARY KEY, due TEXT, expense_id TEXT, at TEXT NOT NULL);
 `);
 
 const keyFile = join(DATA_DIR, 'vapid.json');
@@ -134,15 +136,29 @@ export const remindersTick = async () => (await tick(), await planTick());
 export function completeTask(taskId: string) {
   const t = db.prepare('SELECT title, due, repeat, kind, amount FROM tasks WHERE id = ?').get(taskId) as { title: string; due: string | null; repeat: string | null; kind: string | null; amount: number | null } | undefined;
   const stamp = new Date().toISOString();
+  let expense: string | null = null;
   // Paying a bill is spending: it lands in Money under Bills, so the month's total stays honest.
-  if (t?.kind === 'bill' && t.amount && t.amount > 0)
-    db.prepare("INSERT INTO expenses (id, amount, kind, category, note, date, created_at, updated_at) VALUES (?, ?, 'expense', 'Bills', ?, ?, ?, ?)").run(crypto.randomUUID(), t.amount, t.title, localStamp(new Date()).slice(0, 10), stamp, stamp);
+  if (t?.kind === 'bill' && t.amount && t.amount > 0) {
+    expense = crypto.randomUUID();
+    db.prepare("INSERT INTO expenses (id, amount, kind, category, note, date, created_at, updated_at) VALUES (?, ?, 'expense', 'Bills', ?, ?, ?, ?)").run(expense, t.amount, t.title, localStamp(new Date()).slice(0, 10), stamp, stamp);
+  }
+  if (t) db.prepare('INSERT OR REPLACE INTO task_undo (task_id, due, expense_id, at) VALUES (?, ?, ?, ?)').run(taskId, t.due, expense, stamp);
   if (t?.due && isRepeat(t.repeat)) {
     db.prepare('UPDATE tasks SET due = ?, done = 0, done_at = NULL, updated_at = ? WHERE id = ?').run(nextDue(t.due, t.repeat, localStamp(new Date()).slice(0, 10)), stamp, taskId);
     return true;
   }
   db.prepare('UPDATE tasks SET done = 1, done_at = ?, updated_at = ? WHERE id = ?').run(stamp, stamp, taskId);
   return false;
+}
+
+/** Take back the last tick-off: open again, back on its old due date, and the bill's expense removed. */
+export function undoComplete(taskId: string, restoreDue = true) {
+  const u = db.prepare('SELECT due, expense_id FROM task_undo WHERE task_id = ?').get(taskId) as { due: string | null; expense_id: string | null } | undefined;
+  const stamp = new Date().toISOString();
+  if (u?.expense_id) db.prepare('DELETE FROM expenses WHERE id = ?').run(u.expense_id);
+  if (u && restoreDue) db.prepare('UPDATE tasks SET due = ?, done = 0, done_at = NULL, updated_at = ? WHERE id = ?').run(u.due, stamp, taskId);
+  else db.prepare('UPDATE tasks SET done = 0, done_at = NULL, updated_at = ? WHERE id = ?').run(stamp, taskId);
+  db.prepare('DELETE FROM task_undo WHERE task_id = ?').run(taskId);
 }
 
 /** Notification button actions, handled without opening the app. */

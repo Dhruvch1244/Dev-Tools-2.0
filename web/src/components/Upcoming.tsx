@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { ArrowUp, Check, Loader2, MapPin, Plus, ReceiptIndianRupee, Star, Trash2 } from 'lucide-react';
-import { api, useList, useResource } from '../lib/api';
+import { api, useList, useResource, useUndoTask } from '../lib/api';
 import { daysBetween, haptic, parseDate, today } from '../lib/format';
 import type { AiAction } from '../core/aiActions';
 import type { Note, Task } from '../lib/types';
@@ -59,10 +59,11 @@ export function Upcoming() {
       setBusy(false);
     }
   };
+  const undo = useUndoTask();
   const paid = (b: Task) => {
     haptic(12);
     update({ id: b.id, done: 1 });
-    toast({ message: b.amount ? `Paid · ₹${b.amount.toLocaleString('en-IN')} logged in Money` : 'Marked paid' });
+    toast({ message: b.amount ? `Paid · ₹${b.amount.toLocaleString('en-IN')} logged in Money` : 'Marked paid', action: { label: 'Undo', onClick: () => void undo(b.id) } });
   };
 
   return (

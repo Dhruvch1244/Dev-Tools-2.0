@@ -166,8 +166,8 @@ function Subscriptions({ currency }: { currency: string }) {
   const markPaid = (s: Subscription) => {
     const next = s.cycle === 'yearly' ? addMonths(s.next_date, 12) : s.cycle === 'weekly' ? addDays(s.next_date, 7) : addMonths(s.next_date, 1);
     update({ id: s.id, next_date: next });
-    void expenses.create({ amount: s.amount, kind: 'expense', category: s.category, note: s.name, date: today() });
-    toast({ message: `${s.name} paid · next ${relativeDay(next)}` });
+    const logged = expenses.create({ amount: s.amount, kind: 'expense', category: s.category, note: s.name, date: today() });
+    toast({ message: `${s.name} paid · next ${relativeDay(next)}`, action: { label: 'Undo', onClick: () => (update({ id: s.id, next_date: s.next_date }), void logged.then((e) => expenses.remove(e.id))) } });
   };
 
   return (

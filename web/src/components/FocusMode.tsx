@@ -52,6 +52,7 @@ function chime() {
  */
 export function FocusPill() {
   const { active, now, end, update } = useFocus();
+  const t = today();
   const [away, setAway] = useState<number | null>(null);
   const [finished, setFinished] = useState<FocusRow | null>(null);
   const hiddenAt = useRef<number | null>(null);
@@ -130,6 +131,11 @@ export function FocusPill() {
               <b>{Math.round(finished.minutes)} min</b> focused on {finished.label}
               {finished.distractions ? ` · ${finished.distractions} wander${finished.distractions > 1 ? 's' : ''}` : ' · clean stint'}. Stand up, water, 5 min.
             </span>
+            {finished.minutes < finished.planned - 0.5 && finished.date === t && (
+              <button onClick={() => (update({ id: finished.id, ended_at: null, minutes: 0 }), setFinished(null))} className="rounded-md bg-surface-2 px-2 py-1 text-tiny font-bold uppercase">
+                Resume
+              </button>
+            )}
             <button onClick={() => setFinished(null)} aria-label="Dismiss" className="text-ink-3">
               <X className="size-4" />
             </button>

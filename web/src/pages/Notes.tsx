@@ -186,7 +186,11 @@ function ListRow({ note, onOpen, onPlan }: { note: Note; onOpen: () => void; onP
         </Button>
       )}
       {!done && list === 'buy' && (
-        <Button size="sm" variant="soft" onClick={() => (void shop.create({ name: note.title ?? '', qty: null, done: 0, source: 'manual', trip: 'minor' }), update({ id: note.id, done: 1 }), toast({ message: 'Added to the shopping top-up' }))}>
+        <Button size="sm" variant="soft" onClick={() => {
+            const added = shop.create({ name: note.title ?? '', qty: null, done: 0, source: 'manual', trip: 'minor' });
+            update({ id: note.id, done: 1 });
+            toast({ message: 'Added to the shopping top-up', action: { label: 'Undo', onClick: () => (update({ id: note.id, done: 0 }), void added.then((r) => shop.remove(r.id))) } });
+          }}>
           <ShoppingCart className="size-4" /> List
         </Button>
       )}
